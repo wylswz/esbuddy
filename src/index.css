@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@theme {
+  --color-event: #f97316;
+  --color-event-bg: #fff7ed;
+  --color-command: #3b82f6;
+  --color-command-bg: #eff6ff;
+  --color-aggregate: #10b981;
+  --color-aggregate-bg: #ecfdf5;
+  --color-actor: #eab308;
+  --color-actor-bg: #fefce8;
+  --color-policy: #a855f7;
+  --color-policy-bg: #faf5ff;
+  --color-external: #ec4899;
+  --color-external-bg: #fdf2f8;
+}
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
+/*
+ * Skeuomorphic whiteboard surface.
+ * Event Storming happens on a real whiteboard, so the canvas is styled to
+ * mimic one: a faint paper grain, a soft light wash from the top (glossy
+ * board), and a subtle vignette that gives the board depth around the edges.
+ */
+.esboard-surface {
+  background-color: #eef0f2;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E"),
+    radial-gradient(90% 65% at 50% 32%, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 100%),
+    radial-gradient(130% 130% at 50% 50%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.055) 100%),
+    linear-gradient(180deg, #fafbfc 0%, #e9ecef 100%);
+}
