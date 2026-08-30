@@ -1,4 +1,4 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useState } from 'react';
 import {
   NodeResizeControl,
   useStoreApi,
@@ -20,8 +20,16 @@ function AggregateNodeComponent({ id, data, selected }: NodeProps<AggregateNodeD
   const store = useStoreApi();
   const { updateNodeLabel } = useCanvasActions();
   const dropTargetId = useDropTarget();
+  const [editing, setEditing] = useState(false);
   const isDropTarget = dropTargetId === id;
   const style = ELEMENT_STYLES.aggregate;
+
+  const focusAndSelect = useCallback((el: HTMLInputElement | null) => {
+    if (el) {
+      el.focus();
+      el.select();
+    }
+  }, []);
 
   // Block any resize that would leave a child outside the boundary box.
   const shouldResize: ShouldResize = useCallback(
@@ -99,17 +107,31 @@ function AggregateNodeComponent({ id, data, selected }: NodeProps<AggregateNodeD
         }}
       >
         <span className="text-xs">{style.icon}</span>
-        <span
-          className="text-xs font-semibold uppercase tracking-wide outline-none"
-          contentEditable
-          suppressContentEditableWarning
-          spellCheck={false}
-          onBlur={(e) => {
-            updateNodeLabel(id, e.currentTarget.innerText.trim());
-          }}
-        >
-          {data.label}
-        </span>
+        {editing ? (
+          <input
+            ref={focusAndSelect}
+            type="text"
+            defaultValue={data.label}
+            className="w-32 bg-transparent outline-none text-xs font-semibold uppercase tracking-wide"
+            style={{ color: style.color }}
+            onBlur={(e) => {
+              updateNodeLabel(id, e.currentTarget.value.trim());
+              setEditing(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.currentTarget.blur();
+              else if (e.key === 'Escape') setEditing(false);
+            }}
+          />
+        ) : (
+          <span
+            className="text-xs font-semibold uppercase tracking-wide cursor-text"
+            title="双击编辑"
+            onDoubleClick={() => setEditing(true)}
+          >
+            {data.label}
+          </span>
+        )}
       </div>
     </div>
   );

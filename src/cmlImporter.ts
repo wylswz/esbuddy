@@ -116,6 +116,7 @@ export function createNode(type: ElementType, position: { x: number; y: number }
     actor: 'New Actor',
     policy: 'New Policy',
     external: 'New External System',
+    hotspot: 'New Hot Spot',
   };
   return {
     id,

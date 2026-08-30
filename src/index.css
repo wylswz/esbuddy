@@ -13,6 +13,8 @@
   --color-policy-bg: #faf5ff;
   --color-external: #ec4899;
   --color-external-bg: #fdf2f8;
+  --color-hotspot: #991b1b;
+  --color-hotspot-bg: #fef2f2;
 }
 
 html, body, #root {

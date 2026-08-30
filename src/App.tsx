@@ -16,6 +16,7 @@ import ReactFlow, {
   type EdgeChange,
   type Viewport,
   type NodeDragHandler,
+  type NodeMouseHandler,
   type OnMove,
   type OnMoveEnd,
 } from 'reactflow';
@@ -25,22 +26,28 @@ import { StickyNode } from './components/StickyNode';
 import { AggregateNode } from './components/AggregateNode';
 import { Toolbar } from './components/Toolbar';
 import { ExportModal } from './components/ExportModal';
+import { HelpModal } from './components/HelpModal';
 import { exportToCML } from './cmlExporter';
 import { parseCML, createNode } from './cmlImporter';
 import { CanvasActionsContext, DropTargetContext } from './CanvasContext';
 import { loadCanvas, saveCanvas, DEFAULT_CANVAS_ID } from './storage';
-import { NOTE_DEFAULT_SIZE, type ElementType, type EsCanvasState } from './types';
+import { NOTE_DEFAULT_SIZE, ELEMENT_STYLES, type ElementType, type EsCanvasState } from './types';
 
 const AGGREGATE_PADDING = 40;
+
+/*
+ * Modifier key scheme (one concern per modifier, no overlap):
+ *   Shift            — break containment: drag a child out of its aggregate to remove it.
+ *   Alt / ⌥ Option   — create a relation: select a node, then click another to connect them.
+ *   Cmd/Ctrl (⌘)     — multi-select (React Flow default).
+ */
 const REMOVE_MODIFIER_KEY: 'Shift' | 'Alt' | 'Control' | 'Meta' = 'Shift';
 
-const NODE_SHORTCUTS: Record<string, ElementType> = {
-  e: 'event',
-  c: 'command',
-  a: 'actor',
-  p: 'policy',
-  x: 'external',
-};
+const NODE_SHORTCUTS: Record<string, ElementType> = {};
+(Object.keys(ELEMENT_STYLES) as ElementType[]).forEach((type) => {
+  const shortcut = ELEMENT_STYLES[type].shortcut;
+  if (shortcut) NODE_SHORTCUTS[shortcut.toLowerCase()] = type;
+});
 
 const nodeTypes = {
   event: StickyNode,
@@ -49,6 +56,7 @@ const nodeTypes = {
   actor: StickyNode,
   policy: StickyNode,
   external: StickyNode,
+  hotspot: StickyNode,
 };
 
 const initialNodes: Node[] = [
@@ -288,6 +296,7 @@ function App() {
   const [edges, setEdges] = useState<Edge[]>(() => snapshot?.edges ?? initialEdges);
   const [viewport, setViewport] = useState<Viewport | null>(() => snapshot?.viewport ?? null);
   const [showExport, setShowExport] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [exportedCml, setExportedCml] = useState('');
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
@@ -295,6 +304,8 @@ function App() {
   const canvasRef = useRef<HTMLDivElement>(null);
   const mouseRef = useRef({ x: 0, y: 0 });
   const viewportRef = useRef<Viewport | null>(snapshot?.viewport ?? null);
+  const selectionRef = useRef<string[]>([]);
+  const prevSelectionRef = useRef<string[]>([]);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
@@ -327,6 +338,19 @@ function App() {
   }, []);
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
+    // Track selection synchronously (before React's effect-based onSelectionChange)
+    // so Alt+click can read the pre-click selection as the connect source.
+    const selectChanges = changes.filter((c) => c.type === 'select');
+    if (selectChanges.length > 0) {
+      prevSelectionRef.current = selectionRef.current;
+      const nextSelection = new Set(selectionRef.current);
+      for (const c of selectChanges) {
+        if (c.selected) nextSelection.add(c.id);
+        else nextSelection.delete(c.id);
+      }
+      selectionRef.current = Array.from(nextSelection);
+    }
+
     setNodes((nds) => {
       const applied = applyNodeChanges(changes, nds);
       const followed = followAggregateChildren(nds, applied, changes);
@@ -343,6 +367,34 @@ function App() {
   const onConnect = useCallback(
     (conn: Connection) =>
       setEdges((eds) => addEdge({ ...conn, markerEnd: { type: MarkerType.ArrowClosed } }, eds)),
+    [],
+  );
+
+  // Hold Alt and click a node to connect the previously selected node(s) to it.
+  const onNodeClick = useCallback<NodeMouseHandler>(
+    (event, node) => {
+      if (!event.altKey) return;
+      const sources = prevSelectionRef.current.filter((id) => id !== node.id);
+      if (sources.length === 0) return;
+
+      setEdges((eds) => {
+        let next = eds;
+        for (const sourceId of sources) {
+          const exists = next.some((e) => e.source === sourceId && e.target === node.id);
+          if (exists) continue;
+          next = addEdge(
+            {
+              id: `e_${sourceId}_${node.id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+              source: sourceId,
+              target: node.id,
+              markerEnd: { type: MarkerType.ArrowClosed },
+            },
+            next,
+          );
+        }
+        return next;
+      });
+    },
     [],
   );
 
@@ -639,6 +691,7 @@ function App() {
             onGroupAggregate={groupAsAggregate}
             onBringToFront={bringToFront}
             onSendToBack={sendToBack}
+            onHelp={() => setShowHelp(true)}
             canGroup={canGroup}
           />
 
@@ -649,6 +702,7 @@ function App() {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onNodeClick={onNodeClick}
             onSelectionChange={onSelectionChange}
             onNodeDrag={onNodeDrag}
             onNodeDragStop={onNodeDragStop}
@@ -677,6 +731,7 @@ function App() {
                   actor: '#eab308',
                   policy: '#a855f7',
                   external: '#ec4899',
+                  hotspot: '#991b1b',
                 };
                 return colors[type] || '#94a3b8';
               }}
@@ -687,6 +742,7 @@ function App() {
       </CanvasActionsContext.Provider>
 
       {showExport && <ExportModal cml={exportedCml} onClose={() => setShowExport(false)} />}
+      {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
     </div>
   );
 }

@@ -1,71 +1,127 @@
 # Esbuddy
 
-Esbuddy 是一个前端项目，用于 DDD 中的 Event Storming 可视化活动。
+Esbuddy is a front-end app for visualising Event Storming workshops in Domain-Driven Design (DDD).
 
-## 技术栈
+## Tech Stack
 
 - Vite + React 19 + TypeScript
 - TailwindCSS v4
-- React Flow (reactflow) — 自由画布
-- Lucide React — 图标库
+- React Flow (`reactflow`) — infinite canvas
 
-## Event Storming 元素
+## Event Storming Elements
 
-| 元素 | 颜色 | 说明 |
+| Element | Color | Description |
 |---|---|---|
-| **事件 (Event)** | 橙色 `#f97316` | 领域中发生的重要事情 |
-| **命令 (Command)** | 蓝色 `#3b82f6` | 触发事件的动作 |
-| **聚合 (Aggregate)** | 绿色 `#10b981` | 通过框选一组 Event/Command 创建，显示为半透明边界框 |
-| **角色 (Actor)** | 黄色 `#eab308` | 发起 Command 的角色（人或系统） |
-| **策略 (Policy)** | 紫色 `#a855f7` | 由 Event 触发的反应逻辑（"当...时，则..."） |
-| **外部系统 (External)** | 粉色 `#ec4899` | 系统边界外的依赖 |
+| **Event** | orange `#f97316` | A significant thing that happened in the domain |
+| **Command** | blue `#3b82f6` | An action that triggers an event |
+| **Aggregate** | green `#10b981` | A boundary created by grouping Events/Commands; shown as a translucent box |
+| **Actor** | yellow `#eab308` | A person or system that issues commands |
+| **Policy** | purple `#a855f7` | Reactive logic triggered by an event ("when X, then Y") |
+| **External System** | pink `#ec4899` | A dependency outside the system boundary |
+| **Hot Spot** | red `#991b1b` | A conflict, question, or risk worth flagging |
 
-## 画布交互
+## Sticky Notes
 
-- 自由拖拽画布，支持缩放、平移、无限画布、MiniMap
-- 元素可自由拖拽定位
-- 元素之间可连线：拖拽节点右侧 Handle 到另一节点左侧 Handle
-- 点击节点文字可直接内联编辑标签
-- 选中多个 Event/Command 后点击 "Group as Aggregate" 创建聚合边界框
-- Sticky Note 拟物化设计：轻微倾斜、真实阴影、纸张质感、顶部胶带条、右下角卷角
+Each element is a square sticky note with:
 
-## 导入/导出
+- a **title** (double-click to edit)
+- an optional **memo** (double-click to edit)
+- resizable via corner handles when selected
+- adjustable z-order (front/back)
 
-- **导出**：画布内容生成 Context Mapper (CML) 源码，支持复制到剪贴板和下载 .cml 文件
-- **导入**：上传 .cml 文件解析并渲染到画布
-- 支持的 CML 特性：Aggregate、Command、DomainEvent、Flow 关系
+## Aggregates
 
-## 项目结构
+- Select 2+ Events/Commands and click **Group as Aggregate** to create a boundary box.
+- The box always covers its children; dragging a child outward grows it automatically (no manual resize).
+- Dragging the aggregate moves its children with it.
+- Drop a free element onto an aggregate to add it.
+- An aggregate cannot contain another aggregate; empty aggregates are removed automatically.
+
+### Invariants
+
+1. **Containment** — a child never leaves its aggregate's bounds (enforced on add, remove, move, and resize).
+2. **No nesting** — an aggregate can never contain another aggregate.
+3. **Single parent** — an element belongs to at most one aggregate.
+4. **No orphans** — an aggregate with zero children is removed.
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|---|---|
+| `E` | Add an **Event** at the mouse cursor |
+| `C` | Add a **Command** at the mouse cursor |
+| `A` | Add an **Actor** at the mouse cursor |
+| `P` | Add a **Policy** at the mouse cursor |
+| `X` | Add an **External System** at the mouse cursor |
+| `H` | Add a **Hot Spot** at the mouse cursor |
+| `Shift` + drag out | Remove a child from its aggregate |
+| `⌥ Option` / `Alt` + click | Connect the selected node(s) to the clicked node |
+| `]` | Bring selection to front |
+| `[` | Send selection to back |
+| `⌘ Cmd` / `Ctrl` + click | Multi-select |
+| double-click | Edit a note's title or memo |
+
+### Modifier keys (one concern per modifier)
+
+- **Shift** — break containment (remove from an aggregate)
+- **⌥ Option / Alt** — create a relation (connect nodes)
+- **⌘ Cmd / Ctrl** — multi-select
+
+## Canvas Interactions
+
+- Infinite canvas with zoom, pan, and MiniMap.
+- **Pan**: two-finger scroll, middle/right mouse button, or `Space` + drag.
+- **Zoom**: pinch gesture.
+- **Box select**: drag on empty canvas.
+- **Connect**: drag a handle, or select a node and `⌥`-click another.
+- **Auto-save**: nodes, edges, and viewport are saved to `localStorage` and restored on refresh.
+
+## Import / Export
+
+- **Export**: generate Context Mapper (CML) source from the canvas; copy to clipboard or download as `.cml`.
+- **Import**: upload a `.cml` file to parse and render it.
+- Supported CML: `Aggregate`, `Command`, `DomainEvent`, and `Flow` relations.
+
+## Project Structure
 
 ```
 src/
-├── App.tsx                    # 主应用，React Flow 画布 + 状态管理
-├── main.tsx                   # 入口
-├── index.css                  # TailwindCSS v4 + 全局样式
-├── types.ts                   # 元素类型定义 + 样式配置表
-├── cmlExporter.ts             # 画布数据 → CML 源码
-├── cmlImporter.ts             # CML 源码 → 画布数据 + createNode 工厂函数
+├── App.tsx                   # React Flow canvas + state management
+├── main.tsx                  # entry point
+├── index.css                 # TailwindCSS v4 + global styles
+├── types.ts                  # element types + style config
+├── storage.ts                # localStorage persistence
+├── CanvasContext.tsx         # canvas actions context
+├── cmlExporter.ts            # canvas data → CML source
+├── cmlImporter.ts            # CML source → canvas data + createNode factory
 ├── components/
-│   ├── StickyNode.tsx         # 通用便利贴节点组件（拟物化，支持内联编辑）
-│   ├── Toolbar.tsx            # 左侧工具栏（添加元素、框选聚合、导入导出）
-│   └── ExportModal.tsx        # CML 导出弹窗（复制/下载）
+│   ├── StickyNode.tsx        # sticky note node (title + memo, resize)
+│   ├── AggregateNode.tsx     # aggregate boundary box (resize)
+│   ├── Toolbar.tsx           # left toolbar (add, group, import/export, z-order)
+│   └── ExportModal.tsx       # CML export modal (copy/download)
 └── assets/
 ```
 
-## 开发
+## Development
 
 ```bash
 npm install
-npm run dev      # 启动开发服务器 http://localhost:5173
-npm run build    # 构建生产版本
-npm run preview  # 预览生产版本
+npm run dev      # start the dev server at http://localhost:5173
+npm run build    # build for production
+npm run preview  # preview the production build
 ```
 
-## 待办
+## Roadmap
 
-- [ ] 暗色模式适配
-- [ ] 右键菜单创建元素
-- [ ] 键盘快捷键
-- [ ] localStorage 本地保存
-- [ ] 更完整的 CML 语法支持（Actor、Policy、External System 的 CML 映射）
-- [ ] Aggregate 拖拽时子元素跟随移动
+- [ ] Dark mode
+- [ ] Right-click context menu to create elements
+- [ ] Multiple canvas switching
+- [ ] Fuller CML support (Actor, Policy, External System mappings)
+- [ ] Collaboration!
+
+## More on DDD
+
+- [Aggregates: An In-depth Examination by Thomas Coopman Gien Verschatse - DDD Europe](https://youtu.be/m7SMk8VA7Bg?si=O1PNsNpHIHV0LPVE)
+- [A step by step guide to Event Storming – our experience](https://www.boldare.com/blog/event-storming-guide/)
+- [Event Storming — The Storm That Cleans Up The Mess!](https://medium.com/@samar.benamar/event-storming-the-storm-that-cleans-up-the-mess-b2bb578db7c)
+- [Context Mapper](https://contextmapper.org/)

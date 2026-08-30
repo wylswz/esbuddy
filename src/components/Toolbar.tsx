@@ -7,18 +7,11 @@ interface ToolbarProps {
   onGroupAggregate: () => void;
   onBringToFront: () => void;
   onSendToBack: () => void;
+  onHelp: () => void;
   canGroup: boolean;
 }
 
-const ELEMENT_ORDER: ElementType[] = ['event', 'command', 'actor', 'policy', 'external'];
-
-const SHORTCUT_HINTS: Partial<Record<ElementType, string>> = {
-  event: 'E',
-  command: 'C',
-  actor: 'A',
-  policy: 'P',
-  external: 'X',
-};
+const ELEMENT_ORDER: ElementType[] = ['event', 'command', 'actor', 'policy', 'external', 'hotspot'];
 
 export function Toolbar({
   onAddElement,
@@ -27,6 +20,7 @@ export function Toolbar({
   onGroupAggregate,
   onBringToFront,
   onSendToBack,
+  onHelp,
   canGroup,
 }: ToolbarProps) {
   return (
@@ -48,7 +42,7 @@ export function Toolbar({
             >
               <span>{s.icon}</span>
               <span>{s.label}</span>
-              <span className="ml-auto text-[10px] opacity-60 font-mono">{SHORTCUT_HINTS[type]}</span>
+              <span className="ml-auto text-[10px] opacity-60 font-mono">{s.shortcut}</span>
             </button>
           );
         })}
@@ -121,10 +115,22 @@ export function Toolbar({
 
       <div className="h-px bg-gray-200 my-1" />
 
-      <p className="text-[10px] leading-snug text-gray-400">
-        Hold <span className="font-semibold text-gray-500">Shift</span> and drag an element out
-        to remove it from its aggregate.
-      </p>
+      <button
+        onClick={onHelp}
+        className="px-3 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+      >
+        帮助 Help
+      </button>
+
+      <div className="text-[10px] leading-snug text-gray-400">
+        <div className="font-semibold text-gray-500 mb-0.5">修饰键</div>
+        <div>
+          <span className="font-semibold text-gray-500">Shift</span> + 拖出 → 从聚合移除
+        </div>
+        <div>
+          <span className="font-semibold text-gray-500">⌥ Option</span> + 点击 → 连接
+        </div>
+      </div>
     </div>
   );
 }
