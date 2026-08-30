@@ -1,5 +1,8 @@
 export type ElementType = 'event' | 'command' | 'aggregate' | 'actor' | 'policy' | 'external';
 
+export const NOTE_DEFAULT_SIZE = 180;
+export const NOTE_MIN_SIZE = 120;
+
 export interface ElementData {
   label: string;
   type: ElementType;
@@ -12,6 +15,7 @@ export interface EsNode {
   type: ElementType;
   position: { x: number; y: number };
   data: ElementData;
+  style?: { width: number; height: number };
 }
 
 export interface EsEdge {

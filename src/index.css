@@ -38,3 +38,18 @@ html, body, #root {
     radial-gradient(130% 130% at 50% 50%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.055) 100%),
     linear-gradient(180deg, #fafbfc 0%, #e9ecef 100%);
 }
+
+/*
+ * Sticky note paper.
+ * At rest the note is slightly tilted. On hover (or while lifted/dragged) it
+ * straightens — a little "pick up the note" interaction.
+ */
+.sticky-note {
+  transform: rotate(-0.9deg);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.sticky-note[data-lifted='true'],
+.sticky-note:hover {
+  transform: rotate(0deg);
+}

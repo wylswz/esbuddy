@@ -7,7 +7,7 @@ export interface PersistedNode {
   position: { x: number; y: number };
   width?: number;
   height?: number;
-  data: { label: string; type: ElementType; aggregateId: string | null };
+  data: { label: string; type: ElementType; aggregateId: string | null; description: string };
 }
 
 export interface PersistedEdge {
@@ -45,13 +45,14 @@ function serializeNodes(nodes: Node[]): PersistedNode[] {
     id: n.id,
     type: n.type ?? 'event',
     position: { x: n.position.x, y: n.position.y },
-    ...(n.type === 'aggregate' && typeof n.style?.width === 'number' && typeof n.style?.height === 'number'
+    ...(typeof n.style?.width === 'number' && typeof n.style?.height === 'number'
       ? { width: n.style.width, height: n.style.height }
       : {}),
     data: {
       label: (n.data?.label as string) ?? '',
       type: (n.data?.type as ElementType) ?? (n.type as ElementType) ?? 'event',
       aggregateId: (n.data?.aggregateId as string) ?? null,
+      description: (n.data?.description as string) ?? '',
     },
   }));
 }
@@ -72,9 +73,11 @@ function deserializeCanvas(canvas: PersistedCanvas): CanvasSnapshot {
       id: n.id,
       type: n.type,
       position: n.position,
-      ...(n.type === 'aggregate'
-        ? { style: { width: n.width ?? 400, height: n.height ?? 260 } }
-        : {}),
+      ...(typeof n.width === 'number' && typeof n.height === 'number'
+        ? { style: { width: n.width, height: n.height } }
+        : n.type === 'aggregate'
+          ? { style: { width: 400, height: 260 } }
+          : {}),
       data: { ...n.data },
     })),
     edges: canvas.edges.map((e) => ({

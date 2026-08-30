@@ -1,4 +1,5 @@
 import type { EsCanvasState, EsNode, EsEdge, ElementType } from './types';
+import { NOTE_DEFAULT_SIZE } from './types';
 
 let idCounter = 0;
 function nextId(prefix: string): string {
@@ -121,5 +122,6 @@ export function createNode(type: ElementType, position: { x: number; y: number }
     type,
     position,
     data: { label: label || defaultLabels[type], type },
+    style: { width: NOTE_DEFAULT_SIZE, height: NOTE_DEFAULT_SIZE },
   };
 }

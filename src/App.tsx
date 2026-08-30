@@ -8,6 +8,7 @@ import ReactFlow, {
   applyNodeChanges,
   applyEdgeChanges,
   MarkerType,
+  SelectionMode,
   type Connection,
   type Edge,
   type Node,
@@ -15,6 +16,7 @@ import ReactFlow, {
   type EdgeChange,
   type Viewport,
   type NodeDragHandler,
+  type OnMove,
   type OnMoveEnd,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
@@ -25,13 +27,20 @@ import { Toolbar } from './components/Toolbar';
 import { ExportModal } from './components/ExportModal';
 import { exportToCML } from './cmlExporter';
 import { parseCML, createNode } from './cmlImporter';
-import { CanvasActionsContext } from './CanvasContext';
+import { CanvasActionsContext, DropTargetContext } from './CanvasContext';
 import { loadCanvas, saveCanvas, DEFAULT_CANVAS_ID } from './storage';
-import type { ElementType, EsCanvasState } from './types';
+import { NOTE_DEFAULT_SIZE, type ElementType, type EsCanvasState } from './types';
 
 const AGGREGATE_PADDING = 40;
-const AGGREGATE_INSET = 12;
 const REMOVE_MODIFIER_KEY: 'Shift' | 'Alt' | 'Control' | 'Meta' = 'Shift';
+
+const NODE_SHORTCUTS: Record<string, ElementType> = {
+  e: 'event',
+  c: 'command',
+  a: 'actor',
+  p: 'policy',
+  x: 'external',
+};
 
 const nodeTypes = {
   event: StickyNode,
@@ -48,12 +57,14 @@ const initialNodes: Node[] = [
     type: 'event',
     position: { x: 300, y: 200 },
     data: { label: 'Order Placed', type: 'event' },
+    style: { width: NOTE_DEFAULT_SIZE, height: NOTE_DEFAULT_SIZE },
   },
   {
     id: 'cmd_demo_1',
     type: 'command',
     position: { x: 100, y: 200 },
     data: { label: 'Place Order', type: 'command' },
+    style: { width: NOTE_DEFAULT_SIZE, height: NOTE_DEFAULT_SIZE },
   },
 ];
 
@@ -122,9 +133,9 @@ function followAggregateChildren(prevNodes: Node[], nextNodes: Node[], changes: 
  * Aggregate invariants (enforced across every add / remove / move / resize):
  *
  * 1. Containment — a child never leaves its aggregate's bounds. Enforced by:
- *    - clamping child positions while dragging (clampChildrenToAggregates)
+ *    - growing the box while a child is dragged outward (growAggregatesForDraggedChildren)
  *    - blocking aggregate resizes that would uncover a child (AggregateNode#shouldResize)
- *    - re-fitting the box on add/remove (fitAggregateToChildren)
+ *    - re-fitting the box on add/remove/drop (fitAggregateToChildren)
  *    To break out, hold Shift while dragging (removes the child instead).
  *
  * 2. No nesting — an aggregate can never contain another aggregate. Enforced by
@@ -134,12 +145,6 @@ function followAggregateChildren(prevNodes: Node[], nextNodes: Node[], changes: 
  *
  * 4. No orphans — an aggregate left with zero children is removed (removeEmptyAggregates).
  */
-
-function clamp01(v: number, a: number, b: number): number {
-  const lo = Math.min(a, b);
-  const hi = Math.max(a, b);
-  return Math.min(Math.max(v, lo), hi);
-}
 
 function isRemoveModifierHeld(e: {
   shiftKey: boolean;
@@ -168,17 +173,6 @@ function aggregateBounds(n: Node): { x: number; y: number; w: number; h: number 
   };
 }
 
-function clampChildToAggregate(child: Node, agg: Node): { x: number; y: number } {
-  const childW = child.width ?? 180;
-  const childH = child.height ?? 84;
-  const b = aggregateBounds(agg);
-
-  return {
-    x: clamp01(child.position.x, b.x + AGGREGATE_INSET, b.x + b.w - AGGREGATE_INSET - childW),
-    y: clamp01(child.position.y, b.y + AGGREGATE_INSET, b.y + b.h - AGGREGATE_INSET - childH),
-  };
-}
-
 function isNodeCenterOutside(node: Node, agg: Node): boolean {
   const cx = node.position.x + (node.width ?? 180) / 2;
   const cy = node.position.y + (node.height ?? 84) / 2;
@@ -195,8 +189,42 @@ function removeEmptyAggregates(nds: Node[]): Node[] {
   return nds.filter((n) => n.type !== 'aggregate' || (childCount.get(n.id) ?? 0) > 0);
 }
 
-// Keep directly-dragged children inside their aggregate unless the removal key is held.
-function clampChildrenToAggregates(nextNodes: Node[], changes: NodeChange[], constrain: boolean): Node[] {
+// Grow (never shrink) an aggregate so it covers all of its children.
+function growAggregateToContainChildren(nds: Node[], aggId: string): Node[] {
+  const agg = nds.find((n) => n.id === aggId);
+  if (!agg) return nds;
+
+  const children = nds.filter((n) => n.data?.aggregateId === aggId);
+  if (children.length === 0) return nds;
+
+  const b = aggregateBounds(agg);
+  const minX = Math.min(...children.map((n) => n.position.x)) - AGGREGATE_PADDING;
+  const minY = Math.min(...children.map((n) => n.position.y)) - AGGREGATE_PADDING;
+  const maxX = Math.max(...children.map((n) => n.position.x + (n.width ?? 180))) + AGGREGATE_PADDING;
+  const maxY = Math.max(...children.map((n) => n.position.y + (n.height ?? 84))) + AGGREGATE_PADDING;
+
+  const newLeft = Math.min(b.x, minX);
+  const newTop = Math.min(b.y, minY);
+  const newRight = Math.max(b.x + b.w, maxX);
+  const newBottom = Math.max(b.y + b.h, maxY);
+
+  if (newLeft === b.x && newTop === b.y && newRight === b.x + b.w && newBottom === b.y + b.h) {
+    return nds;
+  }
+
+  return nds.map((n) =>
+    n.id === aggId
+      ? {
+          ...n,
+          position: { x: newLeft, y: newTop },
+          style: { ...n.style, width: newRight - newLeft, height: newBottom - newTop },
+        }
+      : n,
+  );
+}
+
+// While a child is dragged outward, expand its aggregate to keep it inside (unless removing).
+function growAggregatesForDraggedChildren(nextNodes: Node[], changes: NodeChange[], constrain: boolean): Node[] {
   if (!constrain) return nextNodes;
 
   const draggingIds = new Set<string>();
@@ -205,22 +233,19 @@ function clampChildrenToAggregates(nextNodes: Node[], changes: NodeChange[], con
   }
   if (draggingIds.size === 0) return nextNodes;
 
-  const aggregates = new Map<string, Node>();
+  const affectedAggIds = new Set<string>();
   nextNodes.forEach((n) => {
-    if (n.type === 'aggregate') aggregates.set(n.id, n);
-  });
-
-  return nextNodes.map((n) => {
-    if (!draggingIds.has(n.id)) return n;
+    if (!draggingIds.has(n.id)) return;
     const aggId = n.data?.aggregateId as string | undefined;
-    if (!aggId) return n;
-    const agg = aggregates.get(aggId);
-    if (!agg) return n;
-
-    const pos = clampChildToAggregate(n, agg);
-    if (pos.x === n.position.x && pos.y === n.position.y) return n;
-    return { ...n, position: pos };
+    if (aggId) affectedAggIds.add(aggId);
   });
+  if (affectedAggIds.size === 0) return nextNodes;
+
+  let result = nextNodes;
+  affectedAggIds.forEach((aggId) => {
+    result = growAggregateToContainChildren(result, aggId);
+  });
+  return result;
 }
 
 // When nodes are deleted, detach orphaned children, remove empty aggregates and re-fit the rest.
@@ -265,6 +290,19 @@ function App() {
   const [showExport, setShowExport] = useState(false);
   const [exportedCml, setExportedCml] = useState('');
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const mouseRef = useRef({ x: 0, y: 0 });
+  const viewportRef = useRef<Viewport | null>(snapshot?.viewport ?? null);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      mouseRef.current = { x: e.clientX, y: e.clientY };
+    };
+    window.addEventListener('mousemove', onMove);
+    return () => window.removeEventListener('mousemove', onMove);
+  }, []);
 
   const removeKeyRef = useRef(false);
   useEffect(() => {
@@ -292,8 +330,8 @@ function App() {
     setNodes((nds) => {
       const applied = applyNodeChanges(changes, nds);
       const followed = followAggregateChildren(nds, applied, changes);
-      const clamped = clampChildrenToAggregates(followed, changes, !removeKeyRef.current);
-      return handleNodeRemovals(nds, clamped, changes);
+      const grown = growAggregatesForDraggedChildren(followed, changes, !removeKeyRef.current);
+      return handleNodeRemovals(nds, grown, changes);
     });
   }, []);
 
@@ -316,12 +354,87 @@ function App() {
     setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, label } } : n)));
   }, []);
 
-  const actions = useMemo(() => ({ updateNodeLabel }), [updateNodeLabel]);
+  const updateNodeDescription = useCallback((id: string, description: string) => {
+    setNodes((nds) =>
+      nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, description } } : n)),
+    );
+  }, []);
+
+  const actions = useMemo(
+    () => ({ updateNodeLabel, updateNodeDescription }),
+    [updateNodeLabel, updateNodeDescription],
+  );
+
+  const addNodeAtMouse = useCallback((type: ElementType) => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    const vp = viewportRef.current ?? { x: 0, y: 0, zoom: 1 };
+    const pos = {
+      x: (mouseRef.current.x - (rect?.left ?? 0) - vp.x) / vp.zoom,
+      y: (mouseRef.current.y - (rect?.top ?? 0) - vp.y) / vp.zoom,
+    };
+    setNodes((nds) => [...nds, createNode(type, pos)]);
+  }, []);
 
   const addElement = useCallback((type: ElementType) => {
-    const center = { x: 200 + Math.random() * 200, y: 200 + Math.random() * 200 };
-    setNodes((nds) => [...nds, createNode(type, center)]);
+    const rect = canvasRef.current?.getBoundingClientRect();
+    const vp = viewportRef.current ?? { x: 0, y: 0, zoom: 1 };
+    const pos = {
+      x: ((rect?.width ?? 800) / 2 - vp.x) / vp.zoom,
+      y: ((rect?.height ?? 600) / 2 - vp.y) / vp.zoom,
+    };
+    setNodes((nds) => [...nds, createNode(type, pos)]);
   }, []);
+
+  const bringToFront = useCallback(() => {
+    const ids = new Set(selectedNodeIds);
+    if (ids.size === 0) return;
+    setNodes((nds) => {
+      const moved = nds.filter((n) => ids.has(n.id) && n.type !== 'aggregate');
+      const rest = nds.filter((n) => !(ids.has(n.id) && n.type !== 'aggregate'));
+      return [...rest, ...moved];
+    });
+  }, [selectedNodeIds]);
+
+  const sendToBack = useCallback(() => {
+    const ids = new Set(selectedNodeIds);
+    if (ids.size === 0) return;
+    setNodes((nds) => {
+      const aggregates = nds.filter((n) => n.type === 'aggregate');
+      const notes = nds.filter((n) => n.type !== 'aggregate');
+      const moved = notes.filter((n) => ids.has(n.id));
+      const rest = notes.filter((n) => !ids.has(n.id));
+      return [...aggregates, ...moved, ...rest];
+    });
+  }, [selectedNodeIds]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+      ) {
+        return;
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      const nodeType = NODE_SHORTCUTS[e.key.toLowerCase()];
+      if (nodeType) {
+        e.preventDefault();
+        addNodeAtMouse(nodeType);
+        return;
+      }
+      if (e.key === ']') {
+        e.preventDefault();
+        bringToFront();
+      } else if (e.key === '[') {
+        e.preventDefault();
+        sendToBack();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [addNodeAtMouse, bringToFront, sendToBack]);
 
   const groupAsAggregate = useCallback(() => {
     if (selectedNodeIds.length < 2) return;
@@ -369,11 +482,41 @@ function App() {
     });
   }, [selectedNodeIds, nodes]);
 
+  const onNodeDrag = useCallback<NodeDragHandler>(
+    (_event, node) => {
+      // Only free elements can become a new child — highlight the aggregate under them.
+      if (node.type === 'aggregate' || node.data?.aggregateId) {
+        setDropTargetId(null);
+        return;
+      }
+
+      const w = node.width ?? 180;
+      const h = node.height ?? 84;
+      const rect = { x: node.position.x, y: node.position.y, w, h };
+
+      const target = nodes.find((n) => {
+        if (n.type !== 'aggregate') return false;
+        const aw = (n.width ?? (n.style?.width as number | undefined) ?? 0);
+        const ah = (n.height ?? (n.style?.height as number | undefined) ?? 0);
+        return (
+          rect.x < n.position.x + aw &&
+          rect.x + rect.w > n.position.x &&
+          rect.y < n.position.y + ah &&
+          rect.y + rect.h > n.position.y
+        );
+      });
+
+      setDropTargetId(target?.id ?? null);
+    },
+    [nodes],
+  );
+
   const onNodeDragStop = useCallback<NodeDragHandler>(
     (event, node) => {
+      setDropTargetId(null);
       if (node.type === 'aggregate') return;
 
-      // Prefer the clamped position from state (a constrained child never leaves its box).
+      // Prefer the position from state (reflects aggregate grow/follow adjustments).
       const dragged = nodes.find((n) => n.id === node.id) ?? node;
       const oldAggId = (dragged.data?.aggregateId as string) ?? null;
 
@@ -408,7 +551,13 @@ function App() {
         );
       });
 
-      if (!target) return;
+      if (!target) {
+        // Re-fit the child's own aggregate (tighten after it grew to follow the drag).
+        if (oldAggId) {
+          setNodes((nds) => fitAggregateToChildren(nds, oldAggId));
+        }
+        return;
+      }
 
       setNodes((nds) => {
         let next = nds.map((n) =>
@@ -424,8 +573,13 @@ function App() {
     [nodes],
   );
 
+  const onMove = useCallback<OnMove>((_event, vp) => {
+    viewportRef.current = vp;
+  }, []);
+
   const onMoveEnd = useCallback<OnMoveEnd>((_event, vp) => {
     setViewport(vp);
+    viewportRef.current = vp;
   }, []);
 
   useEffect(() => {
@@ -475,50 +629,61 @@ function App() {
   );
 
   return (
-    <div className="w-full h-full relative">
+    <div ref={canvasRef} className="w-full h-full relative">
       <CanvasActionsContext.Provider value={actions}>
-        <Toolbar
-          onAddElement={addElement}
-          onExport={handleExport}
-          onImport={handleImport}
-          onGroupAggregate={groupAsAggregate}
-          canGroup={canGroup}
-        />
-
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onSelectionChange={onSelectionChange}
-          onNodeDragStop={onNodeDragStop}
-          onMoveEnd={onMoveEnd}
-          fitView={!snapshot}
-          defaultViewport={snapshot?.viewport ?? undefined}
-          elevateNodesOnSelect={false}
-          defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
-          className="esboard-surface"
-        >
-          <Background variant={BackgroundVariant.Lines} gap={24} size={1} color="#cbd5e1" />
-          <Controls />
-          <MiniMap
-            nodeColor={(node) => {
-              const type = node.type as ElementType;
-              const colors: Record<string, string> = {
-                event: '#f97316',
-                command: '#3b82f6',
-                aggregate: '#10b981',
-                actor: '#eab308',
-                policy: '#a855f7',
-                external: '#ec4899',
-              };
-              return colors[type] || '#94a3b8';
-            }}
-            className="bg-white border border-gray-200 rounded"
+        <DropTargetContext.Provider value={dropTargetId}>
+          <Toolbar
+            onAddElement={addElement}
+            onExport={handleExport}
+            onImport={handleImport}
+            onGroupAggregate={groupAsAggregate}
+            onBringToFront={bringToFront}
+            onSendToBack={sendToBack}
+            canGroup={canGroup}
           />
-        </ReactFlow>
+
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onSelectionChange={onSelectionChange}
+            onNodeDrag={onNodeDrag}
+            onNodeDragStop={onNodeDragStop}
+            onMove={onMove}
+            onMoveEnd={onMoveEnd}
+            selectionOnDrag
+            panOnDrag={[1, 2]}
+            panOnScroll
+            zoomOnScroll={false}
+            selectionMode={SelectionMode.Partial}
+            fitView={!snapshot}
+            defaultViewport={snapshot?.viewport ?? undefined}
+            elevateNodesOnSelect={false}
+            defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
+            className="esboard-surface"
+          >
+            <Background variant={BackgroundVariant.Lines} gap={24} size={1} color="#cbd5e1" />
+            <Controls />
+            <MiniMap
+              nodeColor={(node) => {
+                const type = node.type as ElementType;
+                const colors: Record<string, string> = {
+                  event: '#f97316',
+                  command: '#3b82f6',
+                  aggregate: '#10b981',
+                  actor: '#eab308',
+                  policy: '#a855f7',
+                  external: '#ec4899',
+                };
+                return colors[type] || '#94a3b8';
+              }}
+              className="bg-white border border-gray-200 rounded"
+            />
+          </ReactFlow>
+        </DropTargetContext.Provider>
       </CanvasActionsContext.Provider>
 
       {showExport && <ExportModal cml={exportedCml} onClose={() => setShowExport(false)} />}

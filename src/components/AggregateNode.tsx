@@ -6,7 +6,7 @@ import {
   type ShouldResize,
 } from 'reactflow';
 import { ELEMENT_STYLES } from '../types';
-import { useCanvasActions } from '../CanvasContext';
+import { useCanvasActions, useDropTarget } from '../CanvasContext';
 
 interface AggregateNodeData {
   label: string;
@@ -19,6 +19,8 @@ const CORNERS = ['top-left', 'top-right', 'bottom-left', 'bottom-right'] as cons
 function AggregateNodeComponent({ id, data, selected }: NodeProps<AggregateNodeData>) {
   const store = useStoreApi();
   const { updateNodeLabel } = useCanvasActions();
+  const dropTargetId = useDropTarget();
+  const isDropTarget = dropTargetId === id;
   const style = ELEMENT_STYLES.aggregate;
 
   // Block any resize that would leave a child outside the boundary box.
@@ -74,11 +76,16 @@ function AggregateNodeComponent({ id, data, selected }: NodeProps<AggregateNodeD
 
       {/* Semi-transparent boundary box */}
       <div
-        className="w-full h-full"
+        className="w-full h-full transition-colors duration-150"
         style={{
-          backgroundColor: selected ? 'rgba(16, 185, 129, 0.12)' : 'rgba(16, 185, 129, 0.08)',
-          border: `2px dashed ${style.borderColor}`,
+          backgroundColor: isDropTarget
+            ? 'rgba(16, 185, 129, 0.25)'
+            : selected
+              ? 'rgba(16, 185, 129, 0.12)'
+              : 'rgba(16, 185, 129, 0.08)',
+          border: isDropTarget ? `2px solid ${style.color}` : `2px dashed ${style.borderColor}`,
           borderRadius: '12px',
+          boxShadow: isDropTarget ? '0 0 0 3px rgba(16, 185, 129, 0.25), 0 0 20px rgba(16, 185, 129, 0.35)' : undefined,
         }}
       />
 

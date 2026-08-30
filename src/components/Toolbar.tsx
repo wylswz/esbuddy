@@ -5,12 +5,30 @@ interface ToolbarProps {
   onExport: () => void;
   onImport: (cml: string) => void;
   onGroupAggregate: () => void;
+  onBringToFront: () => void;
+  onSendToBack: () => void;
   canGroup: boolean;
 }
 
 const ELEMENT_ORDER: ElementType[] = ['event', 'command', 'actor', 'policy', 'external'];
 
-export function Toolbar({ onAddElement, onExport, onImport, onGroupAggregate, canGroup }: ToolbarProps) {
+const SHORTCUT_HINTS: Partial<Record<ElementType, string>> = {
+  event: 'E',
+  command: 'C',
+  actor: 'A',
+  policy: 'P',
+  external: 'X',
+};
+
+export function Toolbar({
+  onAddElement,
+  onExport,
+  onImport,
+  onGroupAggregate,
+  onBringToFront,
+  onSendToBack,
+  canGroup,
+}: ToolbarProps) {
   return (
     <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 bg-white rounded-lg shadow-lg p-3 border border-gray-200">
       <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Add Element</div>
@@ -30,6 +48,7 @@ export function Toolbar({ onAddElement, onExport, onImport, onGroupAggregate, ca
             >
               <span>{s.icon}</span>
               <span>{s.label}</span>
+              <span className="ml-auto text-[10px] opacity-60 font-mono">{SHORTCUT_HINTS[type]}</span>
             </button>
           );
         })}
@@ -79,6 +98,25 @@ export function Toolbar({ onAddElement, onExport, onImport, onGroupAggregate, ca
             }}
           />
         </label>
+      </div>
+
+      <div className="h-px bg-gray-200 my-1" />
+
+      <div className="flex gap-1.5">
+        <button
+          onClick={onBringToFront}
+          className="flex-1 px-2 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+          title="置顶 (])"
+        >
+          置顶
+        </button>
+        <button
+          onClick={onSendToBack}
+          className="flex-1 px-2 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+          title="置底 ([)"
+        >
+          置底
+        </button>
       </div>
 
       <div className="h-px bg-gray-200 my-1" />
