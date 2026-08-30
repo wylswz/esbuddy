@@ -2,7 +2,7 @@
 
 Esbuddy is a front-end app for visualising Event Storming workshops in Domain-Driven Design (DDD).
 
-![](assets/screenshot.png)
+![](./doc/screenshot.png)
 
 ## Event Storming Elements
 
