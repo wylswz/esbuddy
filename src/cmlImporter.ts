@@ -107,22 +107,13 @@ function fromIdentifier(id: string): string {
 }
 
 // Re-export for use in App
-export function createNode(type: ElementType, position: { x: number; y: number }, label?: string): EsNode {
+export function createNode(type: ElementType, position: { x: number; y: number }, label: string): EsNode {
   const id = `${type}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const defaultLabels: Record<ElementType, string> = {
-    event: 'New Event',
-    command: 'New Command',
-    aggregate: 'New Aggregate',
-    actor: 'New Actor',
-    policy: 'New Policy',
-    external: 'New External System',
-    hotspot: 'New Hot Spot',
-  };
   return {
     id,
     type,
     position,
-    data: { label: label || defaultLabels[type], type },
+    data: { label, type },
     style: { width: NOTE_DEFAULT_SIZE, height: NOTE_DEFAULT_SIZE },
   };
 }

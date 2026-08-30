@@ -2,6 +2,8 @@ import { memo, useCallback, useState } from 'react';
 import { Handle, Position, NodeResizeControl, type NodeProps } from 'reactflow';
 import { ELEMENT_STYLES, NOTE_MIN_SIZE, type ElementType } from '../types';
 import { useCanvasActions } from '../CanvasContext';
+import { useI18n } from '../i18n/context';
+import { ColorDot } from './ColorDot';
 
 interface StickyNodeData {
   label: string;
@@ -17,6 +19,7 @@ const CORNERS = ['top-left', 'top-right', 'bottom-left', 'bottom-right'] as cons
 function StickyNodeComponent({ id, data, selected, dragging }: NodeProps<StickyNodeData>) {
   const style = ELEMENT_STYLES[data.type];
   const { updateNodeLabel, updateNodeDescription } = useCanvasActions();
+  const { t } = useI18n();
   const [editing, setEditing] = useState<EditField | null>(null);
   const lifted = selected || dragging;
 
@@ -78,12 +81,12 @@ function StickyNodeComponent({ id, data, selected, dragging }: NodeProps<StickyN
 
         {/* Type badge */}
         <div className="flex items-center gap-1 mb-1.5">
-          <span className="text-xs leading-none" style={{ color: style.color }}>{style.icon}</span>
+          <ColorDot color={style.color} />
           <span
             className="text-[9px] font-bold uppercase tracking-wider leading-none"
             style={{ color: style.color }}
           >
-            {style.label}
+            {t(`elements.${data.type}.label`)}
           </span>
         </div>
 
@@ -106,7 +109,7 @@ function StickyNodeComponent({ id, data, selected, dragging }: NodeProps<StickyN
         ) : (
           <div
             className="sticky-title text-sm font-semibold text-gray-800 leading-snug break-words whitespace-pre-wrap cursor-text"
-            title="双击编辑"
+            title={t('node.doubleClickEdit')}
             onDoubleClick={() => setEditing('title')}
           >
             {data.label}
@@ -131,10 +134,10 @@ function StickyNodeComponent({ id, data, selected, dragging }: NodeProps<StickyN
         ) : (
           <div
             className="sticky-memo text-xs text-gray-500 leading-snug break-words whitespace-pre-wrap cursor-text mt-1.5"
-            title="双击编辑备注"
+            title={t('node.doubleClickEditMemo')}
             onDoubleClick={() => setEditing('memo')}
           >
-            {data.description || <span style={{ color: '#b0b3b8' }}>备注…</span>}
+            {data.description || <span style={{ color: '#b0b3b8' }}>{t('node.memoPlaceholder')}</span>}
           </div>
         )}
       </div>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useI18n } from '../i18n/context';
 
 interface ExportModalProps {
   cml: string;
@@ -7,6 +8,7 @@ interface ExportModalProps {
 
 export function ExportModal({ cml, onClose }: ExportModalProps) {
   const [copied, setCopied] = useState(false);
+  const { t } = useI18n();
 
   const handleCopy = () => {
     navigator.clipboard.writeText(cml);
@@ -31,7 +33,7 @@ export function ExportModal({ cml, onClose }: ExportModalProps) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-800">Exported CML Source</h2>
+          <h2 className="text-lg font-semibold text-gray-800">{t('export.title')}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">
             ×
           </button>
@@ -44,13 +46,13 @@ export function ExportModal({ cml, onClose }: ExportModalProps) {
             onClick={handleCopy}
             className="px-4 py-1.5 rounded-md text-sm font-medium bg-gray-800 text-white hover:bg-gray-700"
           >
-            {copied ? 'Copied!' : 'Copy to Clipboard'}
+            {copied ? t('export.copied') : t('export.copy')}
           </button>
           <button
             onClick={handleDownload}
             className="px-4 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200"
           >
-            Download .cml
+            {t('export.download')}
           </button>
         </div>
       </div>

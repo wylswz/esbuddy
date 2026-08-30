@@ -30,6 +30,8 @@ import { HelpModal } from './components/HelpModal';
 import { exportToCML } from './cmlExporter';
 import { parseCML, createNode } from './cmlImporter';
 import { CanvasActionsContext, DropTargetContext } from './CanvasContext';
+import { useI18n } from './i18n/context';
+import { useHistory } from './useHistory';
 import { loadCanvas, saveCanvas, DEFAULT_CANVAS_ID } from './storage';
 import { NOTE_DEFAULT_SIZE, ELEMENT_STYLES, type ElementType, type EsCanvasState } from './types';
 
@@ -301,11 +303,36 @@ function App() {
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
+  const { t } = useI18n();
+
   const canvasRef = useRef<HTMLDivElement>(null);
   const mouseRef = useRef({ x: 0, y: 0 });
   const viewportRef = useRef<Viewport | null>(snapshot?.viewport ?? null);
   const selectionRef = useRef<string[]>([]);
   const prevSelectionRef = useRef<string[]>([]);
+  const draggingRef = useRef(false);
+  const resizingRef = useRef(false);
+
+  const nodesRef = useRef<Node[]>(nodes);
+  const edgesRef = useRef<Edge[]>(edges);
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
+  useEffect(() => {
+    edgesRef.current = edges;
+  }, [edges]);
+
+  const getState = useCallback(
+    () => ({ nodes: nodesRef.current, edges: edgesRef.current }),
+    [],
+  );
+  const applyState = useCallback((snap: { nodes: Node[]; edges: Edge[] }) => {
+    nodesRef.current = snap.nodes;
+    edgesRef.current = snap.edges;
+    setNodes(snap.nodes);
+    setEdges(snap.edges);
+  }, []);
+  const { commit, undo, redo, canUndo, canRedo } = useHistory(getState, applyState);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
@@ -351,23 +378,43 @@ function App() {
       selectionRef.current = Array.from(nextSelection);
     }
 
+    // Commit a history entry at the start of a drag/resize, or on deletion.
+    let shouldCommit = false;
+    for (const c of changes) {
+      if (c.type === 'position' && typeof c.dragging === 'boolean') {
+        if (c.dragging && !draggingRef.current) shouldCommit = true;
+        draggingRef.current = c.dragging;
+      } else if (c.type === 'dimensions' && typeof c.resizing === 'boolean') {
+        if (c.resizing && !resizingRef.current) shouldCommit = true;
+        resizingRef.current = c.resizing;
+      } else if (c.type === 'remove') {
+        shouldCommit = true;
+      }
+    }
+    if (shouldCommit) commit();
+
     setNodes((nds) => {
       const applied = applyNodeChanges(changes, nds);
       const followed = followAggregateChildren(nds, applied, changes);
       const grown = growAggregatesForDraggedChildren(followed, changes, !removeKeyRef.current);
       return handleNodeRemovals(nds, grown, changes);
     });
-  }, []);
+  }, [commit]);
 
   const onEdgesChange = useCallback(
-    (changes: EdgeChange[]) => setEdges((eds) => applyEdgeChanges(changes, eds)),
-    [],
+    (changes: EdgeChange[]) => {
+      if (changes.some((c) => c.type === 'remove')) commit();
+      setEdges((eds) => applyEdgeChanges(changes, eds));
+    },
+    [commit],
   );
 
   const onConnect = useCallback(
-    (conn: Connection) =>
-      setEdges((eds) => addEdge({ ...conn, markerEnd: { type: MarkerType.ArrowClosed } }, eds)),
-    [],
+    (conn: Connection) => {
+      commit();
+      setEdges((eds) => addEdge({ ...conn, markerEnd: { type: MarkerType.ArrowClosed } }, eds));
+    },
+    [commit],
   );
 
   // Hold Alt and click a node to connect the previously selected node(s) to it.
@@ -377,6 +424,13 @@ function App() {
       const sources = prevSelectionRef.current.filter((id) => id !== node.id);
       if (sources.length === 0) return;
 
+      const willAdd = sources.some(
+        (sourceId) =>
+          !edgesRef.current.some((e) => e.source === sourceId && e.target === node.id),
+      );
+      if (!willAdd) return;
+
+      commit();
       setEdges((eds) => {
         let next = eds;
         for (const sourceId of sources) {
@@ -395,61 +449,85 @@ function App() {
         return next;
       });
     },
-    [],
+    [commit],
   );
 
   const onSelectionChange = useCallback(({ nodes: selectedNodes }: { nodes: Node[] }) => {
-    setSelectedNodeIds(selectedNodes.map((n) => n.id));
+    const ids = selectedNodes.map((n) => n.id);
+    selectionRef.current = ids;
+    setSelectedNodeIds(ids);
   }, []);
 
-  const updateNodeLabel = useCallback((id: string, label: string) => {
-    setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, label } } : n)));
-  }, []);
+  const updateNodeLabel = useCallback(
+    (id: string, label: string) => {
+      const node = nodesRef.current.find((n) => n.id === id);
+      if (!node || ((node.data?.label as string) ?? '') === label) return;
+      commit();
+      setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, label } } : n)));
+    },
+    [commit],
+  );
 
-  const updateNodeDescription = useCallback((id: string, description: string) => {
-    setNodes((nds) =>
-      nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, description } } : n)),
-    );
-  }, []);
+  const updateNodeDescription = useCallback(
+    (id: string, description: string) => {
+      const node = nodesRef.current.find((n) => n.id === id);
+      if (!node || ((node.data?.description as string) ?? '') === description) return;
+      commit();
+      setNodes((nds) =>
+        nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, description } } : n)),
+      );
+    },
+    [commit],
+  );
 
   const actions = useMemo(
     () => ({ updateNodeLabel, updateNodeDescription }),
     [updateNodeLabel, updateNodeDescription],
   );
 
-  const addNodeAtMouse = useCallback((type: ElementType) => {
-    const rect = canvasRef.current?.getBoundingClientRect();
-    const vp = viewportRef.current ?? { x: 0, y: 0, zoom: 1 };
-    const pos = {
-      x: (mouseRef.current.x - (rect?.left ?? 0) - vp.x) / vp.zoom,
-      y: (mouseRef.current.y - (rect?.top ?? 0) - vp.y) / vp.zoom,
-    };
-    setNodes((nds) => [...nds, createNode(type, pos)]);
-  }, []);
+  const addNodeAtMouse = useCallback(
+    (type: ElementType) => {
+      const rect = canvasRef.current?.getBoundingClientRect();
+      const vp = viewportRef.current ?? { x: 0, y: 0, zoom: 1 };
+      const pos = {
+        x: (mouseRef.current.x - (rect?.left ?? 0) - vp.x) / vp.zoom,
+        y: (mouseRef.current.y - (rect?.top ?? 0) - vp.y) / vp.zoom,
+      };
+      commit();
+      setNodes((nds) => [...nds, createNode(type, pos, t(`elements.${type}.newLabel`))]);
+    },
+    [commit, t],
+  );
 
-  const addElement = useCallback((type: ElementType) => {
-    const rect = canvasRef.current?.getBoundingClientRect();
-    const vp = viewportRef.current ?? { x: 0, y: 0, zoom: 1 };
-    const pos = {
-      x: ((rect?.width ?? 800) / 2 - vp.x) / vp.zoom,
-      y: ((rect?.height ?? 600) / 2 - vp.y) / vp.zoom,
-    };
-    setNodes((nds) => [...nds, createNode(type, pos)]);
-  }, []);
+  const addElement = useCallback(
+    (type: ElementType) => {
+      const rect = canvasRef.current?.getBoundingClientRect();
+      const vp = viewportRef.current ?? { x: 0, y: 0, zoom: 1 };
+      const pos = {
+        x: ((rect?.width ?? 800) / 2 - vp.x) / vp.zoom,
+        y: ((rect?.height ?? 600) / 2 - vp.y) / vp.zoom,
+      };
+      commit();
+      setNodes((nds) => [...nds, createNode(type, pos, t(`elements.${type}.newLabel`))]);
+    },
+    [commit, t],
+  );
 
   const bringToFront = useCallback(() => {
     const ids = new Set(selectedNodeIds);
     if (ids.size === 0) return;
+    commit();
     setNodes((nds) => {
       const moved = nds.filter((n) => ids.has(n.id) && n.type !== 'aggregate');
       const rest = nds.filter((n) => !(ids.has(n.id) && n.type !== 'aggregate'));
       return [...rest, ...moved];
     });
-  }, [selectedNodeIds]);
+  }, [selectedNodeIds, commit]);
 
   const sendToBack = useCallback(() => {
     const ids = new Set(selectedNodeIds);
     if (ids.size === 0) return;
+    commit();
     setNodes((nds) => {
       const aggregates = nds.filter((n) => n.type === 'aggregate');
       const notes = nds.filter((n) => n.type !== 'aggregate');
@@ -457,7 +535,7 @@ function App() {
       const rest = notes.filter((n) => !ids.has(n.id));
       return [...aggregates, ...moved, ...rest];
     });
-  }, [selectedNodeIds]);
+  }, [selectedNodeIds, commit]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -468,7 +546,23 @@ function App() {
       ) {
         return;
       }
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      // Undo / Redo
+      if (e.metaKey || e.ctrlKey) {
+        const key = e.key.toLowerCase();
+        if (key === 'z' && !e.shiftKey) {
+          e.preventDefault();
+          undo();
+          return;
+        }
+        if ((key === 'z' && e.shiftKey) || key === 'y') {
+          e.preventDefault();
+          redo();
+          return;
+        }
+        return;
+      }
+      if (e.altKey) return;
 
       const nodeType = NODE_SHORTCUTS[e.key.toLowerCase()];
       if (nodeType) {
@@ -486,13 +580,15 @@ function App() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [addNodeAtMouse, bringToFront, sendToBack]);
+  }, [addNodeAtMouse, bringToFront, sendToBack, undo, redo]);
 
   const groupAsAggregate = useCallback(() => {
     if (selectedNodeIds.length < 2) return;
 
     const selectedNodes = nodes.filter((n) => selectedNodeIds.includes(n.id));
     if (selectedNodes.length === 0) return;
+
+    commit();
 
     const minX = Math.min(...selectedNodes.map((n) => n.position.x));
     const minY = Math.min(...selectedNodes.map((n) => n.position.y));
@@ -504,7 +600,7 @@ function App() {
       id: aggId,
       type: 'aggregate',
       position: { x: minX - AGGREGATE_PADDING, y: minY - AGGREGATE_PADDING },
-      data: { label: 'New Aggregate', type: 'aggregate' },
+      data: { label: t('elements.aggregate.newLabel'), type: 'aggregate' },
       style: {
         width: maxX - minX + AGGREGATE_PADDING * 2,
         height: maxY - minY + AGGREGATE_PADDING * 2,
@@ -532,7 +628,7 @@ function App() {
       });
       return [aggNode, ...updated];
     });
-  }, [selectedNodeIds, nodes]);
+  }, [selectedNodeIds, nodes, t, commit]);
 
   const onNodeDrag = useCallback<NodeDragHandler>(
     (_event, node) => {
@@ -692,6 +788,10 @@ function App() {
             onBringToFront={bringToFront}
             onSendToBack={sendToBack}
             onHelp={() => setShowHelp(true)}
+            onUndo={undo}
+            onRedo={redo}
+            canUndo={canUndo}
+            canRedo={canRedo}
             canGroup={canGroup}
           />
 

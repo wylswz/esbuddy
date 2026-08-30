@@ -1,4 +1,16 @@
+import {
+  Undo2,
+  Redo2,
+  Group,
+  BringToFront,
+  SendToBack,
+  Download,
+  Upload,
+  CircleHelp,
+} from 'lucide-react';
 import { ELEMENT_STYLES, type ElementType } from '../types';
+import { useI18n } from '../i18n/context';
+import { ColorDot } from './ColorDot';
 
 interface ToolbarProps {
   onAddElement: (type: ElementType) => void;
@@ -8,10 +20,17 @@ interface ToolbarProps {
   onBringToFront: () => void;
   onSendToBack: () => void;
   onHelp: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
   canGroup: boolean;
 }
 
 const ELEMENT_ORDER: ElementType[] = ['event', 'command', 'actor', 'policy', 'external', 'hotspot'];
+
+const btn =
+  'flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white shadow-sm hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed';
 
 export function Toolbar({
   onAddElement,
@@ -21,28 +40,36 @@ export function Toolbar({
   onBringToFront,
   onSendToBack,
   onHelp,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
   canGroup,
 }: ToolbarProps) {
+  const { t, locale, setLocale } = useI18n();
+
   return (
-    <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 bg-white rounded-lg shadow-lg p-3 border border-gray-200">
-      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Add Element</div>
+    <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 bg-white/90 backdrop-blur rounded-xl shadow-lg p-3 w-56">
+      <div className="flex items-center justify-between mb-1">
+        <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+          {t('toolbar.addElement')}
+        </div>
+        <button
+          onClick={() => setLocale(locale === 'en' ? 'zh' : 'en')}
+          className="text-xs font-medium text-gray-400 hover:text-gray-700 transition-colors"
+        >
+          {t('toolbar.switchLanguage')}
+        </button>
+      </div>
+
       <div className="flex flex-col gap-1.5">
         {ELEMENT_ORDER.map((type) => {
           const s = ELEMENT_STYLES[type];
           return (
-            <button
-              key={type}
-              onClick={() => onAddElement(type)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors hover:opacity-80"
-              style={{
-                backgroundColor: s.bgColor,
-                color: s.color,
-                border: `1px solid ${s.borderColor}`,
-              }}
-            >
-              <span>{s.icon}</span>
-              <span>{s.label}</span>
-              <span className="ml-auto text-[10px] opacity-60 font-mono">{s.shortcut}</span>
+            <button key={type} onClick={() => onAddElement(type)} className={btn}>
+              <ColorDot color={s.color} />
+              <span>{t(`elements.${type}.label`)}</span>
+              <span className="ml-auto text-[10px] text-gray-400 font-mono">{s.shortcut}</span>
             </button>
           );
         })}
@@ -50,86 +77,79 @@ export function Toolbar({
 
       <div className="h-px bg-gray-200 my-1" />
 
-      <button
-        onClick={onGroupAggregate}
-        disabled={!canGroup}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        style={{
-          backgroundColor: ELEMENT_STYLES.aggregate.bgColor,
-          color: ELEMENT_STYLES.aggregate.color,
-          border: `1px solid ${ELEMENT_STYLES.aggregate.borderColor}`,
-        }}
-      >
-        <span>{ELEMENT_STYLES.aggregate.icon}</span>
-        <span>Group as Aggregate</span>
-      </button>
-
-      <div className="h-px bg-gray-200 my-1" />
-
-      <div className="flex flex-col gap-1.5">
-        <button
-          onClick={onExport}
-          className="px-3 py-1.5 rounded-md text-sm font-medium bg-gray-800 text-white hover:bg-gray-700 transition-colors"
-        >
-          Export CML
-        </button>
-        <label className="px-3 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors cursor-pointer text-center">
-          Import CML
-          <input
-            type="file"
-            accept=".cml,.txt"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) {
-                const reader = new FileReader();
-                reader.onload = () => {
-                  onImport(reader.result as string);
-                };
-                reader.readAsText(file);
-              }
-              e.target.value = '';
-            }}
-          />
-        </label>
-      </div>
-
-      <div className="h-px bg-gray-200 my-1" />
-
       <div className="flex gap-1.5">
         <button
-          onClick={onBringToFront}
-          className="flex-1 px-2 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-          title="置顶 (])"
+          onClick={onUndo}
+          disabled={!canUndo}
+          className={`${btn} flex-1 justify-center`}
+          title={`${t('toolbar.undo')} (⌘Z)`}
         >
-          置顶
+          <Undo2 size={16} />
         </button>
         <button
-          onClick={onSendToBack}
-          className="flex-1 px-2 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-          title="置底 ([)"
+          onClick={onRedo}
+          disabled={!canRedo}
+          className={`${btn} flex-1 justify-center`}
+          title={`${t('toolbar.redo')} (⌘⇧Z)`}
         >
-          置底
+          <Redo2 size={16} />
         </button>
       </div>
 
       <div className="h-px bg-gray-200 my-1" />
 
-      <button
-        onClick={onHelp}
-        className="px-3 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-      >
-        帮助 Help
+      <button onClick={onGroupAggregate} disabled={!canGroup} className={btn}>
+        <Group size={16} />
+        <span>{t('toolbar.groupAsAggregate')}</span>
       </button>
 
-      <div className="text-[10px] leading-snug text-gray-400">
-        <div className="font-semibold text-gray-500 mb-0.5">修饰键</div>
-        <div>
-          <span className="font-semibold text-gray-500">Shift</span> + 拖出 → 从聚合移除
-        </div>
-        <div>
-          <span className="font-semibold text-gray-500">⌥ Option</span> + 点击 → 连接
-        </div>
+      <div className="flex gap-1.5">
+        <button onClick={onBringToFront} className={`${btn} flex-1 justify-center`} title={t('toolbar.bringToFront')}>
+          <BringToFront size={16} />
+        </button>
+        <button onClick={onSendToBack} className={`${btn} flex-1 justify-center`} title={t('toolbar.sendToBack')}>
+          <SendToBack size={16} />
+        </button>
+      </div>
+
+      <div className="h-px bg-gray-200 my-1" />
+
+      <button onClick={onExport} className={btn}>
+        <Download size={16} />
+        <span>{t('toolbar.exportCml')}</span>
+      </button>
+      <label className={`${btn} cursor-pointer justify-center`}>
+        <Upload size={16} />
+        <span>{t('toolbar.importCml')}</span>
+        <input
+          type="file"
+          accept=".cml,.txt"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              const reader = new FileReader();
+              reader.onload = () => {
+                onImport(reader.result as string);
+              };
+              reader.readAsText(file);
+            }
+            e.target.value = '';
+          }}
+        />
+      </label>
+
+      <div className="h-px bg-gray-200 my-1" />
+
+      <button onClick={onHelp} className={btn}>
+        <CircleHelp size={16} />
+        <span>{t('toolbar.help')}</span>
+      </button>
+
+      <div className="text-[10px] leading-snug text-gray-400 px-1">
+        <div className="font-semibold text-gray-500 mb-0.5">{t('toolbar.modifierKeys')}</div>
+        <div>{t('toolbar.shiftDragOut')}</div>
+        <div>{t('toolbar.optionClick')}</div>
       </div>
     </div>
   );

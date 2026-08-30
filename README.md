@@ -2,11 +2,7 @@
 
 Esbuddy is a front-end app for visualising Event Storming workshops in Domain-Driven Design (DDD).
 
-## Tech Stack
-
-- Vite + React 19 + TypeScript
-- TailwindCSS v4
-- React Flow (`reactflow`) — infinite canvas
+![](assets/screenshot.png)
 
 ## Event Storming Elements
 
@@ -58,6 +54,8 @@ Each element is a square sticky note with:
 | `⌥ Option` / `Alt` + click | Connect the selected node(s) to the clicked node |
 | `]` | Bring selection to front |
 | `[` | Send selection to back |
+| `⌘ Cmd` / `Ctrl` + `Z` | Undo |
+| `⌘ Cmd` / `Ctrl` + `⇧ Z` (or `Ctrl` + `Y`) | Redo |
 | `⌘ Cmd` / `Ctrl` + click | Multi-select |
 | double-click | Edit a note's title or memo |
 
@@ -117,6 +115,7 @@ npm run preview  # preview the production build
 - [ ] Right-click context menu to create elements
 - [ ] Multiple canvas switching
 - [ ] Fuller CML support (Actor, Policy, External System mappings)
+- [ ] Real-time multi-user collaboration (see `src/useHistory.ts` — the snapshot log is designed to be swapped for a serializable operation/command log)
 - [ ] Collaboration!
 
 ## More on DDD

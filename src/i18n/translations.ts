@@ -1,0 +1,163 @@
+export const en = {
+  toolbar: {
+    addElement: 'Add Element',
+    groupAsAggregate: 'Group as Aggregate',
+    exportCml: 'Export CML',
+    importCml: 'Import CML',
+    bringToFront: 'Bring to Front',
+    sendToBack: 'Send to Back',
+    undo: 'Undo',
+    redo: 'Redo',
+    help: 'Help',
+    modifierKeys: 'Modifier keys',
+    shiftDragOut: 'Shift + drag out → remove from aggregate',
+    optionClick: '⌥ Option + click → connect',
+    switchLanguage: '中文',
+  },
+  export: {
+    title: 'Exported CML Source',
+    copy: 'Copy to Clipboard',
+    copied: 'Copied!',
+    download: 'Download .cml',
+  },
+  help: {
+    title: 'Help',
+    elementTypes: 'Element Types',
+    shortcuts: 'Keyboard Shortcuts',
+    modifierRule: 'Modifier keys (one concern per modifier)',
+    addAtCursor: 'Add {element} at the mouse cursor',
+    shiftDragOut: 'Shift + drag out → remove a child from its aggregate',
+    optionClick: '⌥ Option + click → connect the selected node(s)',
+    zOrder: '[ / ] → send to back / bring to front',
+    multiSelectShortcut: '⌘ Cmd / Ctrl + click → multi-select',
+    doubleClick: 'Double-click → edit title / memo',
+    breakContainment: 'Break containment (remove from an aggregate)',
+    createRelation: 'Create a relation (connect nodes)',
+    multiSelectRule: 'Multi-select',
+  },
+  node: {
+    doubleClickEdit: 'Double-click to edit',
+    doubleClickEditMemo: 'Double-click to edit memo',
+    memoPlaceholder: 'Memo…',
+  },
+  elements: {
+    event: {
+      label: 'Event',
+      newLabel: 'New Event',
+      description: 'A significant thing that happened in the domain',
+    },
+    command: {
+      label: 'Command',
+      newLabel: 'New Command',
+      description: 'An action that triggers an event',
+    },
+    aggregate: {
+      label: 'Aggregate',
+      newLabel: 'New Aggregate',
+      description: 'A boundary created by grouping Events/Commands; shown as a translucent box',
+    },
+    actor: {
+      label: 'Actor',
+      newLabel: 'New Actor',
+      description: 'A person or system that issues commands',
+    },
+    policy: {
+      label: 'Policy',
+      newLabel: 'New Policy',
+      description: 'Reactive logic triggered by an event ("when X, then Y")',
+    },
+    external: {
+      label: 'External System',
+      newLabel: 'New External System',
+      description: 'A dependency outside the system boundary',
+    },
+    hotspot: {
+      label: 'Hot Spot',
+      newLabel: 'New Hot Spot',
+      description: 'A conflict, question, or risk worth flagging',
+    },
+  },
+};
+
+export type Translation = typeof en;
+
+export const zh: Translation = {
+  toolbar: {
+    addElement: '添加元素',
+    groupAsAggregate: '聚合分组',
+    exportCml: '导出 CML',
+    importCml: '导入 CML',
+    bringToFront: '置顶',
+    sendToBack: '置底',
+    undo: '撤销',
+    redo: '重做',
+    help: '帮助',
+    modifierKeys: '修饰键',
+    shiftDragOut: 'Shift + 拖出 → 从聚合移除',
+    optionClick: '⌥ Option + 点击 → 连接',
+    switchLanguage: 'English',
+  },
+  export: {
+    title: '导出的 CML 源码',
+    copy: '复制到剪贴板',
+    copied: '已复制！',
+    download: '下载 .cml',
+  },
+  help: {
+    title: '帮助',
+    elementTypes: '元素类型',
+    shortcuts: '快捷键',
+    modifierRule: '修饰键规则（一个修饰键对应一个职责）',
+    addAtCursor: '在鼠标处添加 {element}',
+    shiftDragOut: 'Shift + 拖出 → 从聚合中移除子元素',
+    optionClick: '⌥ Option + 点击 → 连接选中的节点',
+    zOrder: '[ / ] → 置底 / 置顶',
+    multiSelectShortcut: '⌘ Cmd / Ctrl + 点击 → 多选',
+    doubleClick: '双击 → 编辑标题 / 备注',
+    breakContainment: '打破包含关系（从聚合中移除）',
+    createRelation: '创建连接',
+    multiSelectRule: '多选',
+  },
+  node: {
+    doubleClickEdit: '双击编辑',
+    doubleClickEditMemo: '双击编辑备注',
+    memoPlaceholder: '备注…',
+  },
+  elements: {
+    event: {
+      label: '事件',
+      newLabel: '新事件',
+      description: '领域中发生的重要事情',
+    },
+    command: {
+      label: '命令',
+      newLabel: '新命令',
+      description: '触发事件的动作',
+    },
+    aggregate: {
+      label: '聚合',
+      newLabel: '新聚合',
+      description: '通过框选一组 Event/Command 创建，显示为半透明边界框',
+    },
+    actor: {
+      label: '角色',
+      newLabel: '新角色',
+      description: '发起 Command 的角色（人或系统）',
+    },
+    policy: {
+      label: '策略',
+      newLabel: '新策略',
+      description: '由 Event 触发的反应逻辑（"当…时，则…"）',
+    },
+    external: {
+      label: '外部系统',
+      newLabel: '新外部系统',
+      description: '系统边界外的依赖',
+    },
+    hotspot: {
+      label: '热点',
+      newLabel: '新热点',
+      description: '冲突、问题或风险点',
+    },
+  },
+};

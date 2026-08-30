@@ -7,6 +7,8 @@ import {
 } from 'reactflow';
 import { ELEMENT_STYLES } from '../types';
 import { useCanvasActions, useDropTarget } from '../CanvasContext';
+import { useI18n } from '../i18n/context';
+import { ColorDot } from './ColorDot';
 
 interface AggregateNodeData {
   label: string;
@@ -20,6 +22,7 @@ function AggregateNodeComponent({ id, data, selected }: NodeProps<AggregateNodeD
   const store = useStoreApi();
   const { updateNodeLabel } = useCanvasActions();
   const dropTargetId = useDropTarget();
+  const { t } = useI18n();
   const [editing, setEditing] = useState(false);
   const isDropTarget = dropTargetId === id;
   const style = ELEMENT_STYLES.aggregate;
@@ -106,7 +109,7 @@ function AggregateNodeComponent({ id, data, selected }: NodeProps<AggregateNodeD
           border: `1px solid ${style.borderColor}`,
         }}
       >
-        <span className="text-xs">{style.icon}</span>
+        <ColorDot color={style.color} />
         {editing ? (
           <input
             ref={focusAndSelect}
@@ -126,7 +129,7 @@ function AggregateNodeComponent({ id, data, selected }: NodeProps<AggregateNodeD
         ) : (
           <span
             className="text-xs font-semibold uppercase tracking-wide cursor-text"
-            title="双击编辑"
+            title={t('node.doubleClickEdit')}
             onDoubleClick={() => setEditing(true)}
           >
             {data.label}
