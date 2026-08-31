@@ -1,5 +1,5 @@
 import type { EsCanvasState, EsNode, EsEdge, ElementType } from './types';
-import { NOTE_DEFAULT_SIZE } from './types';
+import { NOTE_DEFAULT_SIZE, ELEMENT_DEFAULT_SIZE } from './types';
 
 let idCounter = 0;
 function nextId(prefix: string): string {
@@ -83,6 +83,21 @@ export function parseCML(cml: string): EsCanvasState {
       continue;
     }
 
+    // ReadModel
+    const readModelMatch = line.match(/^ReadModel\s+(\w+)/);
+    if (readModelMatch) {
+      const id = nextId('readmodel');
+      identifierMap.set(readModelMatch[1], id);
+      nodes.push({
+        id,
+        type: 'readmodel',
+        position: { x: xPos, y: yPos },
+        data: { label: fromIdentifier(readModelMatch[1]), type: 'readmodel', aggregateId: currentAggregateId },
+      });
+      xPos += 200;
+      continue;
+    }
+
     // Command
     const cmdMatch = line.match(/^Command\s+(\w+)/);
     if (cmdMatch) {
@@ -114,6 +129,6 @@ export function createNode(type: ElementType, position: { x: number; y: number }
     type,
     position,
     data: { label, type },
-    style: { width: NOTE_DEFAULT_SIZE, height: NOTE_DEFAULT_SIZE },
+    style: ELEMENT_DEFAULT_SIZE[type] ?? { width: NOTE_DEFAULT_SIZE, height: NOTE_DEFAULT_SIZE },
   };
 }

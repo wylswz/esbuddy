@@ -15,6 +15,7 @@ Esbuddy is a front-end app for visualising Event Storming workshops in Domain-Dr
 | **Policy** | purple `#a855f7` | Reactive logic triggered by an event ("when X, then Y") |
 | **External System** | pink `#ec4899` | A dependency outside the system boundary |
 | **Hot Spot** | red `#991b1b` | A conflict, question, or risk worth flagging |
+| **Read Model** | green `#10b981` | The information an actor needs to know before making a decision |
 
 ## Sticky Notes
 
@@ -50,6 +51,7 @@ Each element is a square sticky note with:
 | `P` | Add a **Policy** at the mouse cursor |
 | `X` | Add an **External System** at the mouse cursor |
 | `H` | Add a **Hot Spot** at the mouse cursor |
+| `R` | Add a **Read Model** at the mouse cursor |
 | `Shift` + drag out | Remove a child from its aggregate |
 | `⌥ Option` / `Alt` + click | Connect the selected node(s) to the clicked node |
 | `]` | Bring selection to front |

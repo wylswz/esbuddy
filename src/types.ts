@@ -1,7 +1,11 @@
-export type ElementType = 'event' | 'command' | 'aggregate' | 'actor' | 'policy' | 'external' | 'hotspot';
+export type ElementType = 'event' | 'command' | 'aggregate' | 'actor' | 'policy' | 'external' | 'hotspot' | 'readmodel';
 
 export const NOTE_DEFAULT_SIZE = 180;
 export const NOTE_MIN_SIZE = 120;
+
+export const ELEMENT_DEFAULT_SIZE: Partial<Record<ElementType, { width: number; height: number }>> = {
+  actor: { width: 140, height: 100 },
+};
 
 export interface ElementData {
   label: string;
@@ -79,5 +83,11 @@ export const ELEMENT_STYLES: Record<ElementType, ElementStyle> = {
     bgColor: '#fef2f2',
     borderColor: '#dc2626',
     shortcut: 'H',
+  },
+  readmodel: {
+    color: '#10b981',
+    bgColor: '#ecfdf5',
+    borderColor: '#34d399',
+    shortcut: 'R',
   },
 };

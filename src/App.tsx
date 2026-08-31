@@ -59,6 +59,7 @@ const nodeTypes = {
   policy: StickyNode,
   external: StickyNode,
   hotspot: StickyNode,
+  readmodel: StickyNode,
 };
 
 const initialNodes: Node[] = [
@@ -832,6 +833,7 @@ function App() {
                   policy: '#a855f7',
                   external: '#ec4899',
                   hotspot: '#991b1b',
+                  readmodel: '#10b981',
                 };
                 return colors[type] || '#94a3b8';
               }}

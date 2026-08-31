@@ -76,6 +76,11 @@ export const en = {
       newLabel: 'New Hot Spot',
       description: 'A conflict, question, or risk worth flagging',
     },
+    readmodel: {
+      label: 'Read Model',
+      newLabel: 'New Read Model',
+      description: 'The information an actor needs to know before making a decision',
+    },
   },
 };
 
@@ -158,6 +163,11 @@ export const zh: Translation = {
       label: '热点',
       newLabel: '新热点',
       description: '冲突、问题或风险点',
+    },
+    readmodel: {
+      label: '读模型',
+      newLabel: '新读模型',
+      description: '参与者在做决策前需要了解的信息',
     },
   },
 };

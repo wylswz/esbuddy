@@ -7,7 +7,7 @@ interface HelpModalProps {
   onClose: () => void;
 }
 
-const ELEMENT_ORDER: ElementType[] = ['event', 'command', 'aggregate', 'actor', 'policy', 'external', 'hotspot'];
+const ELEMENT_ORDER: ElementType[] = ['event', 'command', 'aggregate', 'actor', 'policy', 'external', 'hotspot', 'readmodel'];
 
 function Kbd({ children }: { children: ReactNode }) {
   return (
