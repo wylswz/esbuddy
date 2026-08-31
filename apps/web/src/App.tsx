@@ -33,8 +33,10 @@ import { parseCML, createNode } from './cmlImporter';
 import { CanvasActionsContext, DropTargetContext } from './CanvasContext';
 import { useI18n } from './i18n/context';
 import { useHistory } from './useHistory';
-import { getStore } from './stores';
+import { getStore, isRemoteMode } from './stores';
 import { DEFAULT_CANVAS_ID } from './storage';
+import { clearAuthToken } from './auth';
+import { LoginPage } from './components/LoginPage';
 import type { CanvasSnapshot } from '@esbuddy/sdk';
 import { NOTE_DEFAULT_SIZE, ELEMENT_STYLES, type ElementType, type EsCanvasState } from './types';
 
@@ -297,9 +299,24 @@ function handleNodeRemovals(prevNodes: Node[], nextNodes: Node[], changes: NodeC
 }
 
 function App() {
-  const store = useMemo(() => getStore(), []);
+  const [auth, setAuth] = useState<'loading' | 'authed' | 'anon'>(() =>
+    isRemoteMode() ? 'loading' : 'authed',
+  );
+  const store = useMemo(
+    () =>
+      getStore({
+        onUnauthorized: () => {
+          clearAuthToken();
+          setAuth('anon');
+        },
+      }),
+    [],
+  );
   const [hadSaved, setHadSaved] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [canvasId, setCanvasId] = useState<string | null>(() =>
+    isRemoteMode() ? null : DEFAULT_CANVAS_ID,
+  );
   const [nodes, setNodes] = useState<Node[]>(initialNodes);
   const [edges, setEdges] = useState<Edge[]>(initialEdges);
   const [viewport, setViewport] = useState<Viewport | null>(null);
@@ -330,11 +347,53 @@ function App() {
     edgesRef.current = edges;
   }, [edges]);
 
-  // Load the persisted canvas through the polymorphic Store (local or remote).
+  // Resolve the auth state in remote mode (login page vs canvas).
   useEffect(() => {
+    if (!isRemoteMode()) return;
     let cancelled = false;
     store
-      .getCanvas(DEFAULT_CANVAS_ID)
+      .getCurrentUser()
+      .then((user) => {
+        if (!cancelled) setAuth(user ? 'authed' : 'anon');
+      })
+      .catch(() => {
+        if (!cancelled) setAuth('anon');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [store]);
+
+  // Remote mode: ensure the user has a default canvas (create on first login).
+  useEffect(() => {
+    if (auth !== 'authed' || !isRemoteMode()) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await store.listCanvases();
+        let id: string;
+        if (list.length > 0) {
+          id = list[0].id;
+        } else {
+          const meta = await store.createCanvas('Untitled Canvas');
+          id = meta.id;
+        }
+        if (!cancelled) setCanvasId(id);
+      } catch {
+        if (!cancelled) setCanvasId(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [store, auth]);
+
+  // Load the persisted canvas through the polymorphic Store (local or remote).
+  useEffect(() => {
+    if (auth !== 'authed' || !canvasId) return;
+    let cancelled = false;
+    store
+      .getCanvas(canvasId)
       .then((record) => {
         if (cancelled) return;
         if (record && record.snapshot.nodes.length > 0) {
@@ -357,7 +416,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [store]);
+  }, [store, auth, canvasId]);
 
   const onInit = useCallback((instance: ReactFlowInstance) => {
     rfInstanceRef.current = instance;
@@ -775,12 +834,12 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded || auth !== 'authed' || !canvasId) return;
     const timer = setTimeout(() => {
-      store.saveCanvas(DEFAULT_CANVAS_ID, { nodes, edges, viewport } as unknown as CanvasSnapshot);
+      store.saveCanvas(canvasId, { nodes, edges, viewport } as unknown as CanvasSnapshot);
     }, 250);
     return () => clearTimeout(timer);
-  }, [nodes, edges, viewport, loaded, store]);
+  }, [nodes, edges, viewport, loaded, store, auth, canvasId]);
 
   const handleExport = useCallback(() => {
     const state: EsCanvasState = {
@@ -820,6 +879,18 @@ function App() {
       }),
     [selectedNodeIds, nodes],
   );
+
+  if (auth === 'loading') {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-400">
+        Loading…
+      </div>
+    );
+  }
+
+  if (auth === 'anon') {
+    return <LoginPage onLoggedIn={() => setAuth('authed')} />;
+  }
 
   return (
     <div ref={canvasRef} className="w-full h-full relative">

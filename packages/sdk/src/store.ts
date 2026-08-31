@@ -28,7 +28,7 @@ export interface Store {
   // canvases
   listCanvases(scope?: { userId?: string; workspaceId?: string }): Promise<CanvasMeta[]>;
   getCanvas(id: string): Promise<CanvasRecord | null>;
-  createCanvas(name: string, owner: CanvasOwner): Promise<CanvasMeta>;
+  createCanvas(name: string, owner?: CanvasOwner): Promise<CanvasMeta>;
   saveCanvas(id: string, snapshot: CanvasSnapshot, name?: string): Promise<CanvasMeta>;
   deleteCanvas(id: string): Promise<void>;
 }

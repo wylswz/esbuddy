@@ -7,6 +7,7 @@
     "dev": "vite",
     "dev:remote": "vite --mode fullstack",
     "build": "tsc -b && vite build",
+    "build:fullstack": "tsc -b && vite build --mode fullstack",
     "typecheck": "tsc -b --noEmit",
     "preview": "vite preview"
   },

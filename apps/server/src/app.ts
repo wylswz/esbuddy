@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { logger } from 'hono/logger';
 import type { Env } from './env.js';
 import type { Db } from './db/index.js';
 import type { AppVariables } from './context.js';
@@ -16,6 +17,7 @@ export interface AppDeps {
 export function buildApp({ db, env, staticRoot }: AppDeps) {
   const app = new Hono<{ Variables: AppVariables }>();
 
+  app.use('*', logger());
   app.use('*', staticMiddleware(staticRoot));
 
   app.use('*', async (c, next) => {

@@ -120,7 +120,8 @@ pnpm install
 pnpm dev            # pure frontend (:5173, LocalStore/localStorage) — the stateless build
 pnpm dev:fullstack  # frontend (remote mode) + Hono server (:8787, SQLite)
 pnpm dev:server     # backend only
-pnpm build          # build sdk → web → server
+pnpm build          # build sdk → web(local mode) → server — GitHub Pages artifact
+pnpm build:fullstack # build sdk → web(remote mode) → server — fullstack/Docker artifact
 pnpm typecheck      # typecheck all workspaces
 pnpm lint           # oxlint
 ```
@@ -130,10 +131,10 @@ pnpm lint           # oxlint
 
 ### Store modes
 
-The frontend selects its storage via `VITE_STORE_MODE`:
+The frontend selects its storage via `VITE_STORE_MODE` (set by Vite mode files):
 
-- `local` (default): `LocalStore`, persists to `localStorage` — the stateless GitHub Pages build.
-- `remote`: `HttpStore`, talks to the backend `/api/*` (fullstack single deployment).
+- `local` (default, `vite build`): `LocalStore`, persists to `localStorage` — the stateless GitHub Pages build.
+- `remote` (`vite build --mode fullstack` → loads `apps/web/.env.fullstack`): `HttpStore`, talks to the backend `/api/*` (fullstack single deployment). The Dockerfile uses `pnpm build:fullstack`.
 
 ### Backend env vars
 
@@ -143,7 +144,7 @@ Copy `apps/server/.env.example` → `apps/server/.env` (auto-loaded on startup) 
 |---|---|---|
 | `DB_KIND` | `sqlite` | `sqlite` (local) — `d1`/`pg` are extension points |
 | `DB_PATH` | `./.db/esbuddy.sqlite` | SQLite file path |
-| `JWT_SECRET` | `esbuddy-dev-secret` | JWT signing secret |
+| `JWT_SECRET` | `esbuddy-dev-secret` | JWT + OAuth state signing secret (required in production) |
 | `GOOGLE_CLIENT_ID` / `_SECRET` / `GOOGLE_REDIRECT_URI` | — | Google OAuth (server-side flow) |
 | `FRONTEND_URL` | `/` | post-login redirect target |
 | `PORT` | `8787` | HTTP port |

@@ -5,6 +5,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - '8787:8787'
+    env_file:
+      - .env
     environment:
       DB_KIND: ${DB_KIND:-sqlite}
       DB_PATH: /app/apps/server/.db/esbuddy.sqlite

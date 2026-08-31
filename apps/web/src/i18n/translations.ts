@@ -40,6 +40,14 @@ export const en = {
     doubleClickEditMemo: 'Double-click to edit memo',
     memoPlaceholder: 'Memo…',
   },
+  login: {
+    title: 'Sign in to Esbuddy',
+    subtitle: 'Continue with your Google account',
+    google: 'Continue with Google',
+    devTitle: 'Local development',
+    devEmailPlaceholder: 'Email (optional)',
+    devLogin: 'Dev login',
+  },
   elements: {
     event: {
       label: 'Event',
@@ -127,6 +135,14 @@ export const zh: Translation = {
     doubleClickEdit: '双击编辑',
     doubleClickEditMemo: '双击编辑备注',
     memoPlaceholder: '备注…',
+  },
+  login: {
+    title: '登录 Esbuddy',
+    subtitle: '使用 Google 账号继续',
+    google: '使用 Google 登录',
+    devTitle: '本地开发',
+    devEmailPlaceholder: '邮箱（可选）',
+    devLogin: '开发登录',
   },
   elements: {
     event: {

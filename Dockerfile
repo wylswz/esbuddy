@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-
 # ---------- build stage: build sdk + web + server ----------
 FROM node:22-slim AS build
 WORKDIR /app
@@ -14,9 +12,9 @@ COPY apps/web/package.json apps/web/
 COPY apps/server/package.json apps/server/
 RUN pnpm install --frozen-lockfile
 
-# Build everything.
+# Build everything (frontend in remote/fullstack mode so it talks to the backend).
 COPY . .
-RUN pnpm build
+RUN pnpm build:fullstack
 
 # ---------- runtime stage ----------
 FROM node:22-slim AS runtime

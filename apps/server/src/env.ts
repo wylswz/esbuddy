@@ -27,7 +27,7 @@ function loadDotEnv(): void {
 /** Node bootstrap resolves Env from process.env (Workers maps bindings instead). */
 export function getEnv(): Env {
   loadDotEnv();
-  return {
+  const env: Env = {
     DB_KIND: process.env.DB_KIND,
     DB_PATH: process.env.DB_PATH,
     JWT_SECRET: process.env.JWT_SECRET,
@@ -38,4 +38,8 @@ export function getEnv(): Env {
     WEB_DIST_PATH: process.env.WEB_DIST_PATH,
     PORT: process.env.PORT,
   };
+  if (process.env.NODE_ENV === 'production' && !env.JWT_SECRET) {
+    throw new Error('JWT_SECRET must be set in production');
+  }
+  return env;
 }

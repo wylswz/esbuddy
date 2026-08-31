@@ -12,6 +12,7 @@
     "dev:server": "pnpm --filter @esbuddy/server dev",
     "dev:sdk": "pnpm --filter @esbuddy/sdk dev",
     "build": "pnpm --filter @esbuddy/sdk build && pnpm --filter @esbuddy/web build && pnpm --filter @esbuddy/server build",
+    "build:fullstack": "pnpm --filter @esbuddy/sdk build && pnpm --filter @esbuddy/web build:fullstack && pnpm --filter @esbuddy/server build",
     "typecheck": "pnpm -r typecheck",
     "lint": "oxlint",
     "preview": "pnpm --filter @esbuddy/web preview"

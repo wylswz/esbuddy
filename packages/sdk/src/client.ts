@@ -15,12 +15,17 @@ export interface HttpStoreOptions {
   baseUrl: string;
   getToken?: () => string | null;
   fetchImpl?: typeof fetch;
+  onUnauthorized?: () => void;
 }
+
+/** localStorage key used to persist the signed JWT (shared by web + server flows). */
+export const TOKEN_STORAGE_KEY = 'esbuddy.token';
 
 export class HttpStore implements Store {
   private readonly baseUrl: string;
   private readonly getToken: () => string | null;
   private readonly fetchImpl: typeof fetch;
+  private readonly onUnauthorized: (() => void) | undefined;
 
   constructor(options: HttpStoreOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, '');
@@ -28,12 +33,13 @@ export class HttpStore implements Store {
       options.getToken ??
       (() => {
         try {
-          return typeof localStorage === 'undefined' ? null : localStorage.getItem('esbuddy.token');
+          return typeof localStorage === 'undefined' ? null : localStorage.getItem(TOKEN_STORAGE_KEY);
         } catch {
           return null;
         }
       });
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
+    this.onUnauthorized = options.onUnauthorized;
   }
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -47,6 +53,7 @@ export class HttpStore implements Store {
       body: body === undefined ? undefined : JSON.stringify(body),
     });
 
+    if (res.status === 401) this.onUnauthorized?.();
     if (!res.ok) {
       const text = await res.text().catch(() => '');
       throw new Error(`HTTP ${res.status} ${method} ${path}: ${text}`);
@@ -56,7 +63,7 @@ export class HttpStore implements Store {
   }
 
   getCurrentUser(): Promise<User | null> {
-    return this.request<User | null>('GET', '/me');
+    return this.request<User | null>('GET', '/auth/me');
   }
 
   listWorkspaces(): Promise<Workspace[]> {
@@ -90,7 +97,7 @@ export class HttpStore implements Store {
     return this.request<CanvasRecord | null>('GET', `/canvases/${id}`);
   }
 
-  createCanvas(name: string, owner: CanvasOwner): Promise<CanvasMeta> {
+  createCanvas(name: string, owner?: CanvasOwner): Promise<CanvasMeta> {
     return this.request<CanvasMeta>('POST', '/canvases', { name, owner });
   }
 

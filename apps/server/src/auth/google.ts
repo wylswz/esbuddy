@@ -1,5 +1,6 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import type { Env } from '../env.js';
+import { signState } from './jwt.js';
 
 const GOOGLE_ISSUER = 'https://accounts.google.com';
 const GOOGLE_CERTS = 'https://www.googleapis.com/oauth2/v3/certs';
@@ -11,8 +12,8 @@ export interface GoogleProfile {
   avatarUrl?: string | null;
 }
 
-export function googleAuthUrl(env: Env): { url: string; state: string } {
-  const state = crypto.randomUUID();
+export async function googleAuthUrl(env: Env): Promise<string> {
+  const state = await signState(env);
   const params = new URLSearchParams({
     client_id: env.GOOGLE_CLIENT_ID ?? '',
     redirect_uri: env.GOOGLE_REDIRECT_URI ?? '',
@@ -21,7 +22,7 @@ export function googleAuthUrl(env: Env): { url: string; state: string } {
     state,
     prompt: 'select_account',
   });
-  return { url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`, state };
+  return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 }
 
 export async function exchangeCodeForProfile(code: string, env: Env): Promise<GoogleProfile> {
