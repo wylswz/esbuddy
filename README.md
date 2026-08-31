@@ -85,31 +85,82 @@ Each element is a square sticky note with:
 ## Project Structure
 
 ```
-src/
-├── App.tsx                   # React Flow canvas + state management
-├── main.tsx                  # entry point
-├── index.css                 # TailwindCSS v4 + global styles
-├── types.ts                  # element types + style config
-├── storage.ts                # localStorage persistence
-├── CanvasContext.tsx         # canvas actions context
-├── cmlExporter.ts            # canvas data → CML source
-├── cmlImporter.ts            # CML source → canvas data + createNode factory
-├── components/
-│   ├── StickyNode.tsx        # sticky note node (title + memo, resize)
-│   ├── AggregateNode.tsx     # aggregate boundary box (resize)
-│   ├── Toolbar.tsx           # left toolbar (add, group, import/export, z-order)
-│   └── ExportModal.tsx       # CML export modal (copy/download)
-└── assets/
+apps/
+├── web/                       # React frontend (Vite + React Flow + Tailwind)
+│   └── src/
+│       ├── App.tsx            # React Flow canvas + state management
+│       ├── types.ts           # element styles (domain types come from @esbuddy/sdk)
+│       ├── storage.ts         # localStorage persistence primitives
+│       ├── stores/            # polymorphic Store layer (ADR-0001.1)
+│       │   ├── LocalStore.ts  # localStorage (stateless GitHub Pages build)
+│       │   └── index.ts       # factory: local | remote (VITE_STORE_MODE)
+│       ├── cmlExporter.ts     # canvas data → CML source
+│       ├── cmlImporter.ts     # CML source → canvas data + createNode factory
+│       └── components/
+└── server/                    # Hono backend (ADR-0001.10/11)
+    └── src/
+        ├── index.ts           # Node bootstrap
+        ├── app.ts             # platform-agnostic Hono app
+        ├── env.ts             # Env interface + node resolver
+        ├── db/                # Drizzle schema + polymorphic DB factory (sqlite | d1 | pg)
+        ├── repo.ts            # repository layer (users/workspaces/canvases/events)
+        ├── auth/              # JWT + Google OAuth + middleware
+        └── routes/            # auth / canvases / workspaces / invitations
+
+packages/
+└── sdk/                       # shared domain types + Store interface + HttpStore client
 ```
 
 ## Development
 
+Two local dev modes:
+
 ```bash
-npm install
-npm run dev      # start the dev server at http://localhost:5173
-npm run build    # build for production
-npm run preview  # preview the production build
+pnpm install
+pnpm dev            # pure frontend (:5173, LocalStore/localStorage) — the stateless build
+pnpm dev:fullstack  # frontend (remote mode) + Hono server (:8787, SQLite)
+pnpm dev:server     # backend only
+pnpm build          # build sdk → web → server
+pnpm typecheck      # typecheck all workspaces
+pnpm lint           # oxlint
 ```
+
+- `npm run dev` runs the frontend with `VITE_STORE_MODE=local` (default) — no backend needed.
+- `npm run dev:fullstack` starts Vite in `--mode fullstack` (`apps/web/.env.fullstack` sets `VITE_STORE_MODE=remote`) plus the server; `/api` is proxied from `:5173` to `:8787`.
+
+### Store modes
+
+The frontend selects its storage via `VITE_STORE_MODE`:
+
+- `local` (default): `LocalStore`, persists to `localStorage` — the stateless GitHub Pages build.
+- `remote`: `HttpStore`, talks to the backend `/api/*` (fullstack single deployment).
+
+### Backend env vars
+
+Copy `apps/server/.env.example` → `apps/server/.env` (auto-loaded on startup) and adjust as needed. The frontend reads `apps/web/.env.local` for `VITE_STORE_MODE` / `VITE_API_URL`.
+
+| Var | Default | Purpose |
+|---|---|---|
+| `DB_KIND` | `sqlite` | `sqlite` (local) — `d1`/`pg` are extension points |
+| `DB_PATH` | `./.db/esbuddy.sqlite` | SQLite file path |
+| `JWT_SECRET` | `esbuddy-dev-secret` | JWT signing secret |
+| `GOOGLE_CLIENT_ID` / `_SECRET` / `GOOGLE_REDIRECT_URI` | — | Google OAuth (server-side flow) |
+| `FRONTEND_URL` | `/` | post-login redirect target |
+| `PORT` | `8787` | HTTP port |
+
+For local testing without Google, call `POST /api/auth/dev-login` to mint a dev token.
+
+## Docker
+
+Single-deployment fullstack image (backend serves the built SPA + `/api/*`):
+
+```bash
+docker compose up --build    # build image + start on :8787
+# open http://localhost:8787
+```
+
+- `Dockerfile` — multi-stage: builds sdk → web → server via pnpm, runtime serves `apps/web/dist` + API.
+- `docker-compose.yml` — binds `:8787`, persists SQLite in a named volume, forwards `GOOGLE_*` / `JWT_SECRET` from your shell (or a root `.env`).
 
 ## Roadmap
 

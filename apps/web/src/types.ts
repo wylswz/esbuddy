@@ -1,4 +1,6 @@
-export type ElementType = 'event' | 'command' | 'aggregate' | 'actor' | 'policy' | 'external' | 'hotspot' | 'readmodel';
+import type { ElementType } from '@esbuddy/sdk';
+
+export type { ElementType } from '@esbuddy/sdk';
 
 export const NOTE_DEFAULT_SIZE = 180;
 export const NOTE_MIN_SIZE = 120;

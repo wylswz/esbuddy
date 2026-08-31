@@ -1,0 +1,21 @@
+services:
+  esbuddy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - '8787:8787'
+    environment:
+      DB_KIND: ${DB_KIND:-sqlite}
+      DB_PATH: /app/apps/server/.db/esbuddy.sqlite
+      JWT_SECRET: ${JWT_SECRET:-esbuddy-dev-secret}
+      PORT: '8787'
+      # Google OAuth (optional — pass through from a local .env)
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+    volumes:
+      - esbuddy-data:/app/apps/server/.db
+
+volumes:
+  esbuddy-data:

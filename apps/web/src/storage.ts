@@ -129,3 +129,32 @@ export function saveCanvas(
 export function listCanvasIds(): string[] {
   return Object.keys(readStore()?.canvases ?? {});
 }
+
+export interface CanvasMeta {
+  id: string;
+  name: string;
+}
+
+export function listCanvases(): CanvasMeta[] {
+  const store = readStore();
+  if (!store) return [];
+  return Object.entries(store.canvases).map(([id, canvas]) => ({ id, name: canvas.name }));
+}
+
+export function createCanvas(name?: string): string {
+  const id = `canvas_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  saveCanvas(id, { nodes: [], edges: [], viewport: null }, name ?? 'Untitled Canvas');
+  return id;
+}
+
+export function deleteCanvas(canvasId: string): void {
+  const store = readStore();
+  if (!store) return;
+  delete store.canvases[canvasId];
+  if (store.currentCanvasId === canvasId) store.currentCanvasId = 'default';
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+  } catch {
+    // ignore storage failures
+  }
+}

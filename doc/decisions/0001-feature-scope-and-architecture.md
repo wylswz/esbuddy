@@ -79,18 +79,18 @@ return createD1Repos(drizzle(env.DB, { schema }));
 
 ---
 
-### ADR-0001.4：认证仅支持 Google OAuth + 域名白名单
+### ADR-0001.4：认证仅支持 Google OAuth（域名白名单在 Google 侧配置）
 
-- 状态：Accepted
+- 状态：Accepted（域名白名单实现位置已修订）
 
 **决策**：
 
 - 认证方式：仅 Google OAuth（PKCE，`openid email profile`）。
-- 域名白名单：环境变量 `ALLOWED_DOMAINS=example.com,corp.com`（逗号分隔，空则允许任意 Google 邮箱）。校验发生在 Google 回调、签发 JWT 之前，未命中则拒绝（403）。
-- JWT：使用 Workers 原生 `WebCrypto`（`crypto.subtle`，HMAC-SHA256）签发的自包含 JWT，经 Hono jwt 中间件校验。
+- 域名白名单：**在 Google 侧配置**（OAuth 同意屏 / 组织限制），应用层不实现、不校验邮箱域名。
+- JWT：后端签发自包含 JWT（HS256），经中间件校验。
 - 不提供本地用户名/密码路径。
 
-**理由**：Serverless 上无需 Node 依赖即可校验 Google id_token（JWKS via WebCrypto）；域名白名单满足企业/封闭团队需求。
+**理由**：白名单由 Google 平台控制更省事、更安全；应用层无需重复实现。域名白名单满足企业/封闭团队需求。
 
 ---
 
@@ -182,7 +182,34 @@ CanvasEvent { canvasId, seq, type: 'set_state'|'rename'|... , payload, actorId, 
 
 ---
 
-## 数据模型总览（后端 schema）
+### ADR-0001.10：后端使用 TypeScript + 可移植架构（CF Workers 去耦合）
+
+- 状态：Accepted（细化 ADR-0001.2）
+- 日期：2026-08-31
+
+**决策**：后端统一使用 **TypeScript**，按「可移植核心 + 薄适配层」设计，默认可跑在 CF Workers，也可自托管，**避免与 Cloudflare 过度耦合**：
+
+**技术选型**
+- 框架：**Hono**（天然多运行时：CF Workers / Node / Bun / Deno）。
+- 数据层：**Drizzle ORM**，同一 `schema` 多方言：`d1`（CF）、`libsql`/`better-sqlite3`（本地）、`postgres`（PG）。
+- 认证：Google OAuth（PKCE）+ 域名白名单 + 自签发 JWT（`jose`，WebCrypto 兼容多运行时）。
+- 对象存储：`ObjectStorage` 接口 + `R2Adapter` / `S3Adapter` / `FSAdapter`。
+- 迁移：Drizzle 生成 SQL；D1 用 `wrangler d1 migrations`，自托管用 `drizzle-kit migrate`。
+- 部署：同源码两路——CF `wrangler deploy`；自托管 Node 容器 / Docker 镜像 + 嵌入前端（ADR-0001.9）。
+
+**可移植解耦原则**
+1. 业务层（routes/services/repositories 接口）**不接触任何 CF 绑定**。
+2. CF 耦合被**压缩到唯一 adapter 层**：`D1` / `R2` 绑定 + `@cloudflare/workers-types`（仅 `import type`，纯类型无运行时依赖）。
+3. 自定义 `Env` 接口 + `DB_KIND` 工厂（`d1 | sqlite | pg`）与 `STORAGE_KIND` 工厂。
+4. 单入口 Hono app，按运行环境用不同 bootstrap（Workers export vs Node server）。
+
+**SDK 共用（核心动机）**
+- monorepo 建 `packages/sdk`：领域模型 + 校验 + API client，前后端共用。
+- 前端 `RemoteStore` 与后端 service 都从 SDK 引用类型，**消除双份模型**，类型全链路一致。
+
+**理由**：前后端同语言使 SDK/类型共享成为可能，开发效率与一致性最高；Hono + Drizzle 的跨运行时能力保证 CF Workers 与自托管并存且低耦合。
+
+---
 
 ```
 User            { id, provider:'google', googleSub, name, email, avatarUrl?, createdAt }
@@ -200,7 +227,7 @@ Invitation      { id, workspaceId, role, token, createdById, createdAt, revokedA
 - **Phase 1** 多画布（纯前端，Store 抽象 + LocalStore）
 - **Phase 2** 用户 + Google OAuth + 域名白名单 + JWT（RemoteStore 接 auth）
 - **Phase 3** 工作空间 + 分享链接邀请
-- **Phase 4** `canvas_events` 日志落地 + `DB_KIND` PG 多态工厂；实时协作留给后续
+- **Phase 4** `canvas_events` 日志落地 + `DB_KIND`（d1 / sqlite / pg）多态工厂；实时协作留给后续
 
 > Fullstack 单部署（ADR-0001.9）作为这些阶段的最终落地形态：前端打进后端，单一单元部署。
 

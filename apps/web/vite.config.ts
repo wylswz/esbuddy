@@ -6,4 +6,13 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   base: './',
   plugins: [react(), tailwindcss()],
+  server: {
+    proxy: {
+      // Forward API calls to the local Hono server (npm run dev:server).
+      '/api': {
+        target: 'http://localhost:8787',
+        changeOrigin: true,
+      },
+    },
+  },
 })

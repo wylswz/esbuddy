@@ -12,6 +12,18 @@ dist
 dist-ssr
 *.local
 
+# server
+apps/server/.db
+apps/server/*.sqlite
+apps/server/*.sqlite-*
+apps/server/.wrangler
+apps/server/.dev.vars
+
+# env (templates like .env.example and .env.fullstack are committed)
+.env
+.env.local
+.env.*.local
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

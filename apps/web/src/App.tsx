@@ -19,6 +19,7 @@ import ReactFlow, {
   type NodeMouseHandler,
   type OnMove,
   type OnMoveEnd,
+  type ReactFlowInstance,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
@@ -32,7 +33,9 @@ import { parseCML, createNode } from './cmlImporter';
 import { CanvasActionsContext, DropTargetContext } from './CanvasContext';
 import { useI18n } from './i18n/context';
 import { useHistory } from './useHistory';
-import { loadCanvas, saveCanvas, DEFAULT_CANVAS_ID } from './storage';
+import { getStore } from './stores';
+import { DEFAULT_CANVAS_ID } from './storage';
+import type { CanvasSnapshot } from '@esbuddy/sdk';
 import { NOTE_DEFAULT_SIZE, ELEMENT_STYLES, type ElementType, type EsCanvasState } from './types';
 
 const AGGREGATE_PADDING = 40;
@@ -294,10 +297,12 @@ function handleNodeRemovals(prevNodes: Node[], nextNodes: Node[], changes: NodeC
 }
 
 function App() {
-  const [snapshot] = useState(() => loadCanvas(DEFAULT_CANVAS_ID));
-  const [nodes, setNodes] = useState<Node[]>(() => snapshot?.nodes ?? initialNodes);
-  const [edges, setEdges] = useState<Edge[]>(() => snapshot?.edges ?? initialEdges);
-  const [viewport, setViewport] = useState<Viewport | null>(() => snapshot?.viewport ?? null);
+  const store = useMemo(() => getStore(), []);
+  const [hadSaved, setHadSaved] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [nodes, setNodes] = useState<Node[]>(initialNodes);
+  const [edges, setEdges] = useState<Edge[]>(initialEdges);
+  const [viewport, setViewport] = useState<Viewport | null>(null);
   const [showExport, setShowExport] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [exportedCml, setExportedCml] = useState('');
@@ -308,7 +313,9 @@ function App() {
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const mouseRef = useRef({ x: 0, y: 0 });
-  const viewportRef = useRef<Viewport | null>(snapshot?.viewport ?? null);
+  const viewportRef = useRef<Viewport | null>(null);
+  const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
+  const pendingViewportRef = useRef<Viewport | null>(null);
   const selectionRef = useRef<string[]>([]);
   const prevSelectionRef = useRef<string[]>([]);
   const draggingRef = useRef(false);
@@ -322,6 +329,42 @@ function App() {
   useEffect(() => {
     edgesRef.current = edges;
   }, [edges]);
+
+  // Load the persisted canvas through the polymorphic Store (local or remote).
+  useEffect(() => {
+    let cancelled = false;
+    store
+      .getCanvas(DEFAULT_CANVAS_ID)
+      .then((record) => {
+        if (cancelled) return;
+        if (record && record.snapshot.nodes.length > 0) {
+          setNodes(record.snapshot.nodes as Node[]);
+          setEdges(record.snapshot.edges as Edge[]);
+          if (record.snapshot.viewport) {
+            setViewport(record.snapshot.viewport);
+            pendingViewportRef.current = record.snapshot.viewport;
+            rfInstanceRef.current?.setViewport(record.snapshot.viewport);
+          }
+          setHadSaved(true);
+        }
+      })
+      .catch(() => {
+        // ignore load failures; start from the demo canvas
+      })
+      .finally(() => {
+        if (!cancelled) setLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [store]);
+
+  const onInit = useCallback((instance: ReactFlowInstance) => {
+    rfInstanceRef.current = instance;
+    if (pendingViewportRef.current) {
+      instance.setViewport(pendingViewportRef.current);
+    }
+  }, []);
 
   const getState = useCallback(
     () => ({ nodes: nodesRef.current, edges: edgesRef.current }),
@@ -732,11 +775,12 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (!loaded) return;
     const timer = setTimeout(() => {
-      saveCanvas(DEFAULT_CANVAS_ID, { nodes, edges, viewport });
+      store.saveCanvas(DEFAULT_CANVAS_ID, { nodes, edges, viewport } as unknown as CanvasSnapshot);
     }, 250);
     return () => clearTimeout(timer);
-  }, [nodes, edges, viewport]);
+  }, [nodes, edges, viewport, loaded, store]);
 
   const handleExport = useCallback(() => {
     const state: EsCanvasState = {
@@ -814,8 +858,8 @@ function App() {
             panOnScroll
             zoomOnScroll={false}
             selectionMode={SelectionMode.Partial}
-            fitView={!snapshot}
-            defaultViewport={snapshot?.viewport ?? undefined}
+            fitView={!hadSaved}
+            onInit={onInit}
             elevateNodesOnSelect={false}
             defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
             className="esboard-surface"
