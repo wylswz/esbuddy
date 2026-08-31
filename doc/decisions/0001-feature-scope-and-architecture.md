@@ -158,6 +158,30 @@ CanvasEvent { canvasId, seq, type: 'set_state'|'rename'|... , payload, actorId, 
 
 ---
 
+### ADR-0001.9：Fullstack 采用 SPA 单部署（后端 serve 静态资源）
+
+- 状态：Accepted
+
+**决策**：面向「用户 / 工作空间 / 多画布」的 fullstack 形态采用 **SPA 单部署**：
+
+- 前端构建为 SPA（静态资源），由**后端 serve**。
+- **前端产物打进后端部署物**（单一可部署单元，如 Worker 的 Assets / 镜像）。
+- 后端即 serve 静态资源（`/`、`/assets/*` 等），又提供 `/api/*` REST 接口。
+- 前端路由使用 HashRouter（或后端 SPA fallback），配合单部署免配置。
+
+**与纯前端静态版的关系**：存在**两种发行形态**，由 Store 多态（ADR-0001.1）统一支撑：
+
+| 形态 | 产物 | 数据层 | 部署 |
+|---|---|---|---|
+| 纯前端静态版 | 仅前端 dist | `LocalStore`（localStorage） | GitHub Pages，零后端 |
+| Fullstack SPA | 后端 + 内嵌前端 | `RemoteStore`（REST → 后端） | 单部署（Cloudflare Worker Assets / 镜像） |
+
+前端代码同一份，仅打包/接入方式不同；后端通过 `VITE_STORE_MODE`（build 时注入）或运行时配置告知前端当前是哪种形态，从而选择 Store 实现。
+
+**理由**：既保留 ADR-0001.1 的零后端发行版，又为完整功能提供「前端打进后端」的单一部署单元，简化运维。
+
+---
+
 ## 数据模型总览（后端 schema）
 
 ```
@@ -177,6 +201,8 @@ Invitation      { id, workspaceId, role, token, createdById, createdAt, revokedA
 - **Phase 2** 用户 + Google OAuth + 域名白名单 + JWT（RemoteStore 接 auth）
 - **Phase 3** 工作空间 + 分享链接邀请
 - **Phase 4** `canvas_events` 日志落地 + `DB_KIND` PG 多态工厂；实时协作留给后续
+
+> Fullstack 单部署（ADR-0001.9）作为这些阶段的最终落地形态：前端打进后端，单一单元部署。
 
 ---
 
