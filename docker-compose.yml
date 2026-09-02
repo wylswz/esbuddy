@@ -12,6 +12,8 @@ services:
       DB_PATH: /app/apps/server/.db/esbuddy.sqlite
       JWT_SECRET: ${JWT_SECRET:-esbuddy-dev-secret}
       PORT: '8787'
+      # Dev mode: enables /api/auth/dev-login. Set DEV_MODE=false to disable.
+      DEV_MODE: ${DEV_MODE:-true}
       # Google OAuth (optional — pass through from a local .env)
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}

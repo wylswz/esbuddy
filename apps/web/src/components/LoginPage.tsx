@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { devLogin } from '../auth';
+import { useEffect, useState } from 'react';
+import { devLogin, fetchDevMode } from '../auth';
 import { useI18n } from '../i18n/context';
 
 interface LoginPageProps {
@@ -11,6 +11,11 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [devMode, setDevMode] = useState(false);
+
+  useEffect(() => {
+    fetchDevMode().then(setDevMode);
+  }, []);
 
   const handleGoogle = () => {
     window.location.href = '/api/auth/google';
@@ -50,30 +55,34 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
           {t('login.google')}
         </button>
 
-        <div className="flex items-center gap-3">
-          <div className="h-px bg-gray-200 flex-1" />
-          <span className="text-xs text-gray-400">{t('login.devTitle')}</span>
-          <div className="h-px bg-gray-200 flex-1" />
-        </div>
+        {devMode && (
+          <>
+            <div className="flex items-center gap-3">
+              <div className="h-px bg-gray-200 flex-1" />
+              <span className="text-xs text-gray-400">{t('login.devTitle')}</span>
+              <div className="h-px bg-gray-200 flex-1" />
+            </div>
 
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder={t('login.devEmailPlaceholder')}
-            className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 outline-none focus:border-gray-400"
-          />
-          <button
-            onClick={handleDevLogin}
-            disabled={busy}
-            className="px-4 py-2 rounded-lg bg-gray-100 text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-40 transition-colors"
-          >
-            {t('login.devLogin')}
-          </button>
-        </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder={t('login.devEmailPlaceholder')}
+                className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 outline-none focus:border-gray-400"
+              />
+              <button
+                onClick={handleDevLogin}
+                disabled={busy}
+                className="px-4 py-2 rounded-lg bg-gray-100 text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-40 transition-colors"
+              >
+                {t('login.devLogin')}
+              </button>
+            </div>
 
-        {error && <p className="text-xs text-red-600">{error}</p>}
+            {error && <p className="text-xs text-red-600">{error}</p>}
+          </>
+        )}
       </div>
     </div>
   );

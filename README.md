@@ -145,6 +145,7 @@ Copy `apps/server/.env.example` → `apps/server/.env` (auto-loaded on startup) 
 | `DB_KIND` | `sqlite` | `sqlite` (local) — `d1`/`pg` are extension points |
 | `DB_PATH` | `./.db/esbuddy.sqlite` | SQLite file path |
 | `JWT_SECRET` | `esbuddy-dev-secret` | JWT + OAuth state signing secret (required in production) |
+| `DEV_MODE` | off in `NODE_ENV=production`, else on | enables `/api/auth/dev-login` + shows dev-login UI |
 | `GOOGLE_CLIENT_ID` / `_SECRET` / `GOOGLE_REDIRECT_URI` | — | Google OAuth (server-side flow) |
 | `FRONTEND_URL` | `/` | post-login redirect target |
 | `PORT` | `8787` | HTTP port |

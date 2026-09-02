@@ -3,6 +3,7 @@ import { signToken, verifyState } from '../auth/jwt.js';
 import { exchangeCodeForProfile, googleAuthUrl } from '../auth/google.js';
 import { authMiddleware } from '../auth/middleware.js';
 import type { AppVariables } from '../context.js';
+import { isDevMode } from '../env.js';
 import { getUserById, upsertGoogleUser } from '../repo.js';
 
 export const authRoutes = new Hono<{ Variables: AppVariables }>();
@@ -49,6 +50,7 @@ authRoutes.get('/me', authMiddleware, async (c) => {
 
 // Dev-only login: returns a signed token for a local user (no Google required).
 authRoutes.post('/dev-login', async (c) => {
+  if (!isDevMode(c.var.env)) return c.json({ error: 'not found' }, 404);
   const body = await c.req.json<{ email?: string; name?: string }>().catch(() => ({ email: undefined, name: undefined }));
   const email = body.email ?? 'dev@esbuddy.local';
   const name = body.name ?? 'Dev User';

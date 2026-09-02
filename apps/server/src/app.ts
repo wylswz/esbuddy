@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { logger } from 'hono/logger';
 import type { Env } from './env.js';
+import { isDevMode } from './env.js';
 import type { Db } from './db/index.js';
 import type { AppVariables } from './context.js';
 import { authRoutes } from './routes/auth.js';
@@ -27,6 +28,7 @@ export function buildApp({ db, env, staticRoot }: AppDeps) {
   });
 
   app.get('/health', (c) => c.json({ ok: true }));
+  app.get('/api/config', (c) => c.json({ devMode: isDevMode(env) }));
 
   const api = new Hono<{ Variables: AppVariables }>();
   api.route('/auth', authRoutes);

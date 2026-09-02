@@ -39,3 +39,15 @@ export async function devLogin(email?: string): Promise<void> {
   const { token } = (await res.json()) as { token: string };
   localStorage.setItem(TOKEN_STORAGE_KEY, token);
 }
+
+/** Whether the backend has dev mode enabled (controls showing the dev-login UI). */
+export async function fetchDevMode(): Promise<boolean> {
+  try {
+    const res = await globalThis.fetch('/api/config');
+    if (!res.ok) return false;
+    const { devMode } = (await res.json()) as { devMode?: boolean };
+    return !!devMode;
+  } catch {
+    return false;
+  }
+}

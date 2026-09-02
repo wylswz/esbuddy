@@ -10,7 +10,13 @@ export interface Env {
   GOOGLE_REDIRECT_URI?: string;
   FRONTEND_URL?: string;
   WEB_DIST_PATH?: string; // built SPA assets (defaults to apps/web/dist)
+  DEV_MODE?: string; // 'true' | 'false' — enables dev-only endpoints (dev-login)
   PORT?: string;
+}
+
+/** Dev-only features (e.g. /api/auth/dev-login) are gated behind DEV_MODE. */
+export function isDevMode(env: Env): boolean {
+  return env.DEV_MODE === 'true' || env.DEV_MODE === '1';
 }
 
 /** Node-only: load apps/server/.env if present (no-op on Workers). */
@@ -27,6 +33,8 @@ function loadDotEnv(): void {
 /** Node bootstrap resolves Env from process.env (Workers maps bindings instead). */
 export function getEnv(): Env {
   loadDotEnv();
+  const devMode =
+    process.env.DEV_MODE ?? (process.env.NODE_ENV === 'production' ? 'false' : 'true');
   const env: Env = {
     DB_KIND: process.env.DB_KIND,
     DB_PATH: process.env.DB_PATH,
@@ -36,6 +44,7 @@ export function getEnv(): Env {
     GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI,
     FRONTEND_URL: process.env.FRONTEND_URL,
     WEB_DIST_PATH: process.env.WEB_DIST_PATH,
+    DEV_MODE: devMode,
     PORT: process.env.PORT,
   };
   if (process.env.NODE_ENV === 'production' && !env.JWT_SECRET) {
