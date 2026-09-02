@@ -110,7 +110,7 @@ function App() {
 
   if (auth === 'loading' || (remote && auth === 'authed' && !workspacesLoaded)) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-400">
+      <div className="w-full h-full flex items-center justify-center bg-page text-fg-subtle">
         Loading…
       </div>
     );

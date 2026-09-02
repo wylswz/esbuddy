@@ -1,20 +1,63 @@
 @import "tailwindcss";
 
-@theme {
+/*
+ * Design tokens. `static` so every variable is emitted even when Tailwind can't see
+ * it being used (ELEMENT_STYLES in types.ts reads them via `var(--color-*)`).
+ */
+@theme static {
+  /* --- Event Storming element palette --- */
   --color-event: #f97316;
   --color-event-bg: #fff7ed;
+  --color-event-border: #fb923c;
   --color-command: #3b82f6;
   --color-command-bg: #eff6ff;
+  --color-command-border: #60a5fa;
   --color-aggregate: #10b981;
   --color-aggregate-bg: #ecfdf5;
+  --color-aggregate-border: #34d399;
   --color-actor: #eab308;
   --color-actor-bg: #fefce8;
+  --color-actor-border: #facc15;
   --color-policy: #a855f7;
   --color-policy-bg: #faf5ff;
+  --color-policy-border: #c084fc;
   --color-external: #ec4899;
   --color-external-bg: #fdf2f8;
+  --color-external-border: #f472b6;
   --color-hotspot: #991b1b;
   --color-hotspot-bg: #fef2f2;
+  --color-hotspot-border: #dc2626;
+  --color-readmodel: #10b981;
+  --color-readmodel-bg: #ecfdf5;
+  --color-readmodel-border: #34d399;
+
+  /* --- UI chrome: surfaces --- */
+  --color-page: #f9fafb;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f9fafb;
+  --color-surface-muted: #f3f4f6;
+  --color-surface-strong: #e5e7eb;
+  --color-inverse: #111827;
+  --color-inverse-hover: #1f2937;
+  --color-scrim: #000000;
+
+  /* --- UI chrome: text --- */
+  --color-fg: #1f2937;
+  --color-fg-secondary: #374151;
+  --color-fg-muted: #6b7280;
+  --color-fg-subtle: #9ca3af;
+  --color-fg-inverse: #ffffff;
+  --color-danger: #dc2626;
+
+  /* --- UI chrome: borders --- */
+  --color-border: #e5e7eb;
+  --color-border-subtle: #f3f4f6;
+  --color-border-strong: #d1d5db;
+
+  /* --- Whiteboard --- */
+  --color-board: #eef0f2;
+  --color-board-grid: #cbd5e1;
+  --color-board-line: #94a3b8;
 }
 
 html, body, #root {
@@ -34,7 +77,7 @@ html, body, #root {
  * board), and a subtle vignette that gives the board depth around the edges.
  */
 .esboard-surface {
-  background-color: #eef0f2;
+  background-color: var(--color-board);
   background-image:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E"),
     radial-gradient(90% 65% at 50% 32%, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 100%),

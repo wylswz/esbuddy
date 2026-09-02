@@ -44,52 +44,25 @@ export interface ElementStyle {
   shortcut?: string;
 }
 
+/*
+ * Element palette. The actual colour values live in the `@theme` block of index.css
+ * (single source of truth, shared with Tailwind utilities like `bg-event-bg`); here we
+ * only reference the CSS variables so inline styles and SVG fills stay in sync.
+ */
+const elementStyle = (type: ElementType, shortcut?: string): ElementStyle => ({
+  color: `var(--color-${type})`,
+  bgColor: `var(--color-${type}-bg)`,
+  borderColor: `var(--color-${type}-border)`,
+  ...(shortcut ? { shortcut } : {}),
+});
+
 export const ELEMENT_STYLES: Record<ElementType, ElementStyle> = {
-  event: {
-    color: '#f97316',
-    bgColor: '#fff7ed',
-    borderColor: '#fb923c',
-    shortcut: 'E',
-  },
-  command: {
-    color: '#3b82f6',
-    bgColor: '#eff6ff',
-    borderColor: '#60a5fa',
-    shortcut: 'C',
-  },
-  aggregate: {
-    color: '#10b981',
-    bgColor: '#ecfdf5',
-    borderColor: '#34d399',
-  },
-  actor: {
-    color: '#eab308',
-    bgColor: '#fefce8',
-    borderColor: '#facc15',
-    shortcut: 'A',
-  },
-  policy: {
-    color: '#a855f7',
-    bgColor: '#faf5ff',
-    borderColor: '#c084fc',
-    shortcut: 'P',
-  },
-  external: {
-    color: '#ec4899',
-    bgColor: '#fdf2f8',
-    borderColor: '#f472b6',
-    shortcut: 'X',
-  },
-  hotspot: {
-    color: '#991b1b',
-    bgColor: '#fef2f2',
-    borderColor: '#dc2626',
-    shortcut: 'H',
-  },
-  readmodel: {
-    color: '#10b981',
-    bgColor: '#ecfdf5',
-    borderColor: '#34d399',
-    shortcut: 'R',
-  },
+  event: elementStyle('event', 'E'),
+  command: elementStyle('command', 'C'),
+  aggregate: elementStyle('aggregate'),
+  actor: elementStyle('actor', 'A'),
+  policy: elementStyle('policy', 'P'),
+  external: elementStyle('external', 'X'),
+  hotspot: elementStyle('hotspot', 'H'),
+  readmodel: elementStyle('readmodel', 'R'),
 };

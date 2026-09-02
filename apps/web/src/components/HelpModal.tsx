@@ -11,7 +11,7 @@ const ELEMENT_ORDER: ElementType[] = ['event', 'command', 'aggregate', 'actor', 
 
 function Kbd({ children }: { children: ReactNode }) {
   return (
-    <kbd className="px-1.5 py-0.5 rounded bg-gray-100 border border-gray-300 text-xs font-mono text-gray-700 whitespace-nowrap">
+    <kbd className="px-1.5 py-0.5 rounded bg-surface-muted border border-border-strong text-xs font-mono text-fg-secondary whitespace-nowrap">
       {children}
     </kbd>
   );
@@ -21,14 +21,14 @@ export function HelpModal({ onClose }: HelpModalProps) {
   const { t } = useI18n();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/40" onClick={onClose}>
       <div
-        className="bg-white rounded-lg shadow-2xl w-[680px] max-h-[85vh] flex flex-col"
+        className="bg-surface rounded-lg shadow-2xl w-[680px] max-h-[85vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-800">{t('help.title')}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+          <h2 className="text-lg font-semibold text-fg">{t('help.title')}</h2>
+          <button onClick={onClose} className="text-fg-subtle hover:text-fg-muted text-xl leading-none">
             ×
           </button>
         </div>
@@ -36,7 +36,7 @@ export function HelpModal({ onClose }: HelpModalProps) {
         <div className="flex-1 overflow-auto p-5 space-y-6">
           {/* Elements */}
           <section>
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">{t('help.elementTypes')}</h3>
+            <h3 className="text-sm font-semibold text-fg-secondary mb-3">{t('help.elementTypes')}</h3>
             <div className="space-y-2.5">
               {ELEMENT_ORDER.map((type) => {
                 const s = ELEMENT_STYLES[type];
@@ -54,7 +54,7 @@ export function HelpModal({ onClose }: HelpModalProps) {
                       <span>{t(`elements.${type}.label`)}</span>
                       {s.shortcut && <span className="font-mono opacity-60">{s.shortcut}</span>}
                     </span>
-                    <span className="text-sm text-gray-600 pt-0.5">{t(`elements.${type}.description`)}</span>
+                    <span className="text-sm text-fg-muted pt-0.5">{t(`elements.${type}.description`)}</span>
                   </div>
                 );
               })}
@@ -63,8 +63,8 @@ export function HelpModal({ onClose }: HelpModalProps) {
 
           {/* Shortcuts */}
           <section>
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">{t('help.shortcuts')}</h3>
-            <div className="space-y-1.5 text-sm text-gray-600">
+            <h3 className="text-sm font-semibold text-fg-secondary mb-3">{t('help.shortcuts')}</h3>
+            <div className="space-y-1.5 text-sm text-fg-muted">
               {ELEMENT_ORDER.filter((type) => ELEMENT_STYLES[type].shortcut).map((type) => (
                 <div key={type}>
                   <Kbd>{ELEMENT_STYLES[type].shortcut}</Kbd>
@@ -81,8 +81,8 @@ export function HelpModal({ onClose }: HelpModalProps) {
 
           {/* Modifier keys */}
           <section>
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">{t('help.modifierRule')}</h3>
-            <ul className="space-y-1.5 text-sm text-gray-600 list-disc list-inside">
+            <h3 className="text-sm font-semibold text-fg-secondary mb-3">{t('help.modifierRule')}</h3>
+            <ul className="space-y-1.5 text-sm text-fg-muted list-disc list-inside">
               <li>
                 <Kbd>Shift</Kbd>
                 <span className="ml-2">{t('help.breakContainment')}</span>

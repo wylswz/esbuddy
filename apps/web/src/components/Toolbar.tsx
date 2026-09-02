@@ -30,11 +30,11 @@ interface ToolbarProps {
 const ELEMENT_ORDER: ElementType[] = ['event', 'command', 'actor', 'policy', 'external', 'hotspot', 'readmodel'];
 
 const btn =
-  'flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white shadow-sm hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed';
+  'flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface shadow-sm hover:bg-surface-hover transition-colors text-sm font-medium text-fg-secondary disabled:opacity-40 disabled:cursor-not-allowed';
 
 // Mobile tiles: roomy square targets (>= 64px) with the label under the icon.
 const tile =
-  'flex flex-col items-center justify-center gap-1.5 rounded-xl bg-white shadow-sm active:bg-gray-100 active:scale-95 transition-transform text-[11px] font-medium text-gray-700 leading-tight text-center disabled:opacity-40 min-h-16 px-1';
+  'flex flex-col items-center justify-center gap-1.5 rounded-xl bg-surface shadow-sm active:bg-surface-muted active:scale-95 transition-transform text-[11px] font-medium text-fg-secondary leading-tight text-center disabled:opacity-40 min-h-16 px-1';
 
 interface Action {
   key: string;
@@ -79,7 +79,7 @@ export function Toolbar({
   const languageToggle = (
     <button
       onClick={() => setLocale(locale === 'en' ? 'zh' : 'en')}
-      className="text-xs font-medium text-gray-400 hover:text-gray-700 transition-colors"
+      className="text-xs font-medium text-fg-subtle hover:text-fg-secondary transition-colors"
     >
       {t('toolbar.switchLanguage')}
     </button>
@@ -90,7 +90,7 @@ export function Toolbar({
       <>
         <button
           onClick={() => setOpen((o) => !o)}
-          className="safe-bottom absolute right-4 z-30 w-14 h-14 rounded-full bg-gray-900 text-white shadow-xl flex items-center justify-center active:scale-95 transition-transform"
+          className="safe-bottom absolute right-4 z-30 w-14 h-14 rounded-full bg-inverse text-fg-inverse shadow-xl flex items-center justify-center active:scale-95 transition-transform"
           title={open ? t('toolbar.closeMenu') : t('toolbar.openMenu')}
           aria-label={open ? t('toolbar.closeMenu') : t('toolbar.openMenu')}
           aria-expanded={open}
@@ -104,19 +104,19 @@ export function Toolbar({
         {/* Tap-outside scrim */}
         <div
           onClick={() => setOpen(false)}
-          className={`absolute inset-0 z-10 bg-black/20 transition-opacity duration-300 ${
+          className={`absolute inset-0 z-10 bg-scrim/20 transition-opacity duration-300 ${
             open ? 'opacity-100' : 'opacity-0 pointer-events-none'
           }`}
         />
 
         <div
           style={{ '--safe-offset': '5.5rem' } as CSSProperties}
-          className={`safe-bottom absolute left-3 right-3 z-20 flex flex-col gap-3 bg-white/95 backdrop-blur rounded-2xl shadow-2xl p-3 max-h-[70dvh] overflow-y-auto origin-bottom-right transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+          className={`safe-bottom absolute left-3 right-3 z-20 flex flex-col gap-3 bg-surface/95 backdrop-blur rounded-2xl shadow-2xl p-3 max-h-[70dvh] overflow-y-auto origin-bottom-right transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
             open ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-6 scale-95 pointer-events-none'
           }`}
         >
           <div className="flex items-center justify-between px-1">
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{t('toolbar.addElement')}</div>
+            <div className="text-xs font-semibold text-fg-subtle uppercase tracking-wide">{t('toolbar.addElement')}</div>
             {languageToggle}
           </div>
 
@@ -137,7 +137,7 @@ export function Toolbar({
             })}
           </div>
 
-          <div className="h-px bg-gray-200" />
+          <div className="h-px bg-border" />
 
           <div className="grid grid-cols-3 gap-2">
             {actions.map((a) => (
@@ -148,16 +148,16 @@ export function Toolbar({
             ))}
           </div>
 
-          <div className="text-[11px] leading-snug text-gray-400 px-1">{t('toolbar.touchHint')}</div>
+          <div className="text-[11px] leading-snug text-fg-subtle px-1">{t('toolbar.touchHint')}</div>
         </div>
       </>
     );
   }
 
   return (
-    <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 bg-white/90 backdrop-blur rounded-xl shadow-lg p-3 w-56">
+    <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 bg-surface/90 backdrop-blur rounded-xl shadow-lg p-3 w-56">
       <div className="flex items-center justify-between mb-1">
-        <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{t('toolbar.addElement')}</div>
+        <div className="text-xs font-semibold text-fg-subtle uppercase tracking-wide">{t('toolbar.addElement')}</div>
         {languageToggle}
       </div>
 
@@ -168,13 +168,13 @@ export function Toolbar({
             <button key={type} onClick={() => onAddElement(type)} className={btn}>
               <ColorDot color={s.color} />
               <span>{t(`elements.${type}.label`)}</span>
-              <span className="ml-auto text-[10px] text-gray-400 font-mono">{s.shortcut}</span>
+              <span className="ml-auto text-[10px] text-fg-subtle font-mono">{s.shortcut}</span>
             </button>
           );
         })}
       </div>
 
-      <div className="h-px bg-gray-200 my-1" />
+      <div className="h-px bg-border my-1" />
 
       <div className="flex gap-1.5">
         <button onClick={onUndo} disabled={!canUndo} className={`${btn} flex-1 justify-center`} title={`${t('toolbar.undo')} (⌘Z)`}>
@@ -185,7 +185,7 @@ export function Toolbar({
         </button>
       </div>
 
-      <div className="h-px bg-gray-200 my-1" />
+      <div className="h-px bg-border my-1" />
 
       <button onClick={onGroupAggregate} disabled={!canGroup} className={btn}>
         <Group size={16} />
@@ -201,15 +201,15 @@ export function Toolbar({
         </button>
       </div>
 
-      <div className="h-px bg-gray-200 my-1" />
+      <div className="h-px bg-border my-1" />
 
       <button onClick={onHelp} className={btn}>
         <CircleHelp size={16} />
         <span>{t('toolbar.help')}</span>
       </button>
 
-      <div className="text-[10px] leading-snug text-gray-400 px-1">
-        <div className="font-semibold text-gray-500 mb-0.5">{t('toolbar.modifierKeys')}</div>
+      <div className="text-[10px] leading-snug text-fg-subtle px-1">
+        <div className="font-semibold text-fg-muted mb-0.5">{t('toolbar.modifierKeys')}</div>
         <div>{t('toolbar.shiftDragOut')}</div>
         <div>{t('toolbar.optionClick')}</div>
       </div>

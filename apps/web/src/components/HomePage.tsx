@@ -86,11 +86,11 @@ export function HomePage({
   };
 
   return (
-    <div className="w-full h-full overflow-y-auto bg-gray-50">
-      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur border-b border-gray-100">
+    <div className="w-full h-full overflow-y-auto bg-page">
+      <header className="sticky top-0 z-10 bg-surface/80 backdrop-blur border-b border-border-subtle">
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-gray-800 font-semibold">
-            <LayoutGrid size={20} className="text-gray-500" />
+          <div className="flex items-center gap-2 text-fg font-semibold">
+            <LayoutGrid size={20} className="text-fg-muted" />
             <span>Esbuddy</span>
           </div>
           <div className="flex items-center gap-3">
@@ -107,13 +107,13 @@ export function HomePage({
                 {user.avatarUrl ? (
                   <img src={user.avatarUrl} alt="" className="w-7 h-7 rounded-full" />
                 ) : (
-                  <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium text-gray-600">
+                  <div className="w-7 h-7 rounded-full bg-surface-strong flex items-center justify-center text-xs font-medium text-fg-muted">
                     {user.name.slice(0, 1).toUpperCase()}
                   </div>
                 )}
                 <button
                   onClick={onLogout}
-                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                  className="p-1.5 rounded-lg text-fg-subtle hover:text-fg-secondary hover:bg-surface-muted transition-colors"
                   title={t('home.logout')}
                 >
                   <LogOut size={16} />
@@ -128,7 +128,7 @@ export function HomePage({
         className="max-w-5xl mx-auto px-6 py-8"
         style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom, 0px))' }}
       >
-        <h1 className="text-lg font-semibold text-gray-800 mb-4">{t('home.canvases')}</h1>
+        <h1 className="text-lg font-semibold text-fg mb-4">{t('home.canvases')}</h1>
 
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" aria-label={t('home.loading')}>
@@ -141,7 +141,7 @@ export function HomePage({
             <button
               onClick={handleCreate}
               disabled={creating}
-              className="group flex flex-col items-center justify-center gap-2 h-40 rounded-xl border-2 border-dashed border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600 transition-colors disabled:opacity-50 card-enter"
+              className="group flex flex-col items-center justify-center gap-2 h-40 rounded-xl border-2 border-dashed border-border text-fg-subtle hover:border-border-strong hover:text-fg-muted transition-colors disabled:opacity-50 card-enter"
             >
               <Plus size={24} />
               <span className="text-sm font-medium">{t('home.newCanvas')}</span>
@@ -161,7 +161,7 @@ export function HomePage({
         )}
 
         {!loading && canvases.length === 0 && (
-          <p className="text-sm text-gray-400 mt-4">{t('home.empty')}</p>
+          <p className="text-sm text-fg-subtle mt-4">{t('home.empty')}</p>
         )}
       </main>
     </div>

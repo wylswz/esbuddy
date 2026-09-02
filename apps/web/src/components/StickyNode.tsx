@@ -96,7 +96,7 @@ function StickyNodeComponent({ id, data, selected, dragging }: NodeProps<StickyN
             ref={focusAndSelect}
             type="text"
             defaultValue={data.label}
-            className="w-full bg-transparent outline-none text-sm font-semibold text-gray-800 leading-snug"
+            className="w-full bg-transparent outline-none text-sm font-semibold text-fg leading-snug"
             onBlur={(e) => {
               updateNodeLabel(id, e.currentTarget.value.trim());
               setEditing(null);
@@ -108,7 +108,7 @@ function StickyNodeComponent({ id, data, selected, dragging }: NodeProps<StickyN
           />
         ) : (
           <div
-            className="sticky-title text-sm font-semibold text-gray-800 leading-snug break-words whitespace-pre-wrap cursor-text"
+            className="sticky-title text-sm font-semibold text-fg leading-snug break-words whitespace-pre-wrap cursor-text"
             title={t('node.doubleClickEdit')}
             onDoubleClick={() => setEditing('title')}
           >
@@ -122,7 +122,7 @@ function StickyNodeComponent({ id, data, selected, dragging }: NodeProps<StickyN
             ref={focusAndSelect}
             defaultValue={data.description}
             rows={4}
-            className="w-full bg-transparent outline-none resize-none text-xs text-gray-500 leading-snug mt-1.5"
+            className="w-full bg-transparent outline-none resize-none text-xs text-fg-muted leading-snug mt-1.5"
             onBlur={(e) => {
               updateNodeDescription(id, e.currentTarget.value.trim());
               setEditing(null);
@@ -133,11 +133,11 @@ function StickyNodeComponent({ id, data, selected, dragging }: NodeProps<StickyN
           />
         ) : (
           <div
-            className="sticky-memo text-xs text-gray-500 leading-snug break-words whitespace-pre-wrap cursor-text mt-1.5"
+            className="sticky-memo text-xs text-fg-muted leading-snug break-words whitespace-pre-wrap cursor-text mt-1.5"
             title={t('node.doubleClickEditMemo')}
             onDoubleClick={() => setEditing('memo')}
           >
-            {data.description || <span style={{ color: '#b0b3b8' }}>{t('node.memoPlaceholder')}</span>}
+            {data.description || <span className="text-fg-subtle">{t('node.memoPlaceholder')}</span>}
           </div>
         )}
       </div>

@@ -925,7 +925,7 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
     <div ref={canvasRef} className="w-full h-full relative">
       <button
         onClick={onBack}
-        className="safe-top absolute right-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/90 backdrop-blur shadow-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+        className="safe-top absolute right-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface/90 backdrop-blur shadow-lg text-sm font-medium text-fg-secondary hover:bg-surface-hover transition-colors"
         title={t('editor.back')}
       >
         <ArrowLeft size={16} />
@@ -973,25 +973,12 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
             defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
             className="esboard-surface"
           >
-            <Background variant={BackgroundVariant.Lines} gap={24} size={1} color="#cbd5e1" />
+            <Background variant={BackgroundVariant.Lines} gap={24} size={1} color="var(--color-board-grid)" />
             <Controls />
             {!touchMode && (
               <MiniMap
-                nodeColor={(node) => {
-                  const type = node.type as ElementType;
-                  const colors: Record<string, string> = {
-                    event: '#f97316',
-                    command: '#3b82f6',
-                    aggregate: '#10b981',
-                    actor: '#eab308',
-                    policy: '#a855f7',
-                    external: '#ec4899',
-                    hotspot: '#991b1b',
-                    readmodel: '#10b981',
-                  };
-                  return colors[type] || '#94a3b8';
-                }}
-                className="bg-white border border-gray-200 rounded"
+                nodeColor={(node) => ELEMENT_STYLES[node.type as ElementType]?.color ?? 'var(--color-board-line)'}
+                className="bg-surface border border-border rounded"
               />
             )}
           </ReactFlow>

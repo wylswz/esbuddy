@@ -1,21 +1,12 @@
 import { useEffect, useState } from 'react';
 import type { CanvasNode, CanvasSnapshot, Store } from '@esbuddy/sdk';
+import { ELEMENT_STYLES, type ElementType } from '../types';
 
 interface CanvasThumbnailProps {
   store: Store;
   canvasId: string;
 }
 
-const NODE_COLORS: Record<string, string> = {
-  event: '#f97316',
-  command: '#3b82f6',
-  aggregate: '#10b981',
-  actor: '#eab308',
-  policy: '#a855f7',
-  external: '#ec4899',
-  hotspot: '#991b1b',
-  readmodel: '#10b981',
-};
 
 interface Box {
   x: number;
@@ -52,7 +43,7 @@ export function CanvasThumbnail({ store, canvasId }: CanvasThumbnailProps) {
 
   // Placeholder while loading or when there is nothing to draw.
   if (!snapshot || snapshot.nodes.length === 0) {
-    return <div className="flex-1 bg-linear-to-br from-gray-50 to-gray-100" />;
+    return <div className="flex-1 bg-linear-to-br from-page to-surface-muted" />;
   }
 
   const boxes = snapshot.nodes.map(nodeBox);
@@ -77,7 +68,7 @@ export function CanvasThumbnail({ store, canvasId }: CanvasThumbnailProps) {
     <svg
       viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
       preserveAspectRatio="xMidYMid meet"
-      className="flex-1 w-full h-full bg-linear-to-br from-gray-50 to-gray-100 thumb-enter"
+      className="flex-1 w-full h-full bg-linear-to-br from-page to-surface-muted thumb-enter"
     >
       {snapshot.edges.map((e) => {
         const s = centerOf(e.source);
@@ -90,7 +81,7 @@ export function CanvasThumbnail({ store, canvasId }: CanvasThumbnailProps) {
             y1={s.cy}
             x2={target.cx}
             y2={target.cy}
-            stroke="#94a3b8"
+            stroke="var(--color-board-line)"
             strokeWidth={3}
           />
         );
@@ -98,7 +89,7 @@ export function CanvasThumbnail({ store, canvasId }: CanvasThumbnailProps) {
       {snapshot.nodes.map((n, i) => {
         const b = boxes[i];
         const isAgg = n.type === 'aggregate';
-        const color = NODE_COLORS[n.type] ?? '#94a3b8';
+        const color = ELEMENT_STYLES[n.type as ElementType]?.color ?? 'var(--color-board-line)';
         return (
           <rect
             key={n.id}
