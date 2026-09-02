@@ -6,9 +6,10 @@ import {
   acceptInvitation,
   createInvitation,
   createWorkspace,
+  ensureUserHasWorkspace,
   getMemberRole,
+  getUserById,
   listMembers,
-  listWorkspacesForUser,
 } from '../repo.js';
 
 export const workspaceRoutes = new Hono<{ Variables: AppVariables }>();
@@ -16,7 +17,9 @@ export const workspaceRoutes = new Hono<{ Variables: AppVariables }>();
 workspaceRoutes.use('*', authMiddleware, requireAuth);
 
 workspaceRoutes.get('/', async (c) => {
-  const workspaces = await listWorkspacesForUser(c.var.db, c.var.userId!);
+  const userId = c.var.userId!;
+  const user = await getUserById(c.var.db, userId);
+  const workspaces = await ensureUserHasWorkspace(c.var.db, userId, user?.name);
   return c.json(workspaces);
 });
 

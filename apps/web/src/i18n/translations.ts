@@ -48,6 +48,27 @@ export const en = {
     devEmailPlaceholder: 'Email (optional)',
     devLogin: 'Dev login',
   },
+  workspace: {
+    title: 'Workspaces',
+    select: 'Select workspace',
+    new: 'New workspace',
+    create: 'Create',
+    namePlaceholder: 'Workspace name',
+  },
+  home: {
+    canvases: 'Canvases',
+    newCanvas: 'New canvas',
+    untitled: 'Untitled Canvas',
+    updated: 'Updated',
+    delete: 'Delete',
+    deleteConfirm: 'Delete this canvas? This cannot be undone.',
+    empty: 'No canvases yet. Create your first one.',
+    loading: 'Loading…',
+    logout: 'Log out',
+  },
+  editor: {
+    back: 'Back',
+  },
   elements: {
     event: {
       label: 'Event',
@@ -143,6 +164,27 @@ export const zh: Translation = {
     devTitle: '本地开发',
     devEmailPlaceholder: '邮箱（可选）',
     devLogin: '开发登录',
+  },
+  workspace: {
+    title: '工作空间',
+    select: '选择工作空间',
+    new: '新建工作空间',
+    create: '创建',
+    namePlaceholder: '工作空间名称',
+  },
+  home: {
+    canvases: '画布',
+    newCanvas: '新建画布',
+    untitled: '未命名画布',
+    updated: '更新于',
+    delete: '删除',
+    deleteConfirm: '确定删除这个画布？此操作不可撤销。',
+    empty: '还没有画布，创建第一个吧。',
+    loading: '加载中…',
+    logout: '退出登录',
+  },
+  editor: {
+    back: '返回',
   },
   elements: {
     event: {

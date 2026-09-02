@@ -79,6 +79,10 @@ export async function upsertGoogleUser(
     createdAt: now(),
   };
   await db.insert(users).values(row).run();
+
+  // Every new user gets a personal workspace so they always have a place to work.
+  await createWorkspace(db, defaultWorkspaceName(row.name), row.id);
+
   return {
     id: row.id,
     name: row.name,
@@ -87,6 +91,11 @@ export async function upsertGoogleUser(
     provider: row.provider,
     createdAt: row.createdAt,
   };
+}
+
+function defaultWorkspaceName(userName: string): string {
+  const trimmed = userName.trim();
+  return trimmed ? `${trimmed}'s Workspace` : 'My Workspace';
 }
 
 export async function getUserById(db: Db, id: string): Promise<User | null> {
@@ -105,6 +114,18 @@ export async function listWorkspacesForUser(db: Db, userId: string): Promise<Wor
     .where(inArray(workspaces.id, members.map((m) => m.workspaceId)))
     .all();
   return rows.map(rowToWorkspace);
+}
+
+/**
+ * Guarantee the user belongs to at least one workspace, creating a personal one
+ * if needed. Keeps the "every user has a workspace" invariant for accounts that
+ * predate that rule. Returns the user's full workspace list.
+ */
+export async function ensureUserHasWorkspace(db: Db, userId: string, userName?: string): Promise<Workspace[]> {
+  const existing = await listWorkspacesForUser(db, userId);
+  if (existing.length > 0) return existing;
+  const created = await createWorkspace(db, defaultWorkspaceName(userName ?? ''), userId);
+  return [created];
 }
 
 export async function createWorkspace(db: Db, name: string, ownerId: string): Promise<Workspace> {
