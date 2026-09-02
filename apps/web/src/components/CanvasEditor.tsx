@@ -33,7 +33,7 @@ import { createNode } from '../cmlImporter';
 import { CanvasActionsContext, DropTargetContext } from '../CanvasContext';
 import { useI18n } from '../i18n/context';
 import { useHistory } from '../useHistory';
-import { useCoarsePointer } from '../useCoarsePointer';
+import { useTouchMode } from '../useMediaQuery';
 import type { CanvasSnapshot, Store } from '@esbuddy/sdk';
 import { NOTE_DEFAULT_SIZE, ELEMENT_STYLES, type ElementType } from '../types';
 
@@ -323,7 +323,7 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
   const { t } = useI18n();
-  const touchMode = useCoarsePointer();
+  const touchMode = useTouchMode();
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const mouseRef = useRef({ x: 0, y: 0 });
@@ -925,7 +925,7 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
     <div ref={canvasRef} className="w-full h-full relative">
       <button
         onClick={onBack}
-        className="absolute top-4 right-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/90 backdrop-blur shadow-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+        className="safe-top absolute right-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/90 backdrop-blur shadow-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
         title={t('editor.back')}
       >
         <ArrowLeft size={16} />
@@ -944,6 +944,7 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
             canUndo={canUndo}
             canRedo={canRedo}
             canGroup={canGroup}
+            touchMode={touchMode}
           />
 
           <ReactFlow
@@ -974,23 +975,25 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
           >
             <Background variant={BackgroundVariant.Lines} gap={24} size={1} color="#cbd5e1" />
             <Controls />
-            <MiniMap
-              nodeColor={(node) => {
-                const type = node.type as ElementType;
-                const colors: Record<string, string> = {
-                  event: '#f97316',
-                  command: '#3b82f6',
-                  aggregate: '#10b981',
-                  actor: '#eab308',
-                  policy: '#a855f7',
-                  external: '#ec4899',
-                  hotspot: '#991b1b',
-                  readmodel: '#10b981',
-                };
-                return colors[type] || '#94a3b8';
-              }}
-              className="bg-white border border-gray-200 rounded hidden md:block"
-            />
+            {!touchMode && (
+              <MiniMap
+                nodeColor={(node) => {
+                  const type = node.type as ElementType;
+                  const colors: Record<string, string> = {
+                    event: '#f97316',
+                    command: '#3b82f6',
+                    aggregate: '#10b981',
+                    actor: '#eab308',
+                    policy: '#a855f7',
+                    external: '#ec4899',
+                    hotspot: '#991b1b',
+                    readmodel: '#10b981',
+                  };
+                  return colors[type] || '#94a3b8';
+                }}
+                className="bg-white border border-gray-200 rounded"
+              />
+            )}
           </ReactFlow>
         </DropTargetContext.Provider>
       </CanvasActionsContext.Provider>

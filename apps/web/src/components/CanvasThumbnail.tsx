@@ -77,7 +77,7 @@ export function CanvasThumbnail({ store, canvasId }: CanvasThumbnailProps) {
     <svg
       viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
       preserveAspectRatio="xMidYMid meet"
-      className="flex-1 w-full h-full bg-linear-to-br from-gray-50 to-gray-100"
+      className="flex-1 w-full h-full bg-linear-to-br from-gray-50 to-gray-100 thumb-enter"
     >
       {snapshot.edges.map((e) => {
         const s = centerOf(e.source);

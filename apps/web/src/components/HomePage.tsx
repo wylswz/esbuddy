@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { LayoutGrid, LogOut, Plus, Trash2 } from 'lucide-react';
+import { LayoutGrid, LogOut, Plus } from 'lucide-react';
 import type { CanvasMeta, Store, User, Workspace } from '@esbuddy/sdk';
 import { useI18n } from '../i18n/context';
-import { CanvasThumbnail } from './CanvasThumbnail';
+import { CanvasCard, CanvasCardSkeleton } from './CanvasCard';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 
 interface HomePageProps {
@@ -15,11 +15,6 @@ interface HomePageProps {
   onCreateWorkspace: (name: string) => void;
   onOpenCanvas: (id: string) => void;
   onLogout: () => void;
-}
-
-function formatDate(ts: number): string {
-  if (!ts) return '';
-  return new Date(ts).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 export function HomePage({
@@ -84,8 +79,7 @@ export function HomePage({
     }
   };
 
-  const handleDelete = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
+  const handleDelete = async (id: string) => {
     if (!window.confirm(t('home.deleteConfirm'))) return;
     await store.deleteCanvas(id);
     setCanvases((prev) => prev.filter((c) => c.id !== id));
@@ -130,45 +124,38 @@ export function HomePage({
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-6 py-8">
+      <main
+        className="max-w-5xl mx-auto px-6 py-8"
+        style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom, 0px))' }}
+      >
         <h1 className="text-lg font-semibold text-gray-800 mb-4">{t('home.canvases')}</h1>
 
         {loading ? (
-          <div className="text-sm text-gray-400 py-12 text-center">{t('home.loading')}</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" aria-label={t('home.loading')}>
+            {Array.from({ length: 6 }, (_, i) => (
+              <CanvasCardSkeleton key={i} index={i} />
+            ))}
+          </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <button
               onClick={handleCreate}
               disabled={creating}
-              className="group flex flex-col items-center justify-center gap-2 h-40 rounded-xl border-2 border-dashed border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600 transition-colors disabled:opacity-50"
+              className="group flex flex-col items-center justify-center gap-2 h-40 rounded-xl border-2 border-dashed border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600 transition-colors disabled:opacity-50 card-enter"
             >
               <Plus size={24} />
               <span className="text-sm font-medium">{t('home.newCanvas')}</span>
             </button>
 
-            {canvases.map((c) => (
-              <div
+            {canvases.map((c, i) => (
+              <CanvasCard
                 key={c.id}
-                onClick={() => onOpenCanvas(c.id)}
-                className="group relative flex flex-col h-40 rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-md hover:border-gray-200 transition-all cursor-pointer overflow-hidden"
-              >
-                <CanvasThumbnail store={store} canvasId={c.id} />
-                <div className="p-3 border-t border-gray-100">
-                  <div className="text-sm font-medium text-gray-800 truncate">{c.name}</div>
-                  {c.updatedAt > 0 && (
-                    <div className="text-xs text-gray-400 mt-0.5">
-                      {t('home.updated')} {formatDate(c.updatedAt)}
-                    </div>
-                  )}
-                </div>
-                <button
-                  onClick={(e) => handleDelete(e, c.id)}
-                  className="absolute top-2 right-2 p-1.5 rounded-lg bg-white/90 text-gray-400 opacity-0 group-hover:opacity-100 hover:text-red-600 hover:bg-white shadow-sm transition-all"
-                  title={t('home.delete')}
-                >
-                  <Trash2 size={15} />
-                </button>
-              </div>
+                store={store}
+                canvas={c}
+                index={i + 1}
+                onOpen={onOpenCanvas}
+                onDelete={handleDelete}
+              />
             ))}
           </div>
         )}

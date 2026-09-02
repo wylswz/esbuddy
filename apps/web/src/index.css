@@ -22,6 +22,7 @@ html, body, #root {
   padding: 0;
   width: 100%;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
 }
@@ -54,4 +55,66 @@ html, body, #root {
 .sticky-note[data-lifted='true'],
 .sticky-note:hover {
   transform: rotate(0deg);
+}
+
+/*
+ * Touch devices: a long-press on a note "picks it up" (see CanvasEditor), so the
+ * browser's own long-press behaviours — iOS text-selection loupe, link/image
+ * callout — must not fire on the note body. Editable fields opt back in.
+ */
+.react-flow__node {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.react-flow__node input,
+.react-flow__node textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Keep floating chrome clear of the home indicator / notch on phones. */
+.safe-bottom {
+  bottom: calc(var(--safe-offset, 1.25rem) + env(safe-area-inset-bottom, 0px));
+}
+
+.safe-top {
+  top: calc(1rem + env(safe-area-inset-top, 0px));
+}
+
+/*
+ * Gallery cards: fade + rise in on mount, staggered per card via inline
+ * animation-delay. Thumbnails fade in separately once their snapshot loads,
+ * so a slow fetch doesn't pop.
+ */
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.card-enter {
+  animation: card-in 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.thumb-enter {
+  animation: fade-in 360ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-enter,
+  .thumb-enter {
+    animation: none;
+  }
 }
