@@ -1,4 +1,5 @@
 import type { Edge, Node, Viewport } from 'reactflow';
+import { EXAMPLE_CANVAS_NAME, exampleCanvasSnapshot } from '@esbuddy/sdk';
 import type { ElementType } from './types';
 
 export interface PersistedNode {
@@ -139,6 +140,24 @@ export function listCanvases(): CanvasMeta[] {
   const store = readStore();
   if (!store) return [];
   return Object.entries(store.canvases).map(([id, canvas]) => ({ id, name: canvas.name }));
+}
+
+const SEED_FLAG_KEY = 'esbuddy.example-seeded';
+
+/**
+ * Seed the worked DDD example once (guarded by a flag), so the local gallery
+ * isn't empty on first visit. The flag means we never re-add it after the user
+ * deletes it.
+ */
+export function ensureExampleSeed(): void {
+  try {
+    if (localStorage.getItem(SEED_FLAG_KEY)) return;
+    const id = `canvas_example_${Date.now()}`;
+    saveCanvas(id, exampleCanvasSnapshot() as unknown as CanvasSnapshot, EXAMPLE_CANVAS_NAME);
+    localStorage.setItem(SEED_FLAG_KEY, '1');
+  } catch {
+    // ignore storage failures
+  }
 }
 
 export function createCanvas(name?: string): string {

@@ -11,6 +11,8 @@
     "dev:fullstack": "pnpm --filter @esbuddy/sdk build && concurrently -n web,server -c green,magenta \"pnpm --filter @esbuddy/web dev:remote\" \"pnpm --filter @esbuddy/server dev\"",
     "dev:server": "pnpm --filter @esbuddy/server dev",
     "dev:sdk": "pnpm --filter @esbuddy/sdk dev",
+    "dev:docker": "docker compose up --build",
+    "clean:docker": "docker compose down -v",
     "build": "pnpm --filter @esbuddy/sdk build && pnpm --filter @esbuddy/web build && pnpm --filter @esbuddy/server build",
     "build:fullstack": "pnpm --filter @esbuddy/sdk build && pnpm --filter @esbuddy/web build:fullstack && pnpm --filter @esbuddy/server build",
     "typecheck": "pnpm -r typecheck",

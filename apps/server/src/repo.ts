@@ -10,6 +10,7 @@ import type {
   Workspace,
   WorkspaceMember,
 } from '@esbuddy/sdk';
+import { EXAMPLE_CANVAS_NAME, exampleCanvasSnapshot } from '@esbuddy/sdk';
 import type { Db } from './db/index.js';
 import { canvases, canvasEvents, invitations, users, workspaceMembers, workspaces } from './db/schema.js';
 
@@ -133,6 +134,23 @@ export async function createWorkspace(db: Db, name: string, ownerId: string): Pr
   const createdAt = now();
   await db.insert(workspaces).values({ id, name, ownerId, createdAt }).run();
   await db.insert(workspaceMembers).values({ workspaceId: id, userId: ownerId, role: 'owner', joinedAt: createdAt }).run();
+
+  // Seed a worked DDD example so the workspace is never empty on first visit.
+  await db
+    .insert(canvases)
+    .values({
+      id: crypto.randomUUID(),
+      name: EXAMPLE_CANVAS_NAME,
+      ownerType: 'workspace',
+      ownerId: id,
+      snapshot: JSON.stringify(exampleCanvasSnapshot()),
+      version: 0,
+      createdById: ownerId,
+      createdAt,
+      updatedAt: createdAt,
+    })
+    .run();
+
   return { id, name, ownerId, createdAt };
 }
 

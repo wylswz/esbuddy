@@ -5,7 +5,6 @@ import { CanvasEditor } from './components/CanvasEditor';
 import { HomePage } from './components/HomePage';
 import { LoginPage } from './components/LoginPage';
 import { getStore, isRemoteMode } from './stores';
-import { DEFAULT_CANVAS_ID } from './storage';
 import { clearAuthToken } from './auth';
 
 const WORKSPACE_STORAGE_KEY = 'esbuddy.workspace';
@@ -37,10 +36,8 @@ function App() {
     }
   });
 
-  // In local mode there is a single implicit canvas; jump straight into it.
-  const [openCanvasId, setOpenCanvasId] = useState<string | null>(() =>
-    remote ? null : DEFAULT_CANVAS_ID,
-  );
+  // Both modes start on the gallery; opening a card enters the editor.
+  const [openCanvasId, setOpenCanvasId] = useState<string | null>(null);
 
   // Resolve the auth state in remote mode (login page vs app).
   useEffect(() => {

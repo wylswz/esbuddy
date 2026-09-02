@@ -41,6 +41,11 @@ function toMeta(id: string, name: string): CanvasMeta {
  * Multi-canvas only; no real users or workspaces.
  */
 export class LocalStore implements Store {
+  constructor() {
+    // Ensure the worked DDD example exists on first visit (idempotent).
+    storage.ensureExampleSeed();
+  }
+
   getCurrentUser(): Promise<User | null> {
     return Promise.resolve(LOCAL_USER);
   }
