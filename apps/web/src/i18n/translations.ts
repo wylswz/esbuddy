@@ -12,6 +12,9 @@ export const en = {
     modifierKeys: 'Modifier keys',
     shiftDragOut: 'Shift + drag out → remove from aggregate',
     optionClick: '⌥ Option + click → connect',
+    touchHint: 'Touch: long-press a note to pick it up, then drag. Swipe elsewhere to pan.',
+    openMenu: 'Open menu',
+    closeMenu: 'Close menu',
     switchLanguage: '中文',
   },
   export: {
@@ -129,6 +132,9 @@ export const zh: Translation = {
     modifierKeys: '修饰键',
     shiftDragOut: 'Shift + 拖出 → 从聚合移除',
     optionClick: '⌥ Option + 点击 → 连接',
+    touchHint: '触屏：长按贴纸拿起后再拖动；在空白处滑动可平移画布。',
+    openMenu: '打开菜单',
+    closeMenu: '关闭菜单',
     switchLanguage: 'English',
   },
   export: {

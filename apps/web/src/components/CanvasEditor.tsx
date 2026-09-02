@@ -28,15 +28,14 @@ import { ArrowLeft } from 'lucide-react';
 import { StickyNode } from './StickyNode';
 import { AggregateNode } from './AggregateNode';
 import { Toolbar } from './Toolbar';
-import { ExportModal } from './ExportModal';
 import { HelpModal } from './HelpModal';
-import { exportToCML } from '../cmlExporter';
-import { parseCML, createNode } from '../cmlImporter';
+import { createNode } from '../cmlImporter';
 import { CanvasActionsContext, DropTargetContext } from '../CanvasContext';
 import { useI18n } from '../i18n/context';
 import { useHistory } from '../useHistory';
+import { useCoarsePointer } from '../useCoarsePointer';
 import type { CanvasSnapshot, Store } from '@esbuddy/sdk';
-import { NOTE_DEFAULT_SIZE, ELEMENT_STYLES, type ElementType, type EsCanvasState } from '../types';
+import { NOTE_DEFAULT_SIZE, ELEMENT_STYLES, type ElementType } from '../types';
 
 const AGGREGATE_PADDING = 40;
 
@@ -47,6 +46,17 @@ const AGGREGATE_PADDING = 40;
  *   Cmd/Ctrl (⌘)     — multi-select (React Flow default).
  */
 const REMOVE_MODIFIER_KEY: 'Shift' | 'Alt' | 'Control' | 'Meta' = 'Shift';
+
+/*
+ * Touch scheme (phones / tablets, detected via `pointer: coarse`):
+ *   One finger anywhere (including over a note) pans; pinch zooms. Notes are never
+ *   dragged by a plain swipe, so scrolling the board can't accidentally rearrange it.
+ *   To move a note, long-press it (TOUCH_HOLD_MS without moving more than TOUCH_SLOP px)
+ *   — it lifts, then follows the finger until it's released.
+ */
+const TOUCH_HOLD_MS = 450;
+const TOUCH_SLOP = 8;
+const NO_MODIFIERS = { shiftKey: false, altKey: false, ctrlKey: false, metaKey: false } as unknown as React.MouseEvent;
 
 const NODE_SHORTCUTS: Record<string, ElementType> = {};
 (Object.keys(ELEMENT_STYLES) as ElementType[]).forEach((type) => {
@@ -308,13 +318,12 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
   const [nodes, setNodes] = useState<Node[]>(initialNodes);
   const [edges, setEdges] = useState<Edge[]>(initialEdges);
   const [viewport, setViewport] = useState<Viewport | null>(null);
-  const [showExport, setShowExport] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
-  const [exportedCml, setExportedCml] = useState('');
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
   const { t } = useI18n();
+  const touchMode = useCoarsePointer();
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const mouseRef = useRef({ x: 0, y: 0 });
@@ -771,6 +780,120 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
     [nodes],
   );
 
+  // Long-press-to-pick-up dragging for touch screens (see "Touch scheme" above).
+  // React Flow's own node dragging is disabled in touch mode, so a note without the
+  // `nopan` class lets a swipe bubble up to the pane and pan the board. Once a note is
+  // picked up we swallow touchmove in the capture phase so d3-zoom never sees it, and
+  // drive the same onNodesChange / onNodeDrag / onNodeDragStop path the mouse uses.
+  const touchHandlersRef = useRef({ onNodesChange, onNodeDrag, onNodeDragStop });
+  touchHandlersRef.current = { onNodesChange, onNodeDrag, onNodeDragStop };
+
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!touchMode || !el) return;
+
+    let timer: number | null = null;
+    let nodeId: string | null = null;
+    let touchId: number | null = null;
+    let picked = false;
+    let start = { x: 0, y: 0 };
+    let last = { x: 0, y: 0 };
+    let pos = { x: 0, y: 0 };
+
+    const reset = () => {
+      if (timer !== null) window.clearTimeout(timer);
+      timer = null;
+      nodeId = null;
+      touchId = null;
+      picked = false;
+    };
+
+    const findTouch = (list: TouchList) => Array.from(list).find((x) => x.identifier === touchId);
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1 || picked) {
+        reset();
+        return;
+      }
+      const target = e.target as HTMLElement;
+      if (target.closest('input, textarea, .react-flow__resize-control, .react-flow__handle')) return;
+      const id = target.closest<HTMLElement>('.react-flow__node')?.dataset.id;
+      if (!id) return;
+
+      const touch = e.touches[0];
+      nodeId = id;
+      touchId = touch.identifier;
+      start = last = { x: touch.clientX, y: touch.clientY };
+
+      timer = window.setTimeout(() => {
+        timer = null;
+        const node = nodesRef.current.find((n) => n.id === id);
+        if (!node) {
+          reset();
+          return;
+        }
+        picked = true;
+        pos = { ...node.position };
+        navigator.vibrate?.(15);
+        touchHandlersRef.current.onNodesChange([
+          ...nodesRef.current
+            .filter((n) => n.selected && n.id !== id)
+            .map((n) => ({ type: 'select' as const, id: n.id, selected: false })),
+          { type: 'select', id, selected: true },
+          { type: 'position', id, position: pos, dragging: true },
+        ]);
+      }, TOUCH_HOLD_MS);
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (nodeId === null) return;
+      const touch = findTouch(e.touches);
+      if (!touch) return;
+
+      if (!picked) {
+        // Finger moved before the hold elapsed: this is a pan, not a pick-up.
+        if (Math.hypot(touch.clientX - start.x, touch.clientY - start.y) > TOUCH_SLOP) reset();
+        return;
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
+      const zoom = rfInstanceRef.current?.getViewport().zoom ?? 1;
+      pos = { x: pos.x + (touch.clientX - last.x) / zoom, y: pos.y + (touch.clientY - last.y) / zoom };
+      last = { x: touch.clientX, y: touch.clientY };
+
+      const node = nodesRef.current.find((n) => n.id === nodeId);
+      if (!node) return;
+      touchHandlersRef.current.onNodesChange([{ type: 'position', id: nodeId, position: pos, dragging: true }]);
+      touchHandlersRef.current.onNodeDrag(NO_MODIFIERS, { ...node, position: pos }, [node]);
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (nodeId === null || !findTouch(e.changedTouches)) return;
+      if (picked) {
+        const id = nodeId;
+        const node = nodesRef.current.find((n) => n.id === id);
+        touchHandlersRef.current.onNodesChange([{ type: 'position', id, position: pos, dragging: false }]);
+        if (node) touchHandlersRef.current.onNodeDragStop(NO_MODIFIERS, { ...node, position: pos }, [node]);
+      }
+      reset();
+    };
+
+    // Capture phase so we run before d3-zoom's listeners on the pane.
+    const opts: AddEventListenerOptions = { capture: true, passive: false };
+    el.addEventListener('touchstart', onTouchStart, opts);
+    el.addEventListener('touchmove', onTouchMove, opts);
+    el.addEventListener('touchend', onTouchEnd, opts);
+    el.addEventListener('touchcancel', onTouchEnd, opts);
+    return () => {
+      reset();
+      el.removeEventListener('touchstart', onTouchStart, opts);
+      el.removeEventListener('touchmove', onTouchMove, opts);
+      el.removeEventListener('touchend', onTouchEnd, opts);
+      el.removeEventListener('touchcancel', onTouchEnd, opts);
+    };
+  }, [touchMode]);
+
   const onMove = useCallback<OnMove>((_event, vp) => {
     viewportRef.current = vp;
   }, []);
@@ -787,35 +910,6 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
     }, 250);
     return () => clearTimeout(timer);
   }, [nodes, edges, viewport, loaded, store, canvasId]);
-
-  const handleExport = useCallback(() => {
-    const state: EsCanvasState = {
-      nodes: nodes.map((n) => ({
-        id: n.id,
-        type: n.data.type as ElementType,
-        position: n.position,
-        data: {
-          label: n.data.label as string,
-          type: n.data.type as ElementType,
-          aggregateId: (n.data.aggregateId as string) || null,
-        },
-      })),
-      edges: edges.map((e) => ({
-        id: e.id,
-        source: e.source,
-        target: e.target,
-      })),
-    };
-    const cml = exportToCML(state);
-    setExportedCml(cml);
-    setShowExport(true);
-  }, [nodes, edges]);
-
-  const handleImport = useCallback((cml: string) => {
-    const state = parseCML(cml);
-    setNodes(state.nodes as Node[]);
-    setEdges(state.edges as Edge[]);
-  }, []);
 
   const canGroup = useMemo(
     () =>
@@ -841,8 +935,6 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
         <DropTargetContext.Provider value={dropTargetId}>
           <Toolbar
             onAddElement={addElement}
-            onExport={handleExport}
-            onImport={handleImport}
             onGroupAggregate={groupAsAggregate}
             onBringToFront={bringToFront}
             onSendToBack={sendToBack}
@@ -867,10 +959,12 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
             onNodeDragStop={onNodeDragStop}
             onMove={onMove}
             onMoveEnd={onMoveEnd}
-            selectionOnDrag
-            panOnDrag={[1, 2]}
+            nodesDraggable={!touchMode}
+            selectionOnDrag={!touchMode}
+            panOnDrag={touchMode ? true : [1, 2]}
             panOnScroll
             zoomOnScroll={false}
+            zoomOnDoubleClick={!touchMode}
             selectionMode={SelectionMode.Partial}
             fitView={!hadSaved}
             onInit={onInit}
@@ -895,13 +989,12 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
                 };
                 return colors[type] || '#94a3b8';
               }}
-              className="bg-white border border-gray-200 rounded"
+              className="bg-white border border-gray-200 rounded hidden md:block"
             />
           </ReactFlow>
         </DropTargetContext.Provider>
       </CanvasActionsContext.Provider>
 
-      {showExport && <ExportModal cml={exportedCml} onClose={() => setShowExport(false)} />}
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
     </div>
   );
