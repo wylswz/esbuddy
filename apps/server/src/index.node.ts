@@ -3,8 +3,9 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
 import { buildApp } from './app.js';
-import { createDb } from './db/index.js';
-import { getEnv } from './env.js';
+import { createDb } from './db/index.node.js';
+import { getEnv } from './env.node.js';
+import { staticMiddleware } from './static.node.js';
 
 const env = getEnv();
 const db = createDb(env);
@@ -15,7 +16,7 @@ const webDist = env.WEB_DIST_PATH
   : resolve(packageRoot, '../web/dist');
 const staticRoot = existsSync(webDist) ? webDist : undefined;
 
-const app = buildApp({ db, env, staticRoot });
+const app = buildApp({ db, env, staticHandler: staticMiddleware(staticRoot) });
 
 const port = Number(env.PORT ?? 8787);
 

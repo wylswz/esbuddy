@@ -99,13 +99,27 @@ apps/
 │       └── components/
 └── server/                    # Hono backend (ADR-0001.10/11)
     └── src/
-        ├── index.ts           # Node bootstrap
-        ├── app.ts             # platform-agnostic Hono app
-        ├── env.ts             # Env interface + node resolver
-        ├── db/                # Drizzle schema + polymorphic DB factory (sqlite | d1 | pg)
+        │                      # Platform-agnostic core (no node:*/Workers imports):
+        ├── app.ts             # Hono app factory (buildApp) — injected db/env/staticHandler
+        ├── env.ts             # Env interface + isDevMode
         ├── repo.ts            # repository layer (users/workspaces/canvases/events)
+        ├── context.ts         # Hono context variables
         ├── auth/              # JWT + Google OAuth + middleware
-        └── routes/            # auth / canvases / workspaces / invitations
+        ├── routes/            # auth / canvases / workspaces / invitations
+        ├── db/
+        │   ├── schema.ts      # Drizzle schema (sqlite-core, shared by both drivers)
+        │   ├── types.ts       # shared `Db` type
+        │   ├── index.node.ts  # better-sqlite3 factory (Node)
+        │   ├── migrate.node.ts# Node migration runner
+        │   └── d1.worker.ts   # D1 factory (Cloudflare)
+        │                      # Node-only entrypoints (*.node.ts):
+        ├── index.node.ts      # Node bootstrap (@hono/node-server)
+        ├── env.node.ts        # Env resolver from process.env / .env
+        ├── static.node.ts     # SPA serving via node:fs
+        │                      # Cloudflare Workers-only entrypoints (*.worker.ts):
+        ├── index.worker.ts    # Workers entrypoint (export default { fetch })
+        ├── env.worker.ts      # Env resolver from Workers bindings/vars
+        └── static.worker.ts   # SPA serving via the Assets binding
 
 packages/
 └── sdk/                       # shared domain types + Store interface + HttpStore client
@@ -142,7 +156,7 @@ Copy `apps/server/.env.example` → `apps/server/.env` (auto-loaded on startup) 
 
 | Var | Default | Purpose |
 |---|---|---|
-| `DB_KIND` | `sqlite` | `sqlite` (local) — `d1`/`pg` are extension points |
+| `DB_KIND` | `sqlite` | `sqlite` (Node/local) · `d1` (Cloudflare Workers, see below) — `pg` is an extension point |
 | `DB_PATH` | `./.db/esbuddy.sqlite` | SQLite file path |
 | `JWT_SECRET` | `esbuddy-dev-secret` | JWT + OAuth state signing secret (required in production) |
 | `DEV_MODE` | off in `NODE_ENV=production`, else on | enables `/api/auth/dev-login` + shows dev-login UI |
@@ -163,6 +177,56 @@ docker compose up --build    # build image + start on :8787
 
 - `Dockerfile` — multi-stage: builds sdk → web → server via pnpm, runtime serves `apps/web/dist` + API.
 - `docker-compose.yml` — binds `:8787`, persists SQLite in a named volume, forwards `GOOGLE_*` / `JWT_SECRET` from your shell (or a root `.env`).
+
+## Cloudflare (Workers + D1)
+
+Pure-Cloudflare deployment: a single Worker serves both `/api/*` and the built SPA
+(via the Assets binding), backed by a D1 database. This runs **in parallel** to the
+Node/Docker path above — the platform-agnostic core (`app.ts`, `repo.ts`, `db/schema.ts`, …)
+is shared, while `*.node.ts` and `*.worker.ts` modules provide the per-platform bootstrap.
+
+Config lives in `apps/server/wrangler.jsonc`.
+
+### One-time setup
+
+```bash
+cd apps/server
+
+# 1. Create the D1 database, then paste the printed database_id into wrangler.jsonc
+pnpm exec wrangler d1 create esbuddy
+
+# 2. Apply migrations (drizzle output in ./drizzle) to remote D1
+pnpm db:migrate:d1          # local: pnpm db:migrate:d1:local
+
+# 3. Set secrets (never commit these)
+pnpm exec wrangler secret put JWT_SECRET
+pnpm exec wrangler secret put GOOGLE_CLIENT_ID
+pnpm exec wrangler secret put GOOGLE_CLIENT_SECRET
+pnpm exec wrangler secret put GOOGLE_REDIRECT_URI
+```
+
+### Deploy
+
+```bash
+# From the repo root: build sdk + web(fullstack) then deploy the Worker + assets
+pnpm deploy:cf
+```
+
+### Local dev against Workers runtime (workerd + local D1)
+
+```bash
+pnpm build:cf                             # build the SPA assets first
+cd apps/server
+pnpm db:migrate:d1:local                  # seed the local D1
+pnpm cf:dev                               # wrangler dev
+```
+
+| Var / binding | Where | Purpose |
+|---|---|---|
+| `DB` (D1 binding) | `wrangler.jsonc` | D1 database, consumed by `db/d1.worker.ts` |
+| `ASSETS` (Assets binding) | `wrangler.jsonc` | built SPA in `apps/web/dist` (SPA fallback enabled) |
+| `DB_KIND=d1`, `DEV_MODE` | `wrangler.jsonc` `vars` | non-secret config |
+| `JWT_SECRET`, `GOOGLE_*` | `wrangler secret put` | secrets (not committed) |
 
 ## Roadmap
 

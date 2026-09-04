@@ -9,5 +9,9 @@
     "rootDir": "src",
     "sourceMap": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Workers-only modules (`*.worker.ts`) are typechecked/bundled separately
+  // (tsconfig.worker.json + wrangler). Excluded here so Node globals and Workers
+  // globals never collide.
+  "exclude": ["src/**/*.worker.ts"]
 }

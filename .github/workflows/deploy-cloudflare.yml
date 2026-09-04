@@ -1,0 +1,79 @@
+name: Deploy to Cloudflare
+
+# Deploys the Worker (Hono API) + static SPA assets to Cloudflare, backed by D1.
+# Runs in parallel to the GitHub Pages workflow (deploy.yml) — this one is the
+# full-stack single-deployment target.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   CLOUDFLARE_API_TOKEN   — token with "Edit Cloudflare Workers" + D1 permissions
+#   CLOUDFLARE_ACCOUNT_ID  — your Cloudflare account id
+#   JWT_SECRET             — synced to the Worker on every deploy
+#   GOOGLE_CLIENT_ID       — synced to the Worker on every deploy
+#   GOOGLE_CLIENT_SECRET   — synced to the Worker on every deploy
+#   GOOGLE_REDIRECT_URI    — synced to the Worker on every deploy
+#
+# The GOOGLE_* / JWT_SECRET values are pushed to the Worker via the deploy step's
+# `secrets:` input (see below), so they are managed entirely from GitHub Secrets.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: cloudflare-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Build the SDK + SPA in fullstack/remote mode into apps/web/dist,
+      # which the Worker serves via the Assets binding (see wrangler.jsonc).
+      - name: Build assets
+        run: pnpm build:cf
+
+      # Apply D1 migrations (drizzle output in apps/server/drizzle) to the remote
+      # database before deploying the new Worker code.
+      - name: Apply D1 migrations
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/server
+          wranglerVersion: "4.129.0"
+          command: d1 migrations apply esbuddy --remote
+
+      # Deploy the Worker + static assets.
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/server
+          wranglerVersion: "4.129.0"
+          command: deploy
+          # Worker runtime secrets are synced from GitHub secrets on every deploy.
+          secrets: |
+            JWT_SECRET
+            GOOGLE_CLIENT_ID
+            GOOGLE_CLIENT_SECRET
+            GOOGLE_REDIRECT_URI
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REDIRECT_URI: ${{ secrets.GOOGLE_REDIRECT_URI }}

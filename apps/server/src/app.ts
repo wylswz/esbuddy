@@ -1,25 +1,28 @@
 import { Hono } from 'hono';
+import type { MiddlewareHandler } from 'hono';
 import { logger } from 'hono/logger';
 import type { Env } from './env.js';
 import { isDevMode } from './env.js';
-import type { Db } from './db/index.js';
+import type { Db } from './db/types.js';
 import type { AppVariables } from './context.js';
 import { authRoutes } from './routes/auth.js';
 import { canvasRoutes } from './routes/canvases.js';
 import { invitationRoutes, workspaceRoutes } from './routes/workspaces.js';
-import { staticMiddleware } from './static.js';
 
 export interface AppDeps {
   db: Db;
   env: Env;
-  staticRoot?: string; // path to the built SPA assets (Node single deployment)
+  // Platform-specific SPA asset serving (node fs middleware or Workers Assets
+  // binding). Omit for an API-only deployment. Kept as an injected dependency so
+  // the app itself stays free of any platform (`node:*` / Workers) imports.
+  staticHandler?: MiddlewareHandler<{ Variables: AppVariables }>;
 }
 
-export function buildApp({ db, env, staticRoot }: AppDeps) {
+export function buildApp({ db, env, staticHandler }: AppDeps) {
   const app = new Hono<{ Variables: AppVariables }>();
 
   app.use('*', logger());
-  app.use('*', staticMiddleware(staticRoot));
+  if (staticHandler) app.use('*', staticHandler);
 
   app.use('*', async (c, next) => {
     c.set('db', db);

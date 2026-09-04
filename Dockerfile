@@ -27,6 +27,9 @@ COPY --from=build /app/apps/server/node_modules ./apps/server/node_modules
 COPY --from=build /app/apps/server/dist ./apps/server/dist
 COPY --from=build /app/apps/server/drizzle ./apps/server/drizzle
 COPY --from=build /app/apps/web/dist ./apps/web/dist
+# The @esbuddy/sdk workspace package is symlinked from apps/server/node_modules;
+# copy its built output so the (relative) symlink resolves at runtime.
+COPY --from=build /app/packages/sdk ./packages/sdk
 
 EXPOSE 8787
-CMD ["node", "apps/server/dist/index.js"]
+CMD ["node", "apps/server/dist/index.node.js"]

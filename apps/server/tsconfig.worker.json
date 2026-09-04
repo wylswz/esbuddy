@@ -1,0 +1,14 @@
+{
+  // Typechecks the Cloudflare Workers entrypoint (and the shared, platform-neutral
+  // modules it imports) with Workers globals instead of Node globals. wrangler does
+  // the actual bundling; this config is for `tsc --noEmit` verification only.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "lib": ["ES2023"],
+    "types": ["@cloudflare/workers-types"],
+    "noEmit": true
+  },
+  "include": ["src/**/*.worker.ts"]
+}

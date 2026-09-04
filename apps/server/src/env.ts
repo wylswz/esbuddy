@@ -1,17 +1,19 @@
-import { existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+// Platform-agnostic runtime configuration. This module has NO Node or Workers
+// specific imports so it can be bundled for either target. The Node bootstrap
+// (`env.node.ts`) and the Workers bootstrap (`worker.ts`) each resolve an `Env`
+// from their own platform primitives and hand it to the shared `buildApp`.
 
 export interface Env {
-  DB_KIND?: string; // 'sqlite' (default) | 'd1' | 'pg'
-  DB_PATH?: string; // sqlite file path (node), or d1/pg connection config
+  DB_KIND?: string; // 'sqlite' (default, node) | 'd1' (cloudflare) | 'pg'
+  DB_PATH?: string; // sqlite file path (node only)
   JWT_SECRET?: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
   GOOGLE_REDIRECT_URI?: string;
   FRONTEND_URL?: string;
-  WEB_DIST_PATH?: string; // built SPA assets (defaults to apps/web/dist)
+  WEB_DIST_PATH?: string; // built SPA assets (node only; Workers use the Assets binding)
   DEV_MODE?: string; // 'true' | 'false' — enables dev-only endpoints (dev-login)
-  PORT?: string;
+  PORT?: string; // node only
 }
 
 /** Dev-only features (e.g. /api/auth/dev-login) are gated behind DEV_MODE. */
@@ -19,36 +21,6 @@ export function isDevMode(env: Env): boolean {
   return env.DEV_MODE === 'true' || env.DEV_MODE === '1';
 }
 
-/** Node-only: load apps/server/.env if present (no-op on Workers). */
-function loadDotEnv(): void {
-  if (typeof process === 'undefined' || typeof process.loadEnvFile !== 'function') return;
-  try {
-    const envPath = fileURLToPath(new URL('../.env', import.meta.url));
-    if (existsSync(envPath)) process.loadEnvFile(envPath);
-  } catch {
-    // ignore missing/unreadable .env
-  }
-}
-
-/** Node bootstrap resolves Env from process.env (Workers maps bindings instead). */
-export function getEnv(): Env {
-  loadDotEnv();
-  const devMode =
-    process.env.DEV_MODE ?? (process.env.NODE_ENV === 'production' ? 'false' : 'true');
-  const env: Env = {
-    DB_KIND: process.env.DB_KIND,
-    DB_PATH: process.env.DB_PATH,
-    JWT_SECRET: process.env.JWT_SECRET,
-    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
-    GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
-    GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI,
-    FRONTEND_URL: process.env.FRONTEND_URL,
-    WEB_DIST_PATH: process.env.WEB_DIST_PATH,
-    DEV_MODE: devMode,
-    PORT: process.env.PORT,
-  };
-  if (process.env.NODE_ENV === 'production' && !env.JWT_SECRET) {
-    throw new Error('JWT_SECRET must be set in production');
-  }
-  return env;
-}
+// The Node resolver lives in `env.node.ts` and the Cloudflare Workers resolver
+// (which references D1/Assets binding types) lives in `env.workers.ts`, keeping
+// this module free of any platform-specific globals.

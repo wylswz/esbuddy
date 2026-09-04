@@ -15,6 +15,8 @@
     "clean:docker": "docker compose down -v",
     "build": "pnpm --filter @esbuddy/sdk build && pnpm --filter @esbuddy/web build && pnpm --filter @esbuddy/server build",
     "build:fullstack": "pnpm --filter @esbuddy/sdk build && pnpm --filter @esbuddy/web build:fullstack && pnpm --filter @esbuddy/server build",
+    "build:cf": "pnpm --filter @esbuddy/sdk build && pnpm --filter @esbuddy/web build:fullstack",
+    "deploy:cf": "pnpm build:cf && pnpm --filter @esbuddy/server cf:deploy",
     "typecheck": "pnpm -r typecheck",
     "lint": "oxlint",
     "preview": "pnpm --filter @esbuddy/web preview"

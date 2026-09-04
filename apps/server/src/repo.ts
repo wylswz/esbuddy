@@ -11,7 +11,7 @@ import type {
   WorkspaceMember,
 } from '@esbuddy/sdk';
 import { EXAMPLE_CANVAS_NAME, exampleCanvasSnapshot } from '@esbuddy/sdk';
-import type { Db } from './db/index.js';
+import type { Db } from './db/types.js';
 import { canvases, canvasEvents, invitations, users, workspaceMembers, workspaces } from './db/schema.js';
 
 const now = () => Date.now();

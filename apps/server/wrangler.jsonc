@@ -1,0 +1,40 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "esbuddy",
+  "main": "src/index.worker.ts",
+  "compatibility_date": "2025-04-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Static SPA assets (built by `pnpm --filter @esbuddy/web build:fullstack`).
+  // `single-page-application` makes the Assets binding fall back to index.html
+  // for client-side routes; the Worker still handles /api/* and /health.
+  "assets": {
+    "directory": "../web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+
+  // D1 database. Create it once with:
+  //   wrangler d1 create esbuddy
+  // then paste the printed database_id below.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "esbuddy",
+      "database_id": "67298543-f422-4ccf-818c-a7dd9c6f70eb",
+      "migrations_dir": "drizzle"
+    }
+  ],
+
+  // Non-secret vars. Secrets (JWT_SECRET, GOOGLE_*) are set via
+  // `wrangler secret put <NAME>` and must NOT be committed here.
+  "vars": {
+    "DB_KIND": "d1",
+    "DEV_MODE": "false"
+    // "FRONTEND_URL": "https://esbuddy.example.com"
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}
