@@ -7,11 +7,18 @@
 
   // Static SPA assets (built by `pnpm --filter @esbuddy/web build:fullstack`).
   // `single-page-application` makes the Assets binding fall back to index.html
-  // for client-side routes; the Worker still handles /api/* and /health.
+  // for client-side routes.
+  //
+  // `run_worker_first` is REQUIRED: without it, browser *navigations* (Accept:
+  // text/html) to /api/* — e.g. the top-level OAuth redirect to /api/auth/google
+  // and Google's callback to /api/auth/google/callback — get hijacked by the SPA
+  // fallback (index.html) and never reach the Worker. Routing /api/* + /health to
+  // the Worker first fixes that; everything else is served from assets.
   "assets": {
     "directory": "../web/dist",
     "binding": "ASSETS",
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/health"]
   },
 
   // D1 database. Create it once with:
