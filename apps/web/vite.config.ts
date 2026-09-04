@@ -3,8 +3,13 @@ import tailwindcss from '@tailwindcss/vite'
 import { defineConfig } from 'vite'
 
 // https://vite.dev/config/
-export default defineConfig({
-  base: './',
+export default defineConfig(({ mode }) => ({
+  // The fullstack build (Cloudflare Worker / Docker) is served from the domain
+  // root, so assets must use an absolute base — otherwise a document served at a
+  // non-root path (OAuth callback, deep SPA route refresh) resolves `./assets/…`
+  // against the wrong prefix and 404s. The default GitHub Pages build keeps a
+  // relative base so it works under a project subpath.
+  base: mode === 'fullstack' ? '/' : './',
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
@@ -15,4 +20,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))
