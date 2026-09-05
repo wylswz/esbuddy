@@ -321,7 +321,6 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
   const nameInputRef = useRef<HTMLInputElement>(null);
   const [nodes, setNodes] = useState<Node[]>(initialNodes);
   const [edges, setEdges] = useState<Edge[]>(initialEdges);
-  const [viewport, setViewport] = useState<Viewport | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
@@ -361,7 +360,7 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
           setNodes(record.snapshot.nodes as Node[]);
           setEdges(record.snapshot.edges as Edge[]);
           if (record.snapshot.viewport) {
-            setViewport(record.snapshot.viewport);
+            viewportRef.current = record.snapshot.viewport;
             pendingViewportRef.current = record.snapshot.viewport;
             rfInstanceRef.current?.setViewport(record.snapshot.viewport);
           }
@@ -926,17 +925,23 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
   }, []);
 
   const onMoveEnd = useCallback<OnMoveEnd>((_event, vp) => {
-    setViewport(vp);
     viewportRef.current = vp;
   }, []);
 
+  // Persist only on real content changes (nodes/edges). Pure navigation
+  // (pan/zoom) updates viewportRef but must not trigger a save; the latest
+  // viewport is captured from the ref whenever content actually changes.
   useEffect(() => {
     if (!loaded || !canvasId) return;
     const timer = setTimeout(() => {
-      store.saveCanvas(canvasId, { nodes, edges, viewport } as unknown as CanvasSnapshot);
+      store.saveCanvas(canvasId, {
+        nodes,
+        edges,
+        viewport: viewportRef.current,
+      } as unknown as CanvasSnapshot);
     }, 250);
     return () => clearTimeout(timer);
-  }, [nodes, edges, viewport, loaded, store, canvasId]);
+  }, [nodes, edges, loaded, store, canvasId]);
 
   const canGroup = useMemo(
     () =>
