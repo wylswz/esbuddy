@@ -3,6 +3,7 @@ import type { Role } from '@esbuddy/sdk';
 import { authMiddleware, requireAuth } from '../auth/middleware.js';
 import { getUser } from '../auth/service.js';
 import type { AppVariables } from '../../context.js';
+import { LimitError, parseLimits } from '../../limits.js';
 import * as service from './service.js';
 
 export const workspaceRoutes = new Hono<{ Variables: AppVariables }>();
@@ -18,8 +19,18 @@ workspaceRoutes.get('/', async (c) => {
 
 workspaceRoutes.post('/', async (c) => {
   const body = await c.req.json<{ name: string }>();
-  const workspace = await service.createWorkspace(c.var.db, body.name, c.var.userId!);
-  return c.json(workspace, 201);
+  try {
+    const workspace = await service.createWorkspace(c.var.db, body.name, c.var.userId!, parseLimits(c.var.env));
+    return c.json(workspace, 201);
+  } catch (err) {
+    if (err instanceof LimitError) return c.json({ error: err.message }, 403);
+    throw err;
+  }
+});
+
+workspaceRoutes.delete('/:id', async (c) => {
+  const deleted = await service.deleteWorkspace(c.var.db, c.req.param('id'), c.var.userId!);
+  return deleted ? c.body(null, 204) : c.json({ error: 'not found or not owner' }, 404);
 });
 
 workspaceRoutes.get('/:id/members', async (c) => {
@@ -45,6 +56,11 @@ invitationRoutes.get('/:token', async (c) => {
   return c.json(preview);
 });
 invitationRoutes.post('/:token/accept', async (c) => {
-  const workspace = await service.acceptInvitation(c.var.db, c.req.param('token'), c.var.userId!);
-  return workspace ? c.json(workspace) : c.json({ error: 'invalid or revoked invitation' }, 404);
+  try {
+    const workspace = await service.acceptInvitation(c.var.db, c.req.param('token'), c.var.userId!, parseLimits(c.var.env));
+    return workspace ? c.json(workspace) : c.json({ error: 'invalid or revoked invitation' }, 404);
+  } catch (err) {
+    if (err instanceof LimitError) return c.json({ error: err.message }, 403);
+    throw err;
+  }
 });

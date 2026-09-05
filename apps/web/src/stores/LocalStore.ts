@@ -64,6 +64,10 @@ export class LocalStore implements Store {
     return Promise.reject(new Error(LOCAL_NOT_SUPPORTED));
   }
 
+  deleteWorkspace(): Promise<void> {
+    return Promise.reject(new Error(LOCAL_NOT_SUPPORTED));
+  }
+
   createInvitation(): Promise<Invitation> {
     return Promise.reject(new Error(LOCAL_NOT_SUPPORTED));
   }

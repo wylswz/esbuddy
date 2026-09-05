@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { CanvasOwner } from '@esbuddy/sdk';
 import { authMiddleware, requireAuth } from '../auth/middleware.js';
 import type { AppVariables } from '../../context.js';
+import { LimitError, parseLimits } from '../../limits.js';
 import * as service from './service.js';
 
 export const canvasRoutes = new Hono<{ Variables: AppVariables }>();
@@ -19,8 +20,13 @@ canvasRoutes.post('/', async (c) => {
   const body = await c.req.json<{ name: string; owner?: CanvasOwner }>();
   const userId = c.var.userId!;
   const owner: CanvasOwner = body.owner ?? { type: 'user', userId };
-  const meta = await service.createCanvas(c.var.db, body.name, owner, userId);
-  return c.json(meta, 201);
+  try {
+    const meta = await service.createCanvas(c.var.db, body.name, owner, userId, parseLimits(c.var.env));
+    return c.json(meta, 201);
+  } catch (err) {
+    if (err instanceof LimitError) return c.json({ error: err.message }, 403);
+    throw err;
+  }
 });
 
 canvasRoutes.get('/:id', async (c) => {

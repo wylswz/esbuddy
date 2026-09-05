@@ -2,6 +2,7 @@ import type * as Y from 'yjs';
 import { EXAMPLE_CANVAS_NAME, exampleCanvasSnapshot } from '@esbuddy/sdk';
 import type { CanvasMeta, CanvasOwner, CanvasRecord } from '@esbuddy/sdk';
 import type { Db } from '../../db/types.js';
+import { LimitError, type Limits } from '../../limits.js';
 import * as repo from './repo.js';
 
 export function listCanvases(db: Db, userId: string, workspaceId?: string): Promise<CanvasMeta[]> {
@@ -12,7 +13,27 @@ export function getCanvas(db: Db, id: string): Promise<CanvasRecord | null> {
   return repo.getCanvas(db, id);
 }
 
-export function createCanvas(db: Db, name: string, owner: CanvasOwner, createdById: string): Promise<CanvasMeta> {
+/**
+ * Create a canvas. When `limits` is provided, enforces the max-canvases-per-
+ * workspace cap for workspace-owned canvases. Pass `undefined` for internal
+ * calls (e.g. `seedExampleCanvas`) that must bypass it.
+ */
+export async function createCanvas(
+  db: Db,
+  name: string,
+  owner: CanvasOwner,
+  createdById: string,
+  limits?: Limits,
+): Promise<CanvasMeta> {
+  if (limits?.maxCanvasesPerWorkspace !== undefined && owner.type === 'workspace') {
+    const count = await repo.countCanvasesByOwner(db, 'workspace', owner.workspaceId);
+    if (count >= limits.maxCanvasesPerWorkspace) {
+      throw new LimitError(
+        `canvas limit reached (${limits.maxCanvasesPerWorkspace} per workspace)`,
+        'maxCanvasesPerWorkspace',
+      );
+    }
+  }
   return repo.insertCanvas(db, { name, owner, snapshot: { nodes: [], edges: [], viewport: null }, createdById });
 }
 

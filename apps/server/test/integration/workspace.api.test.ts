@@ -1,6 +1,6 @@
 import type { CanvasMeta, Invitation, InvitationPreview, Workspace, WorkspaceMember } from '@esbuddy/sdk';
 import { describe, expect, it } from 'vitest';
-import { authHeaders, buildAppWithDb, devLogin, type TestApp } from '../helpers/app.js';
+import { authHeaders, buildAppWithDb, devLogin, testEnv, type TestApp } from '../helpers/app.js';
 import { createTestDb } from '../helpers/db.js';
 
 async function firstWorkspace(app: TestApp, token: string): Promise<Workspace> {
@@ -108,6 +108,113 @@ describe('workspace API', () => {
       method: 'POST',
       headers: authHeaders(bob.token),
       body: JSON.stringify({ role: 'editor' }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('owner can delete a workspace (cascade)', async () => {
+    const app = buildAppWithDb(createTestDb());
+    const alice = await devLogin(app, { email: 'alice@x.com', name: 'Alice' });
+    const ws = await firstWorkspace(app, alice.token);
+
+    // Workspace has a seeded canvas.
+    const canvasesBefore = (await (
+      await app.request(`/api/canvases?workspace=${ws.id}`, { headers: authHeaders(alice.token) })
+    ).json()) as CanvasMeta[];
+    expect(canvasesBefore.length).toBeGreaterThan(0);
+
+    const res = await app.request(`/api/workspaces/${ws.id}`, {
+      method: 'DELETE',
+      headers: authHeaders(alice.token),
+    });
+    expect(res.status).toBe(204);
+
+    // Workspace is gone from the list.
+    const list = (await (
+      await app.request('/api/workspaces', { headers: authHeaders(alice.token) })
+    ).json()) as Workspace[];
+    expect(list.find((w) => w.id === ws.id)).toBeUndefined();
+
+    // Canvases for the deleted workspace are gone.
+    const canvasesAfter = (await (
+      await app.request(`/api/canvases?workspace=${ws.id}`, { headers: authHeaders(alice.token) })
+    ).json()) as CanvasMeta[];
+    expect(canvasesAfter).toHaveLength(0);
+  });
+
+  it('non-owners cannot delete a workspace', async () => {
+    const app = buildAppWithDb(createTestDb());
+    const alice = await devLogin(app, { email: 'alice@x.com', name: 'Alice' });
+    const ws = await firstWorkspace(app, alice.token);
+
+    const invite = (await (
+      await app.request(`/api/workspaces/${ws.id}/invitations`, {
+        method: 'POST',
+        headers: authHeaders(alice.token),
+        body: JSON.stringify({ role: 'editor' }),
+      })
+    ).json()) as Invitation;
+    const bob = await devLogin(app, { email: 'bob@x.com', name: 'Bob' });
+    await app.request(`/api/invitations/${invite.token}/accept`, {
+      method: 'POST',
+      headers: authHeaders(bob.token),
+    });
+
+    const res = await app.request(`/api/workspaces/${ws.id}`, {
+      method: 'DELETE',
+      headers: authHeaders(bob.token),
+    });
+    expect(res.status).toBe(404);
+
+    // Workspace still exists.
+    const list = (await (
+      await app.request('/api/workspaces', { headers: authHeaders(alice.token) })
+    ).json()) as Workspace[];
+    expect(list.find((w) => w.id === ws.id)).toBeDefined();
+  });
+
+  it('enforces max workspaces per user', async () => {
+    const app = buildAppWithDb(createTestDb(), testEnv({ MAX_WORKSPACES_PER_USER: '1' }));
+    const alice = await devLogin(app, { email: 'alice@x.com', name: 'Alice' });
+    // Alice already has 1 auto-provisioned workspace.
+    const res = await app.request('/api/workspaces', {
+      method: 'POST',
+      headers: authHeaders(alice.token),
+      body: JSON.stringify({ name: 'Second' }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('enforces max canvases per workspace', async () => {
+    const app = buildAppWithDb(createTestDb(), testEnv({ MAX_CANVASES_PER_WORKSPACE: '1' }));
+    const alice = await devLogin(app, { email: 'alice@x.com', name: 'Alice' });
+    const ws = await firstWorkspace(app, alice.token);
+    // Workspace already has 1 seeded canvas.
+    const res = await app.request('/api/canvases', {
+      method: 'POST',
+      headers: authHeaders(alice.token),
+      body: JSON.stringify({ name: 'Extra', owner: { type: 'workspace', workspaceId: ws.id } }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('enforces max members per workspace on invitation accept', async () => {
+    const app = buildAppWithDb(createTestDb(), testEnv({ MAX_MEMBERS_PER_WORKSPACE: '1' }));
+    const alice = await devLogin(app, { email: 'alice@x.com', name: 'Alice' });
+    const ws = await firstWorkspace(app, alice.token);
+    // Alice is the only member (count = 1); cap at 1 means no new members.
+    const invite = (await (
+      await app.request(`/api/workspaces/${ws.id}/invitations`, {
+        method: 'POST',
+        headers: authHeaders(alice.token),
+        body: JSON.stringify({ role: 'editor' }),
+      })
+    ).json()) as Invitation;
+
+    const bob = await devLogin(app, { email: 'bob@x.com', name: 'Bob' });
+    const res = await app.request(`/api/invitations/${invite.token}/accept`, {
+      method: 'POST',
+      headers: authHeaders(bob.token),
     });
     expect(res.status).toBe(403);
   });

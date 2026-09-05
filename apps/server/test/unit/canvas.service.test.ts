@@ -1,6 +1,7 @@
 import { docToSnapshot, snapshotToDoc, type CanvasOwner, type CanvasSnapshot } from '@esbuddy/sdk';
 import { beforeEach, describe, expect, it } from 'vitest';
 import * as canvas from '../../src/modules/canvas/service.js';
+import { LimitError } from '../../src/limits.js';
 import type { Db } from '../../src/db/types.js';
 import { createTestDb } from '../helpers/db.js';
 
@@ -81,5 +82,27 @@ describe('canvas service', () => {
     expect(meta.owner).toEqual({ type: 'workspace', workspaceId: 'w1' });
     const rec = await canvas.getCanvas(db, meta.id);
     expect(rec?.snapshot.nodes.length ?? 0).toBeGreaterThan(0);
+  });
+
+  it('createCanvas enforces maxCanvasesPerWorkspace for workspace-owned canvases', async () => {
+    const owner: CanvasOwner = { type: 'workspace', workspaceId: 'w1' };
+    await canvas.createCanvas(db, 'C1', owner, 'u1');
+    await expect(
+      canvas.createCanvas(db, 'C2', owner, 'u1', { maxCanvasesPerWorkspace: 1 }),
+    ).rejects.toThrow(LimitError);
+  });
+
+  it('createCanvas without limits bypasses the cap (internal use)', async () => {
+    const owner: CanvasOwner = { type: 'workspace', workspaceId: 'w1' };
+    await canvas.createCanvas(db, 'C1', owner, 'u1');
+    await canvas.createCanvas(db, 'C2', owner, 'u1');
+    expect((await canvas.listCanvases(db, 'u1', 'w1')).map((c) => c.name)).toEqual(['C1', 'C2']);
+  });
+
+  it('createCanvas does not enforce workspace cap for user-owned canvases', async () => {
+    const owner: CanvasOwner = { type: 'user', userId: 'u1' };
+    await canvas.createCanvas(db, 'C1', owner, 'u1', { maxCanvasesPerWorkspace: 0 });
+    // Should succeed — the cap only applies to workspace-owned canvases.
+    expect((await canvas.listCanvases(db, 'u1')).map((c) => c.name)).toEqual(['C1']);
   });
 });

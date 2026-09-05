@@ -112,6 +112,30 @@ function App() {
     [store, selectWorkspace],
   );
 
+  const deleteWorkspace = useCallback(
+    (workspaceId: string) => {
+      setShowWorkspacePage(false);
+      setWorkspaces((prev) => {
+        const remaining = prev.filter((w) => w.id !== workspaceId);
+        // If the deleted workspace was current, switch to the first remaining
+        // one (or clear selection if none left).
+        setCurrentWorkspaceId((cur) => {
+          if (cur !== workspaceId) return cur;
+          const next = remaining[0]?.id ?? null;
+          try {
+            if (next) localStorage.setItem(WORKSPACE_STORAGE_KEY, next);
+            else localStorage.removeItem(WORKSPACE_STORAGE_KEY);
+          } catch {
+            // ignore
+          }
+          return next;
+        });
+        return remaining;
+      });
+    },
+    [],
+  );
+
   const handleInviteJoined = useCallback(
     (ws: Workspace) => {
       clearPendingInvite();
@@ -173,6 +197,7 @@ function App() {
         workspace={currentWorkspace}
         user={user}
         onBack={() => setShowWorkspacePage(false)}
+        onDeleted={deleteWorkspace}
       />
     );
   }

@@ -95,6 +95,11 @@ export const en = {
     membersTitle: 'Members',
     you: '(you)',
     noMembers: 'No members yet.',
+    deleteTitle: 'Delete workspace',
+    deleteHint: 'Permanently delete this workspace and all its canvases, members, and invitations. This cannot be undone.',
+    delete: 'Delete workspace',
+    deleteConfirm: 'Delete this workspace? All canvases and members will be removed. This cannot be undone.',
+    deleteError: 'Failed to delete workspace. Please try again.',
   },
   home: {
     canvases: 'Canvases',
@@ -264,6 +269,11 @@ export const zh: Translation = {
     membersTitle: '成员',
     you: '（你）',
     noMembers: '暂无成员。',
+    deleteTitle: '删除工作空间',
+    deleteHint: '永久删除该工作空间及其所有画布、成员和邀请。此操作不可撤销。',
+    delete: '删除工作空间',
+    deleteConfirm: '确定删除这个工作空间？所有画布和成员将被移除，此操作不可撤销。',
+    deleteError: '删除工作空间失败，请重试。',
   },
   home: {
     canvases: '画布',
