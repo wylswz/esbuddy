@@ -1,5 +1,5 @@
 import { SignJWT, jwtVerify } from 'jose';
-import type { Env } from '../env.js';
+import type { Env } from '../../env.js';
 
 const DEV_SECRET = 'esbuddy-dev-secret';
 

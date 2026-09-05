@@ -1,10 +1,10 @@
 import { Hono } from 'hono';
-import { signToken, verifyState } from '../auth/jwt.js';
-import { exchangeCodeForProfile, googleAuthUrl } from '../auth/google.js';
-import { authMiddleware } from '../auth/middleware.js';
-import type { AppVariables } from '../context.js';
-import { isDevMode } from '../env.js';
-import { getUserById, upsertGoogleUser } from '../repo.js';
+import { verifyState } from './jwt.js';
+import { googleAuthUrl } from './google.js';
+import { authMiddleware } from './middleware.js';
+import type { AppVariables } from '../../context.js';
+import { isDevMode } from '../../env.js';
+import * as service from './service.js';
 
 export const authRoutes = new Hono<{ Variables: AppVariables }>();
 
@@ -24,15 +24,7 @@ authRoutes.get('/google/callback', async (c) => {
   }
 
   try {
-    const profile = await exchangeCodeForProfile(code, c.var.env);
-    const user = await upsertGoogleUser(c.var.db, {
-      googleSub: profile.sub,
-      email: profile.email,
-      name: profile.name,
-      avatarUrl: profile.avatarUrl,
-    });
-    const token = await signToken(user.id, c.var.env);
-
+    const { token } = await service.completeGoogleLogin(c.var.db, c.var.env, code);
     const frontend = c.var.env.FRONTEND_URL ?? '/';
     return c.redirect(`${frontend}?token=${token}`);
   } catch (err) {
@@ -44,7 +36,7 @@ authRoutes.get('/google/callback', async (c) => {
 authRoutes.get('/me', authMiddleware, async (c) => {
   const userId = c.var.userId;
   if (!userId) return c.json(null);
-  const user = await getUserById(c.var.db, userId);
+  const user = await service.getUser(c.var.db, userId);
   return c.json(user);
 });
 
@@ -52,9 +44,6 @@ authRoutes.get('/me', authMiddleware, async (c) => {
 authRoutes.post('/dev-login', async (c) => {
   if (!isDevMode(c.var.env)) return c.json({ error: 'not found' }, 404);
   const body = await c.req.json<{ email?: string; name?: string }>().catch(() => ({ email: undefined, name: undefined }));
-  const email = body.email ?? 'dev@esbuddy.local';
-  const name = body.name ?? 'Dev User';
-  const user = await upsertGoogleUser(c.var.db, { googleSub: `dev:${email}`, email, name });
-  const token = await signToken(user.id, c.var.env);
+  const { token, user } = await service.devLogin(c.var.db, c.var.env, body);
   return c.json({ token, user });
 });

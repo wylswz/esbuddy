@@ -1,5 +1,5 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import type { Env } from '../env.js';
+import type { Env } from '../../env.js';
 import { signState } from './jwt.js';
 
 const GOOGLE_ISSUER = 'https://accounts.google.com';

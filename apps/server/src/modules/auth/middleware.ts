@@ -1,6 +1,6 @@
 import type { MiddlewareHandler } from 'hono';
-import { verifyToken } from '../auth/jwt.js';
-import type { AppVariables } from '../context.js';
+import { verifyToken } from './jwt.js';
+import type { AppVariables } from '../../context.js';
 
 /** Optionally resolves the bearer token into `c.var.userId`. */
 export const authMiddleware: MiddlewareHandler<{ Variables: AppVariables }> = async (c, next) => {
