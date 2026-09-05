@@ -41,6 +41,40 @@ export const en = {
     breakContainment: 'Break containment (remove from an aggregate)',
     createRelation: 'Create a relation (connect nodes)',
     multiSelectRule: 'Multi-select',
+    advancedTitle: 'Advanced Event Storming',
+    advancedIntro: 'Techniques for structuring a bigger model beyond a single line of events.',
+    concepts: {
+      pivotalEvent: {
+        term: 'Pivotal Event',
+        description:
+          'A domain event that marks a major state change and splits the timeline into phases. Draw a vertical divider through it — the seams between phases often reveal bounded-context boundaries.',
+      },
+      swimlane: {
+        term: 'Swimlane',
+        description:
+          'A horizontal band that groups the flow along one dimension — an actor, a bounded context, or a temporal phase — so parallel responsibilities read cleanly instead of piling onto one line.',
+      },
+      branch: {
+        term: 'Branch / Alternative Path',
+        description:
+          'Where the flow forks — success vs. failure, or conditional outcomes. Model each branch as its own line of events leaving the decision point (a command or policy) rather than forcing one linear chain.',
+      },
+      boundedContext: {
+        term: 'Bounded Context',
+        description:
+          'A cluster of tightly related events and aggregates that share one consistent language. It emerges from grouping the timeline; the gaps between clusters (usually at pivotal events) become the context boundaries.',
+      },
+      levels: {
+        term: 'Three Levels',
+        description:
+          'Big Picture (explore the whole domain as events), Process Modeling (add commands, policies and read models around them), then Software Design (aggregates and detail). Start broad, then zoom in.',
+      },
+      walkthrough: {
+        term: 'Walkthrough / Reverse Narrative',
+        description:
+          'Validate the model by telling the story forward, then walking the timeline backwards from a pivotal event — "what must have happened before this?" — to surface gaps and hidden events.',
+      },
+    },
   },
   node: {
     doubleClickEdit: 'Double-click to edit',
@@ -215,6 +249,40 @@ export const zh: Translation = {
     breakContainment: '打破包含关系（从聚合中移除）',
     createRelation: '创建连接',
     multiSelectRule: '多选',
+    advancedTitle: '进阶事件风暴',
+    advancedIntro: '当模型超出单条事件时间线时，用这些技巧来梳理结构。',
+    concepts: {
+      pivotalEvent: {
+        term: '关键事件（Pivotal Event）',
+        description:
+          '标志重大状态转变、把时间线切分成阶段的领域事件。用一条竖线穿过它——阶段之间的接缝往往就是限界上下文的边界。',
+      },
+      swimlane: {
+        term: '泳道（Swimlane）',
+        description:
+          '沿某一维度（参与者、限界上下文或时间阶段）对流程进行水平分带，让并行的职责各自成行，而不是全部堆在一条线上。',
+      },
+      branch: {
+        term: '分支 / 替代路径（Branch）',
+        description:
+          '流程发生分叉的地方——成功与失败，或条件性结果。让每条分支从决策点（命令或策略）引出自己的一串事件，而不是硬凑成一条线性链。',
+      },
+      boundedContext: {
+        term: '限界上下文（Bounded Context）',
+        description:
+          '一组紧密相关、共享同一套一致语言的事件与聚合。它由对时间线的聚类归纳而来；聚类之间的缝隙（通常落在关键事件处）就成为上下文边界。',
+      },
+      levels: {
+        term: '三个层次（Three Levels）',
+        description:
+          '大局观（把整个领域铺成事件）、流程建模（围绕事件补充命令、策略与读模型）、软件设计（聚合与细节）。先铺开，再聚焦。',
+      },
+      walkthrough: {
+        term: '走查 / 逆向叙事（Walkthrough）',
+        description:
+          '先顺着讲一遍故事来验证模型，再从某个关键事件逆向回溯时间线——"在此之前必然发生了什么？"——从而暴露缺口与被遗漏的事件。',
+      },
+    },
   },
   node: {
     doubleClickEdit: '双击编辑',

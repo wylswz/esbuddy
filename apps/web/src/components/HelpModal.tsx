@@ -11,6 +11,8 @@ interface HelpModalProps {
 
 const ELEMENT_ORDER: ElementType[] = ['event', 'command', 'aggregate', 'actor', 'policy', 'external', 'hotspot', 'readmodel'];
 
+const ADVANCED_CONCEPTS = ['pivotalEvent', 'swimlane', 'branch', 'boundedContext', 'levels', 'walkthrough'] as const;
+
 function Kbd({ children }: { children: ReactNode }) {
   return (
     <kbd className="px-1.5 py-0.5 rounded-sm bg-surface border border-ink/20 text-[11px] font-mono text-ink whitespace-nowrap">
@@ -81,6 +83,20 @@ export function HelpModal({ open, onClose }: HelpModalProps) {
                 <span className="ml-2">{t('help.multiSelectRule')}</span>
               </li>
             </ul>
+          </section>
+
+          {/* Advanced Event Storming concepts */}
+          <section>
+            <SectionLabel className="mb-1">{t('help.advancedTitle')}</SectionLabel>
+            <p className="mb-3 text-sm text-fg-muted">{t('help.advancedIntro')}</p>
+            <div className="divide-y divide-ink-faint">
+              {ADVANCED_CONCEPTS.map((key) => (
+                <div key={key} className="grid grid-cols-[11rem_1fr] gap-4 py-2.5 items-baseline">
+                  <span className="text-sm font-semibold text-ink">{t(`help.concepts.${key}.term`)}</span>
+                  <span className="text-sm text-fg-muted">{t(`help.concepts.${key}.description`)}</span>
+                </div>
+              ))}
+            </div>
           </section>
         </div>
       </DialogContent>
