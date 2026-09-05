@@ -2,6 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, Check, Copy, Link2 } from 'lucide-react';
 import type { Role, Store, User, Workspace, WorkspaceMember } from '@esbuddy/sdk';
 import { useI18n } from '../i18n/context';
+import { Masthead, PageBar, PageShell, SectionLabel } from './PageChrome';
+import { Button } from './ui/Button';
+import { Input } from './ui/Input';
+import { Select } from './ui/Select';
 
 interface WorkspacePageProps {
   store: Store;
@@ -70,90 +74,91 @@ export function WorkspacePage({ store, workspace, user, onBack }: WorkspacePageP
     }
   }, [link]);
 
+  const roleOptions = [
+    { value: 'editor', label: t('invite.role.editor') },
+    { value: 'viewer', label: t('invite.role.viewer') },
+  ] as const;
+
   return (
-    <div className="w-full h-full overflow-y-auto bg-page">
-      <header className="sticky top-0 z-10 bg-surface/80 backdrop-blur border-b border-border-subtle">
-        <div className="max-w-3xl mx-auto px-6 h-16 flex items-center gap-3">
-          <button
-            onClick={onBack}
-            className="p-1.5 rounded-lg text-fg-subtle hover:text-fg-secondary hover:bg-surface-muted transition-colors"
-            title={t('workspacePage.back')}
-          >
-            <ArrowLeft size={18} />
-          </button>
-          <span className="font-semibold text-fg truncate">{workspace.name}</span>
-        </div>
-      </header>
+    <PageShell width="narrow">
+      <PageBar
+        left={
+          <Button variant="ghost" size="sm" onClick={onBack}>
+            <ArrowLeft size={14} />
+            {t('workspacePage.back')}
+          </Button>
+        }
+      />
 
-      <main className="max-w-3xl mx-auto px-6 py-8 flex flex-col gap-10">
+      <Masthead eyebrow={t('workspacePage.manage')} title={workspace.name} />
+
+      <main className="flex flex-col gap-12">
         {isOwner && (
-          <section className="flex flex-col gap-3">
-            <h2 className="text-lg font-semibold text-fg">{t('workspacePage.inviteTitle')}</h2>
-            <p className="text-sm text-fg-muted">{t('workspacePage.inviteHint')}</p>
-
-            <div className="flex items-center gap-2">
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as Role)}
-                className="px-3 py-2 rounded-lg border border-border text-sm text-fg-secondary bg-surface outline-none focus:border-border-strong"
-              >
-                <option value="editor">{t('invite.role.editor')}</option>
-                <option value="viewer">{t('invite.role.viewer')}</option>
-              </select>
-              <button
-                onClick={handleGenerate}
-                disabled={generating}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-inverse text-fg-inverse text-sm font-medium hover:bg-inverse-hover disabled:opacity-40 transition-colors"
-              >
-                <Link2 size={16} />
-                {t('workspacePage.generateLink')}
-              </button>
+          <section className="rounded-md bg-accent text-ink p-6 sm:p-8 flex flex-col gap-6">
+            <div>
+              <SectionLabel className="text-ink-soft">{t('workspacePage.inviteTitle')}</SectionLabel>
+              <p className="mt-2 max-w-md text-sm sm:text-base leading-snug text-ink-soft">{t('workspacePage.inviteHint')}</p>
             </div>
 
-            {error && <p className="text-xs text-danger">{error}</p>}
+            <div className="flex flex-wrap items-center gap-2">
+              <Select<Role>
+                value={role}
+                onValueChange={setRole}
+                options={roleOptions}
+                className="w-36 border-ink/30 bg-paper"
+              />
+              <Button onClick={handleGenerate} disabled={generating}>
+                <Link2 size={16} />
+                {t('workspacePage.generateLink')}
+              </Button>
+            </div>
+
+            {error && <p className="text-xs text-hotspot font-medium">{error}</p>}
 
             {link && (
-              <div className="flex items-center gap-2">
-                <input
-                  readOnly
-                  value={link}
-                  onFocus={(e) => e.currentTarget.select()}
-                  className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-border text-sm text-fg-secondary bg-surface-muted outline-none"
-                />
-                <button
-                  onClick={handleCopy}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-surface-muted text-sm font-medium text-fg-secondary hover:bg-surface-strong transition-colors"
-                >
+              <div className="flex items-center gap-2 poster-enter">
+                <Input readOnly value={link} onFocus={(e) => e.currentTarget.select()} className="border-ink/30 font-mono text-xs" />
+                <Button variant="secondary" onClick={handleCopy} className="shrink-0 min-w-28">
                   {copied ? <Check size={16} /> : <Copy size={16} />}
                   {copied ? t('workspacePage.copied') : t('workspacePage.copy')}
-                </button>
+                </Button>
               </div>
             )}
           </section>
         )}
 
         <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-semibold text-fg">{t('workspacePage.membersTitle')}</h2>
-          <div className="rounded-xl border border-border-subtle divide-y divide-border-subtle overflow-hidden">
+          <div className="flex items-baseline justify-between">
+            <SectionLabel>{t('workspacePage.membersTitle')}</SectionLabel>
+            <span className="text-xs tabular-nums text-fg-subtle">{members.length}</span>
+          </div>
+          <ul className="divide-y divide-ink-faint border-y border-ink-faint">
             {members.map((m) => (
-              <div key={m.userId} className="flex items-center justify-between px-4 py-3 text-sm">
-                <span className="text-fg-secondary truncate">
-                  {m.userId}
+              <li key={m.userId} className="flex items-center justify-between gap-4 py-3.5 text-sm">
+                <span className="flex items-center gap-3 min-w-0">
+                  <span className="w-7 h-7 rounded-full bg-ink text-paper flex items-center justify-center text-xs font-semibold shrink-0">
+                    {m.userId.slice(0, 1).toUpperCase()}
+                  </span>
+                  <span className="truncate text-ink">{m.userId}</span>
                   {user && m.userId === user.id && (
-                    <span className="ml-2 text-xs text-fg-subtle">{t('workspacePage.you')}</span>
+                    <span className="text-xs text-fg-subtle shrink-0">{t('workspacePage.you')}</span>
                   )}
                 </span>
-                <span className="text-xs font-medium text-fg-subtle uppercase tracking-wide">
+                <span
+                  className={
+                    m.role === 'owner'
+                      ? 'text-[11px] font-semibold uppercase tracking-[0.14em] px-2 py-0.5 rounded-sm bg-ink text-paper'
+                      : 'text-[11px] font-semibold uppercase tracking-[0.14em] px-2 py-0.5 rounded-sm border border-ink/20 text-fg-muted'
+                  }
+                >
                   {t(`invite.role.${m.role}`)}
                 </span>
-              </div>
+              </li>
             ))}
-            {members.length === 0 && (
-              <div className="px-4 py-3 text-sm text-fg-subtle">{t('workspacePage.noMembers')}</div>
-            )}
-          </div>
+            {members.length === 0 && <li className="py-3.5 text-sm text-fg-subtle">{t('workspacePage.noMembers')}</li>}
+          </ul>
         </section>
       </main>
-    </div>
+    </PageShell>
   );
 }

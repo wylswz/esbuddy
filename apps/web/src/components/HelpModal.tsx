@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react';
 import { ELEMENT_STYLES, type ElementType } from '../types';
 import { useI18n } from '../i18n/context';
-import { ColorDot } from './ColorDot';
+import { SectionLabel } from './PageChrome';
+import { Dialog, DialogContent } from './ui/Dialog';
 
 interface HelpModalProps {
+  open: boolean;
   onClose: () => void;
 }
 
@@ -11,50 +13,33 @@ const ELEMENT_ORDER: ElementType[] = ['event', 'command', 'aggregate', 'actor', 
 
 function Kbd({ children }: { children: ReactNode }) {
   return (
-    <kbd className="px-1.5 py-0.5 rounded bg-surface-muted border border-border-strong text-xs font-mono text-fg-secondary whitespace-nowrap">
+    <kbd className="px-1.5 py-0.5 rounded-sm bg-surface border border-ink/20 text-[11px] font-mono text-ink whitespace-nowrap">
       {children}
     </kbd>
   );
 }
 
-export function HelpModal({ onClose }: HelpModalProps) {
+export function HelpModal({ open, onClose }: HelpModalProps) {
   const { t } = useI18n();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/40" onClick={onClose}>
-      <div
-        className="bg-surface rounded-lg shadow-2xl w-[680px] max-h-[85vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-5 py-3 border-b border-border">
-          <h2 className="text-lg font-semibold text-fg">{t('help.title')}</h2>
-          <button onClick={onClose} className="text-fg-subtle hover:text-fg-muted text-xl leading-none">
-            ×
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-auto p-5 space-y-6">
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent title={t('help.title')} className="max-w-3xl">
+        <div className="space-y-8">
           {/* Elements */}
           <section>
-            <h3 className="text-sm font-semibold text-fg-secondary mb-3">{t('help.elementTypes')}</h3>
-            <div className="space-y-2.5">
+            <SectionLabel className="mb-3">{t('help.elementTypes')}</SectionLabel>
+            <div className="divide-y divide-ink-faint">
               {ELEMENT_ORDER.map((type) => {
                 const s = ELEMENT_STYLES[type];
                 return (
-                  <div key={type} className="flex items-start gap-3">
-                    <span
-                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium shrink-0"
-                      style={{
-                        backgroundColor: s.bgColor,
-                        color: s.color,
-                        border: `1px solid ${s.borderColor}`,
-                      }}
-                    >
-                      <ColorDot color={s.color} />
-                      <span>{t(`elements.${type}.label`)}</span>
-                      {s.shortcut && <span className="font-mono opacity-60">{s.shortcut}</span>}
+                  <div key={type} className="grid grid-cols-[9.5rem_1fr] gap-4 py-2.5 items-baseline">
+                    <span className="flex items-center gap-2 text-sm font-semibold text-ink">
+                      <span className="h-3 w-3 rounded-sm shrink-0" style={{ backgroundColor: s.color }} />
+                      <span className="truncate">{t(`elements.${type}.label`)}</span>
+                      {s.shortcut && <span className="ml-auto font-mono text-[11px] text-fg-subtle">{s.shortcut}</span>}
                     </span>
-                    <span className="text-sm text-fg-muted pt-0.5">{t(`elements.${type}.description`)}</span>
+                    <span className="text-sm text-fg-muted">{t(`elements.${type}.description`)}</span>
                   </div>
                 );
               })}
@@ -63,8 +48,8 @@ export function HelpModal({ onClose }: HelpModalProps) {
 
           {/* Shortcuts */}
           <section>
-            <h3 className="text-sm font-semibold text-fg-secondary mb-3">{t('help.shortcuts')}</h3>
-            <div className="space-y-1.5 text-sm text-fg-muted">
+            <SectionLabel className="mb-3">{t('help.shortcuts')}</SectionLabel>
+            <div className="space-y-2 text-sm text-fg-muted">
               {ELEMENT_ORDER.filter((type) => ELEMENT_STYLES[type].shortcut).map((type) => (
                 <div key={type}>
                   <Kbd>{ELEMENT_STYLES[type].shortcut}</Kbd>
@@ -81,8 +66,8 @@ export function HelpModal({ onClose }: HelpModalProps) {
 
           {/* Modifier keys */}
           <section>
-            <h3 className="text-sm font-semibold text-fg-secondary mb-3">{t('help.modifierRule')}</h3>
-            <ul className="space-y-1.5 text-sm text-fg-muted list-disc list-inside">
+            <SectionLabel className="mb-3">{t('help.modifierRule')}</SectionLabel>
+            <ul className="space-y-2 text-sm text-fg-muted">
               <li>
                 <Kbd>Shift</Kbd>
                 <span className="ml-2">{t('help.breakContainment')}</span>
@@ -98,7 +83,7 @@ export function HelpModal({ onClose }: HelpModalProps) {
             </ul>
           </section>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

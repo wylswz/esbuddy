@@ -135,8 +135,8 @@ function App() {
 
   if (auth === 'loading' || (remote && auth === 'authed' && !workspacesLoaded)) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-page text-fg-subtle">
-        Loading…
+      <div className="w-full h-full flex items-center justify-center bg-paper">
+        <span className="h-1 w-24 bg-accent animate-pulse" aria-label="Loading" />
       </div>
     );
   }

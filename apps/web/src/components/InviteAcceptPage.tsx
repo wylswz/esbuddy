@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { InvitationPreview, Store, Workspace } from '@esbuddy/sdk';
 import { useI18n } from '../i18n/context';
+import { AuthShell } from './AuthShell';
 
 interface InviteAcceptPageProps {
   store: Store;
@@ -46,29 +47,32 @@ export function InviteAcceptPage({ store, token, onJoined, onDismiss }: InviteAc
     }
   };
 
+  const heading = 'font-display text-3xl sm:text-4xl font-bold tracking-[-0.02em] text-ink';
+  const primary =
+    'flex-1 px-5 py-3.5 rounded-md bg-ink text-paper text-sm font-semibold hover:bg-inverse-hover disabled:opacity-40 transition-colors';
+  const secondary =
+    'flex-1 px-5 py-3.5 rounded-md border border-ink text-sm font-semibold text-ink hover:bg-ink hover:text-paper disabled:opacity-40 transition-colors';
+
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-page">
-      <div className="w-[360px] rounded-xl bg-surface shadow-lg p-8 flex flex-col gap-5">
+    <AuthShell>
+      <div className="flex flex-col gap-8">
         {preview === null ? (
           <p className="text-sm text-fg-muted">{t('invite.loading')}</p>
         ) : !preview.valid ? (
           <>
             <div>
-              <h1 className="text-xl font-semibold text-fg">{t('invite.invalidTitle')}</h1>
-              <p className="text-sm text-fg-muted mt-1">{t('invite.invalidBody')}</p>
+              <h2 className={heading}>{t('invite.invalidTitle')}</h2>
+              <p className="text-sm sm:text-base text-fg-muted mt-3 leading-snug">{t('invite.invalidBody')}</p>
             </div>
-            <button
-              onClick={onDismiss}
-              className="w-full px-4 py-2.5 rounded-lg bg-surface-muted text-sm font-medium text-fg-secondary hover:bg-surface-strong transition-colors"
-            >
+            <button onClick={onDismiss} className={secondary}>
               {t('invite.dismiss')}
             </button>
           </>
         ) : (
           <>
             <div>
-              <h1 className="text-xl font-semibold text-fg">{t('invite.title')}</h1>
-              <p className="text-sm text-fg-muted mt-1">
+              <h2 className={heading}>{t('invite.title')}</h2>
+              <p className="text-sm sm:text-base text-fg-muted mt-3 leading-snug">
                 {t('invite.body')
                   .replace('{workspace}', preview.workspaceName ?? '')
                   .replace('{role}', t(`invite.role.${preview.role ?? 'editor'}`))}
@@ -77,25 +81,17 @@ export function InviteAcceptPage({ store, token, onJoined, onDismiss }: InviteAc
 
             {error && <p className="text-xs text-danger">{error}</p>}
 
-            <div className="flex gap-2">
-              <button
-                onClick={onDismiss}
-                disabled={joining}
-                className="flex-1 px-4 py-2.5 rounded-lg bg-surface-muted text-sm font-medium text-fg-secondary hover:bg-surface-strong disabled:opacity-40 transition-colors"
-              >
+            <div className="flex gap-3">
+              <button onClick={onDismiss} disabled={joining} className={secondary}>
                 {t('invite.decline')}
               </button>
-              <button
-                onClick={handleJoin}
-                disabled={joining}
-                className="flex-1 px-4 py-2.5 rounded-lg bg-inverse text-fg-inverse text-sm font-medium hover:bg-inverse-hover disabled:opacity-40 transition-colors"
-              >
+              <button onClick={handleJoin} disabled={joining} className={primary}>
                 {t('invite.join')}
               </button>
             </div>
           </>
         )}
       </div>
-    </div>
+    </AuthShell>
   );
 }

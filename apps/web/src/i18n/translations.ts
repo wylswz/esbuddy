@@ -1,4 +1,8 @@
 export const en = {
+  common: {
+    cancel: 'Cancel',
+    close: 'Close',
+  },
   toolbar: {
     addElement: 'Add Element',
     groupAsAggregate: 'Group as Aggregate',
@@ -43,9 +47,16 @@ export const en = {
     doubleClickEditMemo: 'Double-click to edit memo',
     memoPlaceholder: 'Memo…',
   },
+  auth: {
+    eyebrow: 'Event Storming · Domain-Driven Design',
+    headline: 'Start with what happened.',
+    lede: 'Lay the domain out as a line of events, then find the commands, actors and policies that surround them.',
+    flowLabel: 'How a model takes shape',
+    footnote: 'Read left to right, the way the board is read.',
+  },
   login: {
-    title: 'Sign in to Esbuddy',
-    subtitle: 'Continue with your Google account',
+    title: 'Sign in',
+    subtitle: 'Continue with your Google account to open your workspaces.',
     google: 'Continue with Google',
     devTitle: 'Local development',
     devEmailPlaceholder: 'Email (optional)',
@@ -149,6 +160,10 @@ export const en = {
 export type Translation = typeof en;
 
 export const zh: Translation = {
+  common: {
+    cancel: '取消',
+    close: '关闭',
+  },
   toolbar: {
     addElement: '添加元素',
     groupAsAggregate: '聚合分组',
@@ -193,9 +208,16 @@ export const zh: Translation = {
     doubleClickEditMemo: '双击编辑备注',
     memoPlaceholder: '备注…',
   },
+  auth: {
+    eyebrow: '事件风暴 · 领域驱动设计',
+    headline: '从发生了什么开始。',
+    lede: '先把领域铺成一串事件，再找出围绕它们的命令、参与者与策略。',
+    flowLabel: '模型如何成形',
+    footnote: '像画布一样，从左向右读。',
+  },
   login: {
-    title: '登录 Esbuddy',
-    subtitle: '使用 Google 账号继续',
+    title: '登录',
+    subtitle: '使用 Google 账号继续，进入你的工作空间。',
     google: '使用 Google 登录',
     devTitle: '本地开发',
     devEmailPlaceholder: '邮箱（可选）',

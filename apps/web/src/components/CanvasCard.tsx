@@ -49,11 +49,11 @@ export function CanvasCard({ store, canvas, index, onOpen, onRename, onDelete }:
   return (
     <div
       onClick={() => !editing && onOpen(canvas.id)}
-      className="group relative flex flex-col h-40 rounded-xl bg-surface border border-border-subtle shadow-sm hover:shadow-md hover:border-border hover:-translate-y-0.5 active:translate-y-0 active:shadow-sm transition-all cursor-pointer overflow-hidden card-enter"
+      className="group relative flex flex-col h-44 rounded-md bg-surface border border-ink/10 hover:border-ink hover:-translate-y-0.5 hover:shadow-[0_12px_32px_-12px_rgba(28,25,23,0.35)] active:translate-y-0 active:shadow-none transition-[border-color,transform,box-shadow] cursor-pointer overflow-hidden card-enter"
       style={{ animationDelay: `${Math.min(index, MAX_STAGGER_STEPS) * STAGGER_MS}ms` }}
     >
       <CanvasThumbnail store={store} canvasId={canvas.id} />
-      <div className="p-3 border-t border-border-subtle">
+      <div className="px-4 py-3 border-t border-ink/10">
         {editing ? (
           <input
             ref={inputRef}
@@ -71,37 +71,39 @@ export function CanvasCard({ store, canvas, index, onOpen, onRename, onDelete }:
               }
             }}
             placeholder={t('home.untitled')}
-            className="w-full text-sm font-medium text-fg bg-transparent border-b border-border-strong focus:outline-none"
+            className="w-full text-sm font-semibold text-ink bg-transparent border-b border-ink focus:outline-none"
           />
         ) : (
-          <div className="text-sm font-medium text-fg truncate">{canvas.name}</div>
+          <div className="text-sm font-semibold text-ink truncate">{canvas.name}</div>
         )}
         {canvas.updatedAt > 0 && (
-          <div className="text-xs text-fg-subtle mt-0.5">
+          <div className="text-[11px] uppercase tracking-[0.08em] text-fg-subtle mt-1">
             {t('home.updated')} {formatDate(canvas.updatedAt)}
           </div>
         )}
       </div>
-      <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+      <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
         <button
           onClick={(e) => {
             e.stopPropagation();
             startEditing();
           }}
-          className="p-1.5 rounded-lg bg-surface/90 text-fg-subtle hover:text-fg-secondary hover:bg-surface shadow-sm transition-colors"
+          className="h-8 w-8 flex items-center justify-center rounded-md bg-paper/90 backdrop-blur border border-ink/10 text-fg-muted hover:bg-ink hover:text-paper hover:border-ink transition-colors"
           title={t('home.rename')}
+          aria-label={t('home.rename')}
         >
-          <Pencil size={15} />
+          <Pencil size={14} />
         </button>
         <button
           onClick={(e) => {
             e.stopPropagation();
             onDelete(canvas.id);
           }}
-          className="p-1.5 rounded-lg bg-surface/90 text-fg-subtle hover:text-danger hover:bg-surface shadow-sm transition-colors"
+          className="h-8 w-8 flex items-center justify-center rounded-md bg-paper/90 backdrop-blur border border-ink/10 text-fg-muted hover:bg-danger hover:text-paper hover:border-danger transition-colors"
           title={t('home.delete')}
+          aria-label={t('home.delete')}
         >
-          <Trash2 size={15} />
+          <Trash2 size={14} />
         </button>
       </div>
     </div>
@@ -112,13 +114,13 @@ export function CanvasCard({ store, canvas, index, onOpen, onRename, onDelete }:
 export function CanvasCardSkeleton({ index }: { index: number }) {
   return (
     <div
-      className="h-40 rounded-xl bg-surface border border-border-subtle shadow-sm overflow-hidden card-enter"
+      className="h-44 rounded-md bg-surface border border-ink/10 overflow-hidden card-enter"
       style={{ animationDelay: `${index * STAGGER_MS}ms` }}
     >
-      <div className="h-[calc(100%-3.75rem)] bg-surface-muted animate-pulse" />
-      <div className="p-3 space-y-2">
-        <div className="h-3.5 w-2/3 rounded bg-surface-muted animate-pulse" />
-        <div className="h-2.5 w-1/3 rounded bg-surface-muted animate-pulse" />
+      <div className="h-[calc(100%-4.25rem)] bg-surface-muted animate-pulse" />
+      <div className="px-4 py-3 space-y-2">
+        <div className="h-3.5 w-2/3 rounded-sm bg-surface-muted animate-pulse" />
+        <div className="h-2.5 w-1/3 rounded-sm bg-surface-muted animate-pulse" />
       </div>
     </div>
   );
