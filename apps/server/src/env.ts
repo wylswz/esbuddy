@@ -14,6 +14,10 @@ export interface Env {
   WEB_DIST_PATH?: string; // built SPA assets (node only; Workers use the Assets binding)
   DEV_MODE?: string; // 'true' | 'false' — enables dev-only endpoints (dev-login)
   PORT?: string; // node only
+  // Resource limits (all optional; parsed into `Limits` by `parseLimits`).
+  MAX_WORKSPACES_PER_USER?: string;
+  MAX_CANVASES_PER_WORKSPACE?: string;
+  MAX_MEMBERS_PER_WORKSPACE?: string;
 }
 
 /** Dev-only features (e.g. /api/auth/dev-login) are gated behind DEV_MODE. */

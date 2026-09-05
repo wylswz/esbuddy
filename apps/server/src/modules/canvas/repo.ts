@@ -143,3 +143,17 @@ export async function listEvents(db: Db, canvasId: string, afterSeq?: number): P
     .filter((r) => afterSeq === undefined || r.seq > afterSeq)
     .map((r) => ({ seq: r.seq, type: r.type, payload: JSON.parse(r.payload), actorId: r.actorId, createdAt: r.createdAt }));
 }
+
+/** Number of canvases owned by a workspace or user. */
+export async function countCanvasesByOwner(
+  db: Db,
+  ownerType: 'workspace' | 'user',
+  ownerId: string,
+): Promise<number> {
+  const rows = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(canvases)
+    .where(and(eq(canvases.ownerType, ownerType), eq(canvases.ownerId, ownerId)))
+    .all();
+  return rows[0]?.count ?? 0;
+}

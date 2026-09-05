@@ -78,6 +78,10 @@ export class HttpStore implements Store {
     return this.request<Workspace>('POST', '/workspaces', { name });
   }
 
+  deleteWorkspace(workspaceId: string): Promise<void> {
+    return this.request<void>('DELETE', `/workspaces/${workspaceId}`);
+  }
+
   createInvitation(workspaceId: string, role: Role): Promise<Invitation> {
     return this.request<Invitation>('POST', `/workspaces/${workspaceId}/invitations`, { role });
   }

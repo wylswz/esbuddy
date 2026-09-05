@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Check, Copy, Link2 } from 'lucide-react';
+import { ArrowLeft, Check, Copy, Link2, Trash2 } from 'lucide-react';
 import type { Role, Store, User, Workspace, WorkspaceMember } from '@esbuddy/sdk';
 import { useI18n } from '../i18n/context';
 import { Masthead, PageBar, PageShell, SectionLabel } from './PageChrome';
+import { ConfirmDialog } from './ui/AlertDialog';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Select } from './ui/Select';
@@ -12,6 +13,7 @@ interface WorkspacePageProps {
   workspace: Workspace;
   user: User | null;
   onBack: () => void;
+  onDeleted: (workspaceId: string) => void;
 }
 
 /** Build a share link for the current deployment (SPA `?invite=` flow). */
@@ -23,7 +25,7 @@ function inviteLink(token: string): string {
  * Workspace management page: members and share-link invitations. Scoped for
  * future growth (member roles, user management, removal, …).
  */
-export function WorkspacePage({ store, workspace, user, onBack }: WorkspacePageProps) {
+export function WorkspacePage({ store, workspace, user, onBack, onDeleted }: WorkspacePageProps) {
   const { t } = useI18n();
   const isOwner = !!user && user.id === workspace.ownerId;
 
@@ -33,6 +35,8 @@ export function WorkspacePage({ store, workspace, user, onBack }: WorkspacePageP
   const [generating, setGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -73,6 +77,16 @@ export function WorkspacePage({ store, workspace, user, onBack }: WorkspacePageP
       // ignore; the input is selectable as a fallback
     }
   }, [link]);
+
+  const handleDelete = useCallback(async () => {
+    setDeleteError(null);
+    try {
+      await store.deleteWorkspace(workspace.id);
+      onDeleted(workspace.id);
+    } catch (err) {
+      setDeleteError(String(err));
+    }
+  }, [store, workspace.id, onDeleted]);
 
   const roleOptions = [
     { value: 'editor', label: t('invite.role.editor') },
@@ -158,7 +172,35 @@ export function WorkspacePage({ store, workspace, user, onBack }: WorkspacePageP
             {members.length === 0 && <li className="py-3.5 text-sm text-fg-subtle">{t('workspacePage.noMembers')}</li>}
           </ul>
         </section>
+
+        {isOwner && (
+          <section className="flex flex-col gap-4">
+            <div>
+              <SectionLabel className="text-hotspot">{t('workspacePage.deleteTitle')}</SectionLabel>
+              <p className="mt-2 max-w-md text-sm leading-snug text-fg-muted">{t('workspacePage.deleteHint')}</p>
+            </div>
+            <Button variant="ghost" onClick={() => setConfirmDelete(true)} className="self-start text-hotspot border border-hotspot/30 hover:bg-hotspot/5">
+              <Trash2 size={16} />
+              {t('workspacePage.delete')}
+            </Button>
+            {deleteError && <p className="text-xs text-hotspot font-medium">{deleteError}</p>}
+          </section>
+        )}
       </main>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={(open) => {
+          setConfirmDelete(open);
+          if (!open) setDeleteError(null);
+        }}
+        title={t('workspacePage.delete')}
+        description={t('workspacePage.deleteConfirm')}
+        confirmLabel={t('workspacePage.delete')}
+        cancelLabel={t('common.cancel')}
+        destructive
+        onConfirm={handleDelete}
+      />
     </PageShell>
   );
 }

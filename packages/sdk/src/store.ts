@@ -23,6 +23,7 @@ export interface Store {
   listWorkspaces(): Promise<Workspace[]>;
   listMembers(workspaceId: string): Promise<WorkspaceMember[]>;
   createWorkspace(name: string): Promise<Workspace>;
+  deleteWorkspace(workspaceId: string): Promise<void>;
   createInvitation(workspaceId: string, role: Role): Promise<Invitation>;
   previewInvitation(token: string): Promise<InvitationPreview>;
   acceptInvitation(token: string): Promise<Workspace>;
