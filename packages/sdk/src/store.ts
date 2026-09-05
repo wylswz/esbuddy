@@ -2,7 +2,6 @@ import type {
   CanvasMeta,
   CanvasOwner,
   CanvasRecord,
-  CanvasSnapshot,
   Invitation,
   InvitationPreview,
   Role,
@@ -27,11 +26,11 @@ export interface Store {
   createInvitation(workspaceId: string, role: Role): Promise<Invitation>;
   previewInvitation(token: string): Promise<InvitationPreview>;
   acceptInvitation(token: string): Promise<Workspace>;
-  // canvases
+  // canvases (metadata + read-only snapshot; content is edited through a
+  // collaborative Y.Doc, see `ydoc.ts`, never written through the Store)
   listCanvases(scope?: { userId?: string; workspaceId?: string }): Promise<CanvasMeta[]>;
   getCanvas(id: string): Promise<CanvasRecord | null>;
   createCanvas(name: string, owner?: CanvasOwner): Promise<CanvasMeta>;
-  saveCanvas(id: string, snapshot: CanvasSnapshot, name?: string): Promise<CanvasMeta>;
   renameCanvas(id: string, name: string): Promise<CanvasMeta>;
   deleteCanvas(id: string): Promise<void>;
 }

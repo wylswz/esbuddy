@@ -112,6 +112,14 @@ export const en = {
     back: 'Back',
     rename: 'Rename canvas',
     untitled: 'Untitled Canvas',
+    opening: 'Opening canvas…',
+  },
+  presence: {
+    local: 'Stored in this browser',
+    connecting: 'Connecting…',
+    connected: 'Live',
+    disconnected: 'Offline — reconnecting',
+    you: '{name} (you)',
   },
   elements: {
     event: {
@@ -273,6 +281,14 @@ export const zh: Translation = {
     back: '返回',
     rename: '重命名画布',
     untitled: '未命名画布',
+    opening: '正在打开画布…',
+  },
+  presence: {
+    local: '仅保存在本浏览器',
+    connecting: '连接中…',
+    connected: '实时协作中',
+    disconnected: '已断开 — 正在重连',
+    you: '{name}（你）',
   },
   elements: {
     event: {

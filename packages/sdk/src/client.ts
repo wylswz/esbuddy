@@ -2,7 +2,6 @@ import type {
   CanvasMeta,
   CanvasOwner,
   CanvasRecord,
-  CanvasSnapshot,
   Invitation,
   InvitationPreview,
   Role,
@@ -104,10 +103,6 @@ export class HttpStore implements Store {
 
   createCanvas(name: string, owner?: CanvasOwner): Promise<CanvasMeta> {
     return this.request<CanvasMeta>('POST', '/canvases', { name, owner });
-  }
-
-  saveCanvas(id: string, snapshot: CanvasSnapshot, name?: string): Promise<CanvasMeta> {
-    return this.request<CanvasMeta>('PUT', `/canvases/${id}`, { snapshot, name });
   }
 
   renameCanvas(id: string, name: string): Promise<CanvasMeta> {

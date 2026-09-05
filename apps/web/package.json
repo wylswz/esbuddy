@@ -17,7 +17,11 @@
     "radix-ui": "1.6.7",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "reactflow": "^11.11.4"
+    "reactflow": "^11.11.4",
+    "y-indexeddb": "9.0.12",
+    "y-protocols": "1.0.7",
+    "y-websocket": "3.1.0",
+    "yjs": "13.6.32"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",

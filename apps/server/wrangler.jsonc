@@ -33,6 +33,15 @@
     }
   ],
 
+  // Realtime collaboration: one Durable Object per canvas (`CanvasRoomObject`
+  // in src/room.worker.ts) terminates the WebSockets for that canvas and holds
+  // its Yjs document. SQLite-backed DOs are available on the free plan; the
+  // migration tag registers the class the first time it is deployed.
+  "durable_objects": {
+    "bindings": [{ "name": "CANVAS_ROOM", "class_name": "CanvasRoomObject" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["CanvasRoomObject"] }],
+
   // Non-secret vars. Secrets (JWT_SECRET, GOOGLE_*) are set via
   // `wrangler secret put <NAME>` and must NOT be committed here.
   "vars": {

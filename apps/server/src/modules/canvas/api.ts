@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import type { CanvasOwner, CanvasSnapshot } from '@esbuddy/sdk';
+import type { CanvasOwner } from '@esbuddy/sdk';
 import { authMiddleware, requireAuth } from '../auth/middleware.js';
 import type { AppVariables } from '../../context.js';
 import * as service from './service.js';
@@ -28,11 +28,9 @@ canvasRoutes.get('/:id', async (c) => {
   return record ? c.json(record) : c.json(null, 404);
 });
 
-canvasRoutes.put('/:id', async (c) => {
-  const body = await c.req.json<{ snapshot: CanvasSnapshot; name?: string }>();
-  const meta = await service.saveCanvas(c.var.db, c.req.param('id'), body.snapshot, body.name, c.var.userId);
-  return meta ? c.json(meta) : c.json({ error: 'not found' }, 404);
-});
+// Canvas content is not writable over REST: edits flow through the realtime room
+// at /api/rooms/:id (a WebSocket speaking the y-websocket protocol), which is
+// wired per platform in `index.node.ts` / `index.worker.ts`.
 
 canvasRoutes.patch('/:id', async (c) => {
   const body = await c.req.json<{ name: string }>();

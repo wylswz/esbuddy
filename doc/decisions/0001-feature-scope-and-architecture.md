@@ -132,7 +132,7 @@ Canvas.owner = { type: 'user', userId } | { type: 'workspace', workspaceId }
 
 ### ADR-0001.7：实时协作本期不实现，但按「追加日志」预留扩展性
 
-- 状态：Accepted
+- 状态：Superseded by [ADR-0002](./0002-realtime-collaboration.md)（实际采用 CRDT/Yjs，而非按 `seq` 消费的事件日志）
 
 **决策**：实时协作（WebSocket / Durable Objects）不在本期范围；但画布写入模型按 **append-only 事件日志** 设计，为未来实时同步预留：
 

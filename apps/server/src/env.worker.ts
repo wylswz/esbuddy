@@ -12,6 +12,8 @@ import type { Env } from './env.js';
 export interface WorkerBindings {
   DB: D1Database;
   ASSETS?: Fetcher;
+  /** One Durable Object per canvas hosting its collaboration room (`room.worker.ts`). */
+  CANVAS_ROOM: DurableObjectNamespace;
   DB_KIND?: string;
   JWT_SECRET?: string;
   GOOGLE_CLIENT_ID?: string;

@@ -28,14 +28,14 @@ Esbuddy ships in three modes. The same UI runs everywhere; what differs is the
 storage backend, chosen at build time via `VITE_STORE_MODE`. The backend is one
 platform-agnostic `buildApp` (see Architecture) running on two runtimes.
 
-| Mode | Storage | Build | Deploy |
-|---|---|---|---|
-| **Pure frontend** (static, no backend) | `LocalStore` → browser `localStorage` | `pnpm build` (web `local` mode) | GitHub Pages — `.github/workflows/deploy.yml` |
-| **Backend, self-hosted** (Node) | Hono + SQLite (better-sqlite3), serves SPA + `/api/*` | `pnpm build:fullstack` | `Dockerfile` + `docker-compose.yml` |
-| **Backend, Cloudflare** | one Worker + D1, serves SPA (Assets binding) + `/api/*` | `pnpm build:cf` | `pnpm deploy:cf` — `.github/workflows/deploy-cloudflare.yml` |
+| Mode | Storage | Canvas content (Yjs doc) | Build | Deploy |
+|---|---|---|---|---|
+| **Pure frontend** (static, no backend) | `LocalStore` → browser `localStorage` | `y-indexeddb` (this browser only) | `pnpm build` (web `local` mode) | GitHub Pages — `.github/workflows/deploy.yml` |
+| **Backend, self-hosted** (Node) | Hono + SQLite (better-sqlite3), serves SPA + `/api/*` | WebSocket room per canvas, in-process (`realtime.node.ts`) | `pnpm build:fullstack` | `Dockerfile` + `docker-compose.yml` |
+| **Backend, Cloudflare** | one Worker + D1, serves SPA (Assets binding) + `/api/*` | one Durable Object per canvas (`room.worker.ts`) | `pnpm build:cf` | `pnpm deploy:cf` — `.github/workflows/deploy-cloudflare.yml` |
 
-The two backend modes share all domain logic; only the `*.node.ts` (better-sqlite3)
-and `*.worker.ts` (D1) bootstraps differ.
+The two backend modes share all domain logic; only the `*.node.ts` (better-sqlite3,
+`ws`) and `*.worker.ts` (D1, Durable Objects) bootstraps differ.
 
 ## Working on it
 
@@ -73,6 +73,22 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm build
   migrations in `apps/server/drizzle/`.
 - **Frontend storage** is a `Store` implementation selected by `VITE_STORE_MODE`
   — `LocalStore` or `HttpStore` — one per deployment mode (see Deployment modes).
+  The Store handles canvas *metadata* only; canvas *content* is never written
+  through it.
+- **Realtime collaboration** (ADR-0002, `doc/decisions/0002-realtime-collaboration.md`).
+  Canvas content is a Yjs `Y.Doc` whose schema lives in `packages/sdk/src/ydoc.ts`.
+  - Web: `apps/web/src/collab/` — `binding.ts` diffs React Flow arrays into the
+    doc and rebuilds them from it; `provider.ts` picks IndexedDB (local) or
+    `y-websocket` to `/api/rooms/:id?token=<jwt>` (remote); `Y.UndoManager`
+    replaces the old snapshot history; awareness drives cursors/selection/presence.
+  - Server: `modules/canvas/room.ts` (`CanvasRoom`) is the platform-agnostic room
+    (y-websocket wire protocol, fan-out, awareness). Hosts: `realtime.node.ts`
+    (in-process map + `ws` upgrade on the same port) and `room.worker.ts`
+    (`CanvasRoomObject` Durable Object, Hibernation WebSockets, DO storage hot /
+    D1 cold). Auth happens in the host entry, not in the room.
+  - DB: `canvases.ydoc` (base64 Yjs state) is the source of truth;
+    `canvases.snapshot` is a materialised view rewritten on flush. Canvases that
+    only have a snapshot are converted on first room open.
 
 ## Testing
 
@@ -84,7 +100,9 @@ Tests live in `apps/server/test/`; run them via the `test*` scripts in
   on an in-memory better-sqlite3 DB.
 - **workers** project — Cloudflare integration (`test/cf`) inside
   Miniflare/workerd with a real D1 binding; migrations from `drizzle/` are
-  applied per worker via `applyD1Migrations` (`test/setup`).
+  applied per worker via `applyD1Migrations` (`test/setup`). `main` points at
+  the real Worker entry, so `SELF.fetch` covers routing → Durable Object room →
+  D1 flush end to end (`room.cf.test.ts`).
 
 Gotchas worth knowing before touching test config:
 
@@ -92,6 +110,8 @@ Gotchas worth knowing before touching test config:
   (the 0.22.x line dropped the `/config` export and requires vitest 4).
 - `workerd` is in root `onlyBuiltDependencies` so its install script runs —
   Miniflare needs the workerd binary.
+- `y-websocket` also syncs peers over `BroadcastChannel` (which Node 22 has);
+  tests that must prove the *server* relayed something pass `disableBc: true`.
 - Node and Workers global types collide (`URL`, `fetch`, …). Worker code is
   isolated in `*.worker.ts`, excluded from `tsconfig.json` and typechecked by
   `tsconfig.worker.json`; `test:typecheck` (`tsconfig.test.json`) covers only

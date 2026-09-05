@@ -161,7 +161,7 @@ function App() {
 
   if (openCanvasId) {
     return (
-      <CanvasEditor canvasId={openCanvasId} store={store} onBack={() => setOpenCanvasId(null)} />
+      <CanvasEditor canvasId={openCanvasId} store={store} user={user} onBack={() => setOpenCanvasId(null)} />
     );
   }
 

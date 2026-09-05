@@ -62,7 +62,7 @@ Building, testing, and deploying are documented in [AGENTS.md](./AGENTS.md).
 - [ ] Dark mode
 - [ ] Right-click context menu to create elements
 - [ ] Fuller CML support (Actor, Policy, External System mappings)
-- [ ] Real-time multi-user collaboration (see `src/useHistory.ts` — the snapshot log is designed to be swapped for a serializable operation/command log)
+- [x] Real-time multi-user collaboration (Yjs CRDT; live cursors, selections and presence in both backend modes)
 
 ## More on DDD
 

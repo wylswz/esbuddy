@@ -29,12 +29,28 @@ import { StickyNode } from './StickyNode';
 import { AggregateNode } from './AggregateNode';
 import { Toolbar } from './Toolbar';
 import { HelpModal } from './HelpModal';
+import { PresenceBar } from './PresenceBar';
+import { RemoteCursors } from './RemoteCursors';
 import { createNode } from '../cmlImporter';
-import { CanvasActionsContext, DropTargetContext } from '../CanvasContext';
+import { CanvasActionsContext, DropTargetContext, RemoteSelectionContext } from '../CanvasContext';
 import { useI18n } from '../i18n/context';
-import { useHistory } from '../useHistory';
 import { useTouchMode } from '../useMediaQuery';
-import type { CanvasSnapshot, Store } from '@esbuddy/sdk';
+import { useAwarenessPeers, userColor, type PeerUser } from '../collab/awareness';
+import {
+  LOCAL_ORIGIN,
+  applyEdgesToDoc,
+  applyNodesToDoc,
+  edgesFromDoc,
+  fromFlowEdge,
+  fromFlowNode,
+  nodesFromDoc,
+} from '../collab/binding';
+import type { ConnectionStatus } from '../collab/provider';
+import { useCollabSession, type CollabSession } from '../collab/useCollabSession';
+import { loadViewport, saveViewport } from '../collab/viewport';
+import { isRemoteMode } from '../stores/mode';
+import * as storage from '../storage';
+import { getEdgesMap, getNodesMap, type CanvasRecord, type CanvasSnapshot, type Store, type User } from '@esbuddy/sdk';
 import { NOTE_DEFAULT_SIZE, ELEMENT_STYLES, type ElementType } from '../types';
 
 const AGGREGATE_PADDING = 40;
@@ -100,6 +116,11 @@ const initialEdges: Edge[] = [
     markerEnd: { type: MarkerType.ArrowClosed },
   },
 ];
+
+/** The two-note starter board a brand-new (empty) canvas is seeded with. */
+function demoSnapshot(): CanvasSnapshot {
+  return { nodes: initialNodes.map(fromFlowNode), edges: initialEdges.map(fromFlowEdge), viewport: null };
+}
 
 // Grow/shrink an aggregate so its box covers all of its children (with padding).
 function fitAggregateToChildren(nds: Node[], aggId: string): Node[] {
@@ -309,81 +330,206 @@ function handleNodeRemovals(prevNodes: Node[], nextNodes: Node[], changes: NodeC
 export interface CanvasEditorProps {
   canvasId: string;
   store: Store;
+  user: User | null;
   onBack: () => void;
 }
 
-export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
-  const [hadSaved, setHadSaved] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-  const [name, setName] = useState('');
-  const [editingName, setEditingName] = useState(false);
-  const [nameDraft, setNameDraft] = useState('');
-  const nameInputRef = useRef<HTMLInputElement>(null);
-  const [nodes, setNodes] = useState<Node[]>(initialNodes);
-  const [edges, setEdges] = useState<Edge[]>(initialEdges);
-  const [showHelp, setShowHelp] = useState(false);
-  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
-  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
-
+/**
+ * Opens the collaboration session for a canvas and, once its initial state has
+ * arrived, mounts the editor. Canvas *metadata* (name, legacy viewport) still
+ * comes from the Store; canvas *content* lives in the session's Y.Doc.
+ */
+export function CanvasEditor({ canvasId, store, user, onBack }: CanvasEditorProps) {
   const { t } = useI18n();
-  const touchMode = useTouchMode();
+  // Metadata for the canvas being opened. A result for another id (stale after
+  // switching canvases) counts as "still loading".
+  const [fetched, setFetched] = useState<{ id: string; record: CanvasRecord | null } | null>(null);
+  const record = fetched?.id === canvasId ? fetched.record : undefined;
 
-  const canvasRef = useRef<HTMLDivElement>(null);
-  const mouseRef = useRef({ x: 0, y: 0 });
-  const viewportRef = useRef<Viewport | null>(null);
-  const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
-  const pendingViewportRef = useRef<Viewport | null>(null);
-  const selectionRef = useRef<string[]>([]);
-  const prevSelectionRef = useRef<string[]>([]);
-  const draggingRef = useRef(false);
-  const resizingRef = useRef(false);
-
-  const nodesRef = useRef<Node[]>(nodes);
-  const edgesRef = useRef<Edge[]>(edges);
   useEffect(() => {
-    nodesRef.current = nodes;
-  }, [nodes]);
-  useEffect(() => {
-    edgesRef.current = edges;
-  }, [edges]);
-
-  // Load the persisted canvas through the polymorphic Store (local or remote).
-  useEffect(() => {
-    if (!canvasId) return;
     let cancelled = false;
     store
       .getCanvas(canvasId)
-      .then((record) => {
-        if (cancelled) return;
-        if (record) setName(record.name);
-        if (record && record.snapshot.nodes.length > 0) {
-          setNodes(record.snapshot.nodes as Node[]);
-          setEdges(record.snapshot.edges as Edge[]);
-          if (record.snapshot.viewport) {
-            viewportRef.current = record.snapshot.viewport;
-            pendingViewportRef.current = record.snapshot.viewport;
-            rfInstanceRef.current?.setViewport(record.snapshot.viewport);
-          }
-          setHadSaved(true);
-        }
+      .then((r) => {
+        if (!cancelled) setFetched({ id: canvasId, record: r });
       })
       .catch(() => {
-        // ignore load failures; start from the demo canvas
-      })
-      .finally(() => {
-        if (!cancelled) setLoaded(true);
+        if (!cancelled) setFetched({ id: canvasId, record: null });
       });
     return () => {
       cancelled = true;
     };
   }, [store, canvasId]);
 
-  const onInit = useCallback((instance: ReactFlowInstance) => {
-    rfInstanceRef.current = instance;
-    if (pendingViewportRef.current) {
-      instance.setViewport(pendingViewportRef.current);
+  const seed = useCallback((): CanvasSnapshot => {
+    // Local mode: a board saved by the pre-CRDT build lives in localStorage.
+    if (!isRemoteMode()) {
+      const legacy = storage.loadCanvas(canvasId);
+      if (legacy && legacy.nodes.length > 0) {
+        return { nodes: legacy.nodes.map(fromFlowNode), edges: legacy.edges.map(fromFlowEdge), viewport: null };
+      }
     }
-  }, []);
+    return demoSnapshot();
+  }, [canvasId]);
+  const session = useCollabSession(canvasId, { seed });
+
+  if (!session || record === undefined) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-paper" aria-label={t('editor.opening')}>
+        <span className="h-1 w-24 bg-accent animate-pulse" />
+      </div>
+    );
+  }
+
+  return (
+    <CanvasEditorInner
+      key={canvasId}
+      session={session}
+      store={store}
+      record={record}
+      user={user}
+      onBack={onBack}
+    />
+  );
+}
+
+interface CanvasEditorInnerProps {
+  session: CollabSession;
+  store: Store;
+  record: CanvasRecord | null;
+  user: User | null;
+  onBack: () => void;
+}
+
+function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEditorInnerProps) {
+  const { canvasId, doc, provider, undoManager } = session;
+  const [name, setName] = useState(record?.name ?? '');
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const [nodes, setNodes] = useState<Node[]>(() => nodesFromDoc(doc, []));
+  const [edges, setEdges] = useState<Edge[]>(() => edgesFromDoc(doc, []));
+  const [showHelp, setShowHelp] = useState(false);
+  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  const [status, setStatus] = useState<ConnectionStatus>(provider.status);
+
+  const { t } = useI18n();
+  const touchMode = useTouchMode();
+
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const mouseRef = useRef({ x: 0, y: 0 });
+  // Per-user viewport: this browser's last position, else the one the pre-CRDT
+  // build stored server-side, else fit the whole board.
+  const initialViewport = useMemo(
+    () => loadViewport(canvasId) ?? record?.snapshot.viewport ?? null,
+    [canvasId, record],
+  );
+  const viewportRef = useRef<Viewport | null>(initialViewport);
+  const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
+  const selectionRef = useRef<string[]>([]);
+  const prevSelectionRef = useRef<string[]>([]);
+  const draggingRef = useRef(false);
+  const resizingRef = useRef(false);
+
+  // Always the latest arrays (updated synchronously by updateNodes/updateEdges
+  // and by the doc observers), for handlers that must not wait for a render.
+  const nodesRef = useRef<Node[]>(nodes);
+  const edgesRef = useRef<Edge[]>(edges);
+
+  // ---- React -> Y: the editor's pure transforms, diffed into the shared doc.
+  const updateNodes = useCallback(
+    (fn: (nds: Node[]) => Node[]) => {
+      const prev = nodesRef.current;
+      const next = fn(prev);
+      if (next === prev) return;
+      nodesRef.current = next;
+      setNodes(next);
+      applyNodesToDoc(doc, prev, next);
+    },
+    [doc],
+  );
+  const updateEdges = useCallback(
+    (fn: (eds: Edge[]) => Edge[]) => {
+      const prev = edgesRef.current;
+      const next = fn(prev);
+      if (next === prev) return;
+      edgesRef.current = next;
+      setEdges(next);
+      applyEdgesToDoc(doc, prev, next);
+    },
+    [doc],
+  );
+
+  // ---- Y -> React: peers' edits and undo/redo land here (our own writes are
+  // already reflected in state, so LOCAL_ORIGIN transactions are skipped).
+  useEffect(() => {
+    const ynodes = getNodesMap(doc);
+    const yedges = getEdgesMap(doc);
+    const onNodes = (_events: unknown, tr: { origin: unknown }) => {
+      if (tr.origin === LOCAL_ORIGIN) return;
+      const next = nodesFromDoc(doc, nodesRef.current);
+      nodesRef.current = next;
+      setNodes(next);
+    };
+    const onEdges = (_events: unknown, tr: { origin: unknown }) => {
+      if (tr.origin === LOCAL_ORIGIN) return;
+      const next = edgesFromDoc(doc, edgesRef.current);
+      edgesRef.current = next;
+      setEdges(next);
+    };
+    ynodes.observeDeep(onNodes);
+    yedges.observeDeep(onEdges);
+    return () => {
+      ynodes.unobserveDeep(onNodes);
+      yedges.unobserveDeep(onEdges);
+    };
+  }, [doc]);
+
+  useEffect(() => provider.onStatus(setStatus), [provider]);
+
+  // ---- Presence.
+  const me = useMemo<PeerUser>(() => {
+    const id = user?.id ?? 'local-user';
+    return { id, name: user?.name ?? 'You', color: userColor(id) };
+  }, [user]);
+  const awareness = provider.awareness;
+  useEffect(() => {
+    awareness.setLocalState({ user: me, cursor: null, selection: [] });
+    return () => awareness.setLocalState(null);
+  }, [awareness, me]);
+  const peers = useAwarenessPeers(awareness);
+  const remoteSelection = useMemo(() => {
+    const map = new Map<string, PeerUser[]>();
+    peers.forEach((p) => {
+      for (const id of p.selection) map.set(id, [...(map.get(id) ?? []), p.user]);
+    });
+    return map;
+  }, [peers]);
+
+  const cursorFrameRef = useRef<number | null>(null);
+  const onPointerMove = useCallback(
+    (e: React.MouseEvent) => {
+      const { clientX, clientY } = e;
+      if (cursorFrameRef.current !== null) return;
+      cursorFrameRef.current = requestAnimationFrame(() => {
+        cursorFrameRef.current = null;
+        const rf = rfInstanceRef.current;
+        if (!rf) return;
+        awareness.setLocalStateField('cursor', rf.screenToFlowPosition({ x: clientX, y: clientY }));
+      });
+    },
+    [awareness],
+  );
+  const onPointerLeave = useCallback(() => awareness.setLocalStateField('cursor', null), [awareness]);
+
+  const onInit = useCallback(
+    (instance: ReactFlowInstance) => {
+      rfInstanceRef.current = instance;
+      if (initialViewport) instance.setViewport(initialViewport);
+    },
+    [initialViewport],
+  );
 
   useEffect(() => {
     if (editingName) {
@@ -407,17 +553,38 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
     });
   }, [nameDraft, name, store, canvasId]);
 
-  const getState = useCallback(
-    () => ({ nodes: nodesRef.current, edges: edgesRef.current }),
-    [],
-  );
-  const applyState = useCallback((snap: { nodes: Node[]; edges: Edge[] }) => {
-    nodesRef.current = snap.nodes;
-    edgesRef.current = snap.edges;
-    setNodes(snap.nodes);
-    setEdges(snap.edges);
-  }, []);
-  const { commit, undo, redo, canUndo, canRedo } = useHistory(getState, applyState);
+  // ---- Undo/redo: Y.UndoManager tracks only this client's transactions.
+  // `commit()` marks the start of a new user action so the next change opens a
+  // fresh undo step. Calls landing in the same task are coalesced (deleting a
+  // node also removes its edges in a separate onEdgesChange call).
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  useEffect(() => {
+    const sync = () => {
+      setCanUndo(undoManager.undoStack.length > 0);
+      setCanRedo(undoManager.redoStack.length > 0);
+    };
+    undoManager.on('stack-item-added', sync);
+    undoManager.on('stack-item-popped', sync);
+    undoManager.on('stack-cleared', sync);
+    sync();
+    return () => {
+      undoManager.off('stack-item-added', sync);
+      undoManager.off('stack-item-popped', sync);
+      undoManager.off('stack-cleared', sync);
+    };
+  }, [undoManager]);
+  const coalescingRef = useRef(false);
+  const commit = useCallback(() => {
+    if (coalescingRef.current) return;
+    coalescingRef.current = true;
+    queueMicrotask(() => {
+      coalescingRef.current = false;
+    });
+    undoManager.stopCapturing();
+  }, [undoManager]);
+  const undo = useCallback(() => undoManager.undo(), [undoManager]);
+  const redo = useCallback(() => undoManager.redo(), [undoManager]);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
@@ -478,28 +645,28 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
     }
     if (shouldCommit) commit();
 
-    setNodes((nds) => {
+    updateNodes((nds) => {
       const applied = applyNodeChanges(changes, nds);
       const followed = followAggregateChildren(nds, applied, changes);
       const grown = growAggregatesForDraggedChildren(followed, changes, !removeKeyRef.current);
       return handleNodeRemovals(nds, grown, changes);
     });
-  }, [commit]);
+  }, [commit, updateNodes]);
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
       if (changes.some((c) => c.type === 'remove')) commit();
-      setEdges((eds) => applyEdgeChanges(changes, eds));
+      updateEdges((eds) => applyEdgeChanges(changes, eds));
     },
-    [commit],
+    [commit, updateEdges],
   );
 
   const onConnect = useCallback(
     (conn: Connection) => {
       commit();
-      setEdges((eds) => addEdge({ ...conn, markerEnd: { type: MarkerType.ArrowClosed } }, eds));
+      updateEdges((eds) => addEdge({ ...conn, markerEnd: { type: MarkerType.ArrowClosed } }, eds));
     },
-    [commit],
+    [commit, updateEdges],
   );
 
   // Hold Alt and click a node to connect the previously selected node(s) to it.
@@ -516,7 +683,7 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
       if (!willAdd) return;
 
       commit();
-      setEdges((eds) => {
+      updateEdges((eds) => {
         let next = eds;
         for (const sourceId of sources) {
           const exists = next.some((e) => e.source === sourceId && e.target === node.id);
@@ -534,23 +701,27 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
         return next;
       });
     },
-    [commit],
+    [commit, updateEdges],
   );
 
-  const onSelectionChange = useCallback(({ nodes: selectedNodes }: { nodes: Node[] }) => {
-    const ids = selectedNodes.map((n) => n.id);
-    selectionRef.current = ids;
-    setSelectedNodeIds(ids);
-  }, []);
+  const onSelectionChange = useCallback(
+    ({ nodes: selectedNodes }: { nodes: Node[] }) => {
+      const ids = selectedNodes.map((n) => n.id);
+      selectionRef.current = ids;
+      setSelectedNodeIds(ids);
+      awareness.setLocalStateField('selection', ids);
+    },
+    [awareness],
+  );
 
   const updateNodeLabel = useCallback(
     (id: string, label: string) => {
       const node = nodesRef.current.find((n) => n.id === id);
       if (!node || ((node.data?.label as string) ?? '') === label) return;
       commit();
-      setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, label } } : n)));
+      updateNodes((nds) => nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, label } } : n)));
     },
-    [commit],
+    [commit, updateNodes],
   );
 
   const updateNodeDescription = useCallback(
@@ -558,11 +729,11 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
       const node = nodesRef.current.find((n) => n.id === id);
       if (!node || ((node.data?.description as string) ?? '') === description) return;
       commit();
-      setNodes((nds) =>
+      updateNodes((nds) =>
         nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, description } } : n)),
       );
     },
-    [commit],
+    [commit, updateNodes],
   );
 
   const actions = useMemo(
@@ -579,9 +750,9 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
         y: (mouseRef.current.y - (rect?.top ?? 0) - vp.y) / vp.zoom,
       };
       commit();
-      setNodes((nds) => [...nds, createNode(type, pos, t(`elements.${type}.newLabel`))]);
+      updateNodes((nds) => [...nds, createNode(type, pos, t(`elements.${type}.newLabel`))]);
     },
-    [commit, t],
+    [commit, t, updateNodes],
   );
 
   const addElement = useCallback(
@@ -593,34 +764,34 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
         y: ((rect?.height ?? 600) / 2 - vp.y) / vp.zoom,
       };
       commit();
-      setNodes((nds) => [...nds, createNode(type, pos, t(`elements.${type}.newLabel`))]);
+      updateNodes((nds) => [...nds, createNode(type, pos, t(`elements.${type}.newLabel`))]);
     },
-    [commit, t],
+    [commit, t, updateNodes],
   );
 
   const bringToFront = useCallback(() => {
     const ids = new Set(selectedNodeIds);
     if (ids.size === 0) return;
     commit();
-    setNodes((nds) => {
+    updateNodes((nds) => {
       const moved = nds.filter((n) => ids.has(n.id) && n.type !== 'aggregate');
       const rest = nds.filter((n) => !(ids.has(n.id) && n.type !== 'aggregate'));
       return [...rest, ...moved];
     });
-  }, [selectedNodeIds, commit]);
+  }, [selectedNodeIds, commit, updateNodes]);
 
   const sendToBack = useCallback(() => {
     const ids = new Set(selectedNodeIds);
     if (ids.size === 0) return;
     commit();
-    setNodes((nds) => {
+    updateNodes((nds) => {
       const aggregates = nds.filter((n) => n.type === 'aggregate');
       const notes = nds.filter((n) => n.type !== 'aggregate');
       const moved = notes.filter((n) => ids.has(n.id));
       const rest = notes.filter((n) => !ids.has(n.id));
       return [...aggregates, ...moved, ...rest];
     });
-  }, [selectedNodeIds, commit]);
+  }, [selectedNodeIds, commit, updateNodes]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -694,7 +865,7 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
       draggable: true,
     };
 
-    setNodes((nds) => {
+    updateNodes((nds) => {
       const oldAggIds = new Set<string>();
       selectedNodeIds.forEach((id) => {
         const n = nds.find((x) => x.id === id);
@@ -713,7 +884,7 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
       });
       return [aggNode, ...updated];
     });
-  }, [selectedNodeIds, nodes, t, commit]);
+  }, [selectedNodeIds, nodes, t, commit, updateNodes]);
 
   const onNodeDrag = useCallback<NodeDragHandler>(
     (_event, node) => {
@@ -757,7 +928,7 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
       if (oldAggId && isRemoveModifierHeld(event)) {
         const agg = nodes.find((n) => n.id === oldAggId);
         if (agg && isNodeCenterOutside(dragged, agg)) {
-          setNodes((nds) => {
+          updateNodes((nds) => {
             const detached = nds.map((n) =>
               n.id === node.id ? { ...n, data: { ...n.data, aggregateId: null } } : n,
             );
@@ -787,12 +958,12 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
       if (!target) {
         // Re-fit the child's own aggregate (tighten after it grew to follow the drag).
         if (oldAggId) {
-          setNodes((nds) => fitAggregateToChildren(nds, oldAggId));
+          updateNodes((nds) => fitAggregateToChildren(nds, oldAggId));
         }
         return;
       }
 
-      setNodes((nds) => {
+      updateNodes((nds) => {
         let next = nds.map((n) =>
           n.id === node.id ? { ...n, data: { ...n.data, aggregateId: target.id } } : n,
         );
@@ -803,7 +974,7 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
         return next;
       });
     },
-    [nodes],
+    [nodes, updateNodes],
   );
 
   // Long-press-to-pick-up dragging for touch screens (see "Touch scheme" above).
@@ -924,24 +1095,16 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
     viewportRef.current = vp;
   }, []);
 
-  const onMoveEnd = useCallback<OnMoveEnd>((_event, vp) => {
-    viewportRef.current = vp;
-  }, []);
+  const onMoveEnd = useCallback<OnMoveEnd>(
+    (_event, vp) => {
+      viewportRef.current = vp;
+      saveViewport(canvasId, vp);
+    },
+    [canvasId],
+  );
 
-  // Persist only on real content changes (nodes/edges). Pure navigation
-  // (pan/zoom) updates viewportRef but must not trigger a save; the latest
-  // viewport is captured from the ref whenever content actually changes.
-  useEffect(() => {
-    if (!loaded || !canvasId) return;
-    const timer = setTimeout(() => {
-      store.saveCanvas(canvasId, {
-        nodes,
-        edges,
-        viewport: viewportRef.current,
-      } as unknown as CanvasSnapshot);
-    }, 250);
-    return () => clearTimeout(timer);
-  }, [nodes, edges, loaded, store, canvasId]);
+  // Content persistence needs no code here: every edit is already in the shared
+  // doc, which the provider syncs (IndexedDB locally, the room server remotely).
 
   const canGroup = useMemo(
     () =>
@@ -954,15 +1117,23 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
   );
 
   return (
-    <div ref={canvasRef} className="w-full h-full relative">
-      <button
-        onClick={onBack}
-        className="editor-chip safe-top absolute right-4 z-20 flex items-center gap-1.5 h-9 px-3 text-sm font-semibold hover:bg-ink hover:text-paper hover:border-ink"
-        title={t('editor.back')}
-      >
-        <ArrowLeft size={16} />
-        <span>{t('editor.back')}</span>
-      </button>
+    <div
+      ref={canvasRef}
+      className="w-full h-full relative"
+      onMouseMove={touchMode ? undefined : onPointerMove}
+      onMouseLeave={onPointerLeave}
+    >
+      <div className="safe-top absolute right-4 z-20 flex items-center gap-2">
+        <PresenceBar me={me} peers={peers} status={status} />
+        <button
+          onClick={onBack}
+          className="editor-chip flex items-center gap-1.5 h-9 px-3 text-sm font-semibold hover:bg-ink hover:text-paper hover:border-ink"
+          title={t('editor.back')}
+        >
+          <ArrowLeft size={16} />
+          <span>{t('editor.back')}</span>
+        </button>
+      </div>
       <div className="safe-top absolute left-1/2 -translate-x-1/2 z-20 max-w-[50vw]">
         {editingName ? (
           <input
@@ -994,6 +1165,7 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
       </div>
       <CanvasActionsContext.Provider value={actions}>
         <DropTargetContext.Provider value={dropTargetId}>
+        <RemoteSelectionContext.Provider value={remoteSelection}>
           <Toolbar
             onAddElement={addElement}
             onGroupAggregate={groupAsAggregate}
@@ -1028,7 +1200,7 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
             zoomOnScroll={false}
             zoomOnDoubleClick={!touchMode}
             selectionMode={SelectionMode.Partial}
-            fitView={!hadSaved}
+            fitView={!initialViewport}
             onInit={onInit}
             elevateNodesOnSelect={false}
             defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
@@ -1042,7 +1214,9 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
                 className="bg-surface border border-border rounded"
               />
             )}
+            <RemoteCursors peers={peers} />
           </ReactFlow>
+        </RemoteSelectionContext.Provider>
         </DropTargetContext.Provider>
       </CanvasActionsContext.Provider>
 

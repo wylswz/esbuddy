@@ -10,6 +10,7 @@ import type {
   Workspace,
   WorkspaceMember,
 } from '@esbuddy/sdk';
+import { deleteLocalCanvasDoc } from '../collab/provider';
 import * as storage from '../storage';
 
 const LOCAL_USER: User = {
@@ -94,11 +95,6 @@ export class LocalStore implements Store {
     return Promise.resolve(toMeta(id, name));
   }
 
-  saveCanvas(id: string, snapshot: CanvasSnapshot, name?: string): Promise<CanvasMeta> {
-    storage.saveCanvas(id, snapshot as unknown as storage.CanvasSnapshot, name);
-    return Promise.resolve(toMeta(id, name ?? 'Untitled Canvas'));
-  }
-
   renameCanvas(id: string, name: string): Promise<CanvasMeta> {
     storage.renameCanvas(id, name);
     return Promise.resolve(toMeta(id, name));
@@ -106,6 +102,7 @@ export class LocalStore implements Store {
 
   deleteCanvas(id: string): Promise<void> {
     storage.deleteCanvas(id);
-    return Promise.resolve();
+    // The canvas's CRDT document lives in IndexedDB (see collab/provider.ts).
+    return deleteLocalCanvasDoc(id);
   }
 }
