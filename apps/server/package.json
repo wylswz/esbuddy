@@ -7,6 +7,11 @@
     "dev": "tsx watch src/index.node.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.node.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:node": "vitest run --project node",
+    "test:cf": "vitest run --project workers",
+    "test:typecheck": "tsc -p tsconfig.test.json --noEmit",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.worker.json",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.node.ts",
@@ -24,12 +29,14 @@
     "jose": "^5.9.6"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.8.68",
     "@cloudflare/workers-types": "^5.20260904.1",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^24.13.3",
     "drizzle-kit": "^0.31.4",
     "tsx": "^4.19.2",
     "typescript": "~6.0.2",
+    "vitest": "3.2.4",
     "wrangler": "^4.129.0"
   }
 }

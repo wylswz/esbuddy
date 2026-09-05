@@ -1,0 +1,19 @@
+{
+  // Typechecks the Node-side test suite (unit + local integration + helpers) and
+  // the src it exercises, via `pnpm test:typecheck`. Uses Node globals only —
+  // mixing @types/node with @cloudflare/workers-types collides on shared globals
+  // (URL/fetch/…). The Cloudflare test (test/cf, workerd/D1 globals) is verified
+  // by running it under Vitest, so it is intentionally excluded here.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "noEmit": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
+  },
+  "include": ["src", "test/unit", "test/integration", "test/helpers"],
+  "exclude": ["src/**/*.worker.ts"]
+}
