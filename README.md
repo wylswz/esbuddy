@@ -53,47 +53,9 @@ Infinite canvas with zoom, pan, and MiniMap. Pan with two-finger scroll, middle/
 
 Export the canvas as Context Mapper (CML) — copy to clipboard or download `.cml`; import a `.cml` to render it. Supported: `Aggregate`, `Command`, `DomainEvent`, and `Flow` relations.
 
-## Development
+## Contributing
 
-```bash
-pnpm install
-pnpm dev             # frontend only (:5173, LocalStore/localStorage)
-pnpm dev:fullstack   # frontend (remote mode) + Hono server (:8787, SQLite)
-pnpm build           # sdk → web → server (GitHub Pages artifact)
-pnpm build:fullstack # fullstack / Docker artifact
-pnpm typecheck       # typecheck all workspaces
-pnpm lint            # oxlint
-pnpm test            # server unit + integration (Node) + Cloudflare/D1 (Miniflare)
-```
-
-The frontend picks its storage via `VITE_STORE_MODE`: `local` (default) uses `localStorage`; `fullstack` mode talks to the backend `/api/*`. Backend config: copy `apps/server/.env.example` → `apps/server/.env` (dev mode, SSO off by default).
-
-## Docker
-
-```bash
-docker compose up --build    # build image + start on http://localhost:8787
-```
-
-Multi-stage build (sdk → web → server); the runtime serves `apps/web/dist` + `/api/*` and persists SQLite in a named volume.
-
-## Cloudflare (Workers + D1)
-
-A single Worker serves both `/api/*` and the SPA (via the Assets binding), backed by D1 — sharing the platform-agnostic core with the Node path (`*.node.ts` / `*.worker.ts` provide the per-platform bootstrap). Config: `apps/server/wrangler.jsonc`.
-
-```bash
-cd apps/server
-
-# One-time setup
-pnpm exec wrangler d1 create esbuddy     # paste the printed database_id into wrangler.jsonc
-pnpm db:migrate:d1                        # apply migrations (…:d1:local for local D1)
-pnpm exec wrangler secret put JWT_SECRET  # + GOOGLE_CLIENT_ID / _SECRET / GOOGLE_REDIRECT_URI
-
-# Deploy (from repo root)
-pnpm deploy:cf
-
-# Local dev against the Workers runtime (workerd + local D1)
-pnpm build:cf && pnpm --filter @esbuddy/server db:migrate:d1:local && pnpm --filter @esbuddy/server cf:dev
-```
+Building, testing, and deploying are documented in [AGENTS.md](./AGENTS.md).
 
 ## Roadmap
 
