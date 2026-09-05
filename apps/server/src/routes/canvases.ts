@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { CanvasOwner, CanvasSnapshot } from '@esbuddy/sdk';
 import { authMiddleware, requireAuth } from '../auth/middleware.js';
 import type { AppVariables } from '../context.js';
-import { createCanvas, deleteCanvas, getCanvas, listCanvases, listEvents, saveCanvas } from '../repo.js';
+import { createCanvas, deleteCanvas, getCanvas, listCanvases, listEvents, renameCanvas, saveCanvas } from '../repo.js';
 
 export const canvasRoutes = new Hono<{ Variables: AppVariables }>();
 
@@ -31,6 +31,14 @@ canvasRoutes.get('/:id', async (c) => {
 canvasRoutes.put('/:id', async (c) => {
   const body = await c.req.json<{ snapshot: CanvasSnapshot; name?: string }>();
   const meta = await saveCanvas(c.var.db, c.req.param('id'), body.snapshot, body.name, c.var.userId);
+  return meta ? c.json(meta) : c.json({ error: 'not found' }, 404);
+});
+
+canvasRoutes.patch('/:id', async (c) => {
+  const body = await c.req.json<{ name: string }>();
+  const name = body.name?.trim();
+  if (!name) return c.json({ error: 'name required' }, 400);
+  const meta = await renameCanvas(c.var.db, c.req.param('id'), name);
   return meta ? c.json(meta) : c.json({ error: 'not found' }, 404);
 });
 

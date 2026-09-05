@@ -79,6 +79,15 @@ export function HomePage({
     }
   };
 
+  const handleRename = async (id: string, name: string) => {
+    setCanvases((prev) => prev.map((c) => (c.id === id ? { ...c, name } : c)));
+    try {
+      await store.renameCanvas(id, name);
+    } catch {
+      refresh();
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (!window.confirm(t('home.deleteConfirm'))) return;
     await store.deleteCanvas(id);
@@ -154,6 +163,7 @@ export function HomePage({
                 canvas={c}
                 index={i + 1}
                 onOpen={onOpenCanvas}
+                onRename={handleRename}
                 onDelete={handleDelete}
               />
             ))}

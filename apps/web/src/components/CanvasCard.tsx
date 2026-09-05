@@ -1,4 +1,5 @@
-import { Trash2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Pencil, Trash2 } from 'lucide-react';
 import type { CanvasMeta, Store } from '@esbuddy/sdk';
 import { useI18n } from '../i18n/context';
 import { CanvasThumbnail } from './CanvasThumbnail';
@@ -9,6 +10,7 @@ interface CanvasCardProps {
   /** Position in the grid; drives the staggered entrance animation. */
   index: number;
   onOpen: (id: string) => void;
+  onRename: (id: string, name: string) => void;
   onDelete: (id: string) => void;
 }
 
@@ -20,34 +22,88 @@ function formatDate(ts: number): string {
   return new Date(ts).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-export function CanvasCard({ store, canvas, index, onOpen, onDelete }: CanvasCardProps) {
+export function CanvasCard({ store, canvas, index, onOpen, onRename, onDelete }: CanvasCardProps) {
   const { t } = useI18n();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(canvas.name);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [editing]);
+
+  const startEditing = () => {
+    setDraft(canvas.name);
+    setEditing(true);
+  };
+
+  const commit = () => {
+    const next = draft.trim();
+    setEditing(false);
+    if (next && next !== canvas.name) onRename(canvas.id, next);
+  };
 
   return (
     <div
-      onClick={() => onOpen(canvas.id)}
+      onClick={() => !editing && onOpen(canvas.id)}
       className="group relative flex flex-col h-40 rounded-xl bg-surface border border-border-subtle shadow-sm hover:shadow-md hover:border-border hover:-translate-y-0.5 active:translate-y-0 active:shadow-sm transition-all cursor-pointer overflow-hidden card-enter"
       style={{ animationDelay: `${Math.min(index, MAX_STAGGER_STEPS) * STAGGER_MS}ms` }}
     >
       <CanvasThumbnail store={store} canvasId={canvas.id} />
       <div className="p-3 border-t border-border-subtle">
-        <div className="text-sm font-medium text-fg truncate">{canvas.name}</div>
+        {editing ? (
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commit();
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                setEditing(false);
+              }
+            }}
+            placeholder={t('home.untitled')}
+            className="w-full text-sm font-medium text-fg bg-transparent border-b border-border-strong focus:outline-none"
+          />
+        ) : (
+          <div className="text-sm font-medium text-fg truncate">{canvas.name}</div>
+        )}
         {canvas.updatedAt > 0 && (
           <div className="text-xs text-fg-subtle mt-0.5">
             {t('home.updated')} {formatDate(canvas.updatedAt)}
           </div>
         )}
       </div>
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete(canvas.id);
-        }}
-        className="absolute top-2 right-2 p-1.5 rounded-lg bg-surface/90 text-fg-subtle opacity-0 group-hover:opacity-100 hover:text-danger hover:bg-surface shadow-sm transition-all"
-        title={t('home.delete')}
-      >
-        <Trash2 size={15} />
-      </button>
+      <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            startEditing();
+          }}
+          className="p-1.5 rounded-lg bg-surface/90 text-fg-subtle hover:text-fg-secondary hover:bg-surface shadow-sm transition-colors"
+          title={t('home.rename')}
+        >
+          <Pencil size={15} />
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(canvas.id);
+          }}
+          className="p-1.5 rounded-lg bg-surface/90 text-fg-subtle hover:text-danger hover:bg-surface shadow-sm transition-colors"
+          title={t('home.delete')}
+        >
+          <Trash2 size={15} />
+        </button>
+      </div>
     </div>
   );
 }

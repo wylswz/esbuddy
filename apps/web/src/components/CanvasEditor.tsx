@@ -315,6 +315,10 @@ export interface CanvasEditorProps {
 export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
   const [hadSaved, setHadSaved] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [name, setName] = useState('');
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const [nodes, setNodes] = useState<Node[]>(initialNodes);
   const [edges, setEdges] = useState<Edge[]>(initialEdges);
   const [viewport, setViewport] = useState<Viewport | null>(null);
@@ -352,6 +356,7 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
       .getCanvas(canvasId)
       .then((record) => {
         if (cancelled) return;
+        if (record) setName(record.name);
         if (record && record.snapshot.nodes.length > 0) {
           setNodes(record.snapshot.nodes as Node[]);
           setEdges(record.snapshot.edges as Edge[]);
@@ -380,6 +385,28 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
       instance.setViewport(pendingViewportRef.current);
     }
   }, []);
+
+  useEffect(() => {
+    if (editingName) {
+      nameInputRef.current?.focus();
+      nameInputRef.current?.select();
+    }
+  }, [editingName]);
+
+  const startRename = useCallback(() => {
+    setNameDraft(name);
+    setEditingName(true);
+  }, [name]);
+
+  const commitRename = useCallback(() => {
+    const next = nameDraft.trim();
+    setEditingName(false);
+    if (!next || next === name) return;
+    setName(next);
+    store.renameCanvas(canvasId, next).catch(() => {
+      // ignore rename failures; the local title still reflects the intent
+    });
+  }, [nameDraft, name, store, canvasId]);
 
   const getState = useCallback(
     () => ({ nodes: nodesRef.current, edges: edgesRef.current }),
@@ -931,6 +958,35 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
         <ArrowLeft size={16} />
         <span>{t('editor.back')}</span>
       </button>
+      <div className="safe-top absolute left-1/2 -translate-x-1/2 z-20 max-w-[50vw]">
+        {editingName ? (
+          <input
+            ref={nameInputRef}
+            value={nameDraft}
+            onChange={(e) => setNameDraft(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitRename();
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                setEditingName(false);
+              }
+            }}
+            placeholder={t('editor.untitled')}
+            className="px-3 py-1.5 rounded-lg bg-surface/90 backdrop-blur shadow-lg text-sm font-medium text-fg text-center focus:outline-none focus:ring-2 focus:ring-border-strong"
+          />
+        ) : (
+          <button
+            onClick={startRename}
+            className="px-3 py-1.5 rounded-lg bg-surface/90 backdrop-blur shadow-lg text-sm font-medium text-fg-secondary hover:text-fg hover:bg-surface-hover transition-colors truncate max-w-full"
+            title={t('editor.rename')}
+          >
+            {name || t('editor.untitled')}
+          </button>
+        )}
+      </div>
       <CanvasActionsContext.Provider value={actions}>
         <DropTargetContext.Provider value={dropTargetId}>
           <Toolbar

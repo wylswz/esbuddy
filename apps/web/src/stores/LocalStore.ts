@@ -94,6 +94,11 @@ export class LocalStore implements Store {
     return Promise.resolve(toMeta(id, name ?? 'Untitled Canvas'));
   }
 
+  renameCanvas(id: string, name: string): Promise<CanvasMeta> {
+    storage.renameCanvas(id, name);
+    return Promise.resolve(toMeta(id, name));
+  }
+
   deleteCanvas(id: string): Promise<void> {
     storage.deleteCanvas(id);
     return Promise.resolve();

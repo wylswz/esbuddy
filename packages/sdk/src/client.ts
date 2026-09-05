@@ -105,6 +105,10 @@ export class HttpStore implements Store {
     return this.request<CanvasMeta>('PUT', `/canvases/${id}`, { snapshot, name });
   }
 
+  renameCanvas(id: string, name: string): Promise<CanvasMeta> {
+    return this.request<CanvasMeta>('PATCH', `/canvases/${id}`, { name });
+  }
+
   deleteCanvas(id: string): Promise<void> {
     return this.request<void>('DELETE', `/canvases/${id}`);
   }

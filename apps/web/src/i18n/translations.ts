@@ -65,12 +65,15 @@ export const en = {
     updated: 'Updated',
     delete: 'Delete',
     deleteConfirm: 'Delete this canvas? This cannot be undone.',
+    rename: 'Rename',
     empty: 'No canvases yet. Create your first one.',
     loading: 'Loading…',
     logout: 'Log out',
   },
   editor: {
     back: 'Back',
+    rename: 'Rename canvas',
+    untitled: 'Untitled Canvas',
   },
   elements: {
     event: {
@@ -185,12 +188,15 @@ export const zh: Translation = {
     updated: '更新于',
     delete: '删除',
     deleteConfirm: '确定删除这个画布？此操作不可撤销。',
+    rename: '重命名',
     empty: '还没有画布，创建第一个吧。',
     loading: '加载中…',
     logout: '退出登录',
   },
   editor: {
     back: '返回',
+    rename: '重命名画布',
+    untitled: '未命名画布',
   },
   elements: {
     event: {

@@ -287,6 +287,15 @@ export async function saveCanvas(
   return updated ? rowToCanvasMeta(updated) : null;
 }
 
+export async function renameCanvas(db: Db, id: string, name: string): Promise<CanvasMeta | null> {
+  const existing = await db.select().from(canvases).where(eq(canvases.id, id)).get();
+  if (!existing) return null;
+  const updatedAt = now();
+  await db.update(canvases).set({ name, updatedAt }).where(eq(canvases.id, id)).run();
+  const updated = await db.select().from(canvases).where(eq(canvases.id, id)).get();
+  return updated ? rowToCanvasMeta(updated) : null;
+}
+
 export async function deleteCanvas(db: Db, id: string): Promise<void> {
   await db.delete(canvasEvents).where(eq(canvasEvents.canvasId, id)).run();
   await db.delete(canvases).where(eq(canvases.id, id)).run();

@@ -166,6 +166,17 @@ export function createCanvas(name?: string): string {
   return id;
 }
 
+export function renameCanvas(canvasId: string, name: string): void {
+  const store = readStore();
+  if (!store || !store.canvases[canvasId]) return;
+  store.canvases[canvasId].name = name;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+  } catch {
+    // ignore storage failures
+  }
+}
+
 export function deleteCanvas(canvasId: string): void {
   const store = readStore();
   if (!store) return;

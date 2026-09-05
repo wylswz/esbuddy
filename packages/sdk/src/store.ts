@@ -30,5 +30,6 @@ export interface Store {
   getCanvas(id: string): Promise<CanvasRecord | null>;
   createCanvas(name: string, owner?: CanvasOwner): Promise<CanvasMeta>;
   saveCanvas(id: string, snapshot: CanvasSnapshot, name?: string): Promise<CanvasMeta>;
+  renameCanvas(id: string, name: string): Promise<CanvasMeta>;
   deleteCanvas(id: string): Promise<void>;
 }

@@ -1,3 +1,4 @@
+/// <reference types="@cloudflare/workers-types" />
 import type { Env } from './env.js';
 
 // Cloudflare Workers Env resolver. Isolated from `env.ts` because it references

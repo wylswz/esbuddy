@@ -1,3 +1,4 @@
+/// <reference types="@cloudflare/workers-types" />
 import { buildApp } from './app.js';
 import { createD1Db } from './db/d1.worker.js';
 import { envFromBindings, type WorkerBindings } from './env.worker.js';
