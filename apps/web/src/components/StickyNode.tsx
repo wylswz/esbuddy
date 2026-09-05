@@ -1,7 +1,7 @@
 import { memo, useCallback, useState } from 'react';
 import { Handle, Position, NodeResizeControl, type NodeProps } from 'reactflow';
 import { ELEMENT_STYLES, NOTE_MIN_SIZE, type ElementType } from '../types';
-import { useCanvasActions } from '../CanvasContext';
+import { useCanvasActions, useRemoteSelection } from '../CanvasContext';
 import { useI18n } from '../i18n/context';
 import { ColorDot } from './ColorDot';
 
@@ -22,6 +22,9 @@ function StickyNodeComponent({ id, data, selected, dragging }: NodeProps<StickyN
   const { t } = useI18n();
   const [editing, setEditing] = useState<EditField | null>(null);
   const lifted = selected || dragging;
+  // Peers who have this note selected: outline it in their colour.
+  const remotePeers = useRemoteSelection(id);
+  const remoteRing = remotePeers.length > 0 ? `0 0 0 2.5px ${remotePeers[0].color}` : null;
 
   const focusAndSelect = useCallback((el: HTMLInputElement | HTMLTextAreaElement | null) => {
     if (el) {
@@ -64,9 +67,14 @@ function StickyNodeComponent({ id, data, selected, dragging }: NodeProps<StickyN
           padding: '12px 14px 16px',
           backgroundColor: style.bgColor,
           borderRadius: '2px',
-          boxShadow: lifted
-            ? '0 2px 4px rgba(0, 0, 0, 0.14), 0 7px 16px rgba(0, 0, 0, 0.16), 0 18px 36px rgba(0, 0, 0, 0.18)'
-            : '0 1px 2px rgba(0, 0, 0, 0.08), 0 4px 9px rgba(0, 0, 0, 0.10), 0 10px 22px rgba(0, 0, 0, 0.12)',
+          boxShadow: [
+            remoteRing,
+            lifted
+              ? '0 2px 4px rgba(0, 0, 0, 0.14), 0 7px 16px rgba(0, 0, 0, 0.16), 0 18px 36px rgba(0, 0, 0, 0.18)'
+              : '0 1px 2px rgba(0, 0, 0, 0.08), 0 4px 9px rgba(0, 0, 0, 0.10), 0 10px 22px rgba(0, 0, 0, 0.12)',
+          ]
+            .filter(Boolean)
+            .join(', '),
           backgroundImage: 'radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0) 55%)',
         }}
       >

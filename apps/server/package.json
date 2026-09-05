@@ -26,17 +26,23 @@
     "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.44.2",
     "hono": "^4.6.16",
-    "jose": "^5.9.6"
+    "jose": "^5.9.6",
+    "lib0": "0.2.117",
+    "ws": "8.21.3",
+    "y-protocols": "1.0.7",
+    "yjs": "13.6.32"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "0.8.68",
     "@cloudflare/workers-types": "^5.20260904.1",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^24.13.3",
+    "@types/ws": "8.18.1",
     "drizzle-kit": "^0.31.4",
     "tsx": "^4.19.2",
     "typescript": "~6.0.2",
     "vitest": "3.2.4",
-    "wrangler": "^4.129.0"
+    "wrangler": "^4.129.0",
+    "y-websocket": "3.1.0"
   }
 }

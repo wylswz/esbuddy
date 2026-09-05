@@ -1,15 +1,14 @@
 import { HttpStore, type Store } from '@esbuddy/sdk';
 import { LocalStore } from './LocalStore';
+import { isRemoteMode } from './mode';
+
+export { isRemoteMode } from './mode';
 
 /**
  * Select the concrete Store implementation (ADR-0001.1):
  *  - default (`local`): localStorage, stateless GitHub Pages build
  *  - `remote`: REST client -> Hono backend (fullstack single deployment)
  */
-export function isRemoteMode(): boolean {
-  return (import.meta.env.VITE_STORE_MODE ?? 'local') === 'remote';
-}
-
 export interface GetStoreOptions {
   onUnauthorized?: () => void;
 }

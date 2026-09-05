@@ -13,10 +13,11 @@ export default defineConfig(({ mode }) => ({
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
-      // Forward API calls to the local Hono server (npm run dev:server).
+      // Forward API calls (and /api/rooms WebSockets) to the local Hono server.
       '/api': {
         target: 'http://localhost:8787',
         changeOrigin: true,
+        ws: true,
       },
     },
   },

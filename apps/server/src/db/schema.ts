@@ -37,7 +37,13 @@ export const canvases = sqliteTable('canvases', {
   name: text('name').notNull(),
   ownerType: text('owner_type').notNull(), // 'user' | 'workspace'
   ownerId: text('owner_id').notNull(),
+  // Materialised JSON view of the canvas (gallery thumbnails, REST reads).
+  // Derived from `ydoc` on every flush; also the seed for canvases that
+  // predate the CRDT (their room converts it on first open).
   snapshot: text('snapshot').notNull().default('{}'),
+  // Source of truth: the Yjs document state as a base64 update. Text rather
+  // than blob so the same column round-trips through better-sqlite3 and D1.
+  ydoc: text('ydoc'),
   version: integer('version').notNull().default(0),
   createdById: text('created_by_id').notNull(),
   createdAt: integer('created_at').notNull(),

@@ -6,7 +6,7 @@ import {
   type ShouldResize,
 } from 'reactflow';
 import { ELEMENT_STYLES } from '../types';
-import { useCanvasActions, useDropTarget } from '../CanvasContext';
+import { useCanvasActions, useDropTarget, useRemoteSelection } from '../CanvasContext';
 import { useI18n } from '../i18n/context';
 import { ColorDot } from './ColorDot';
 
@@ -26,6 +26,8 @@ function AggregateNodeComponent({ id, data, selected }: NodeProps<AggregateNodeD
   const [editing, setEditing] = useState(false);
   const isDropTarget = dropTargetId === id;
   const style = ELEMENT_STYLES.aggregate;
+  const remotePeers = useRemoteSelection(id);
+  const remoteColor = remotePeers[0]?.color;
 
   const focusAndSelect = useCallback((el: HTMLInputElement | null) => {
     if (el) {
@@ -94,7 +96,11 @@ function AggregateNodeComponent({ id, data, selected }: NodeProps<AggregateNodeD
             : selected
               ? 'rgba(16, 185, 129, 0.12)'
               : 'rgba(16, 185, 129, 0.08)',
-          border: isDropTarget ? `2px solid ${style.color}` : `2px dashed ${style.borderColor}`,
+          border: isDropTarget
+            ? `2px solid ${style.color}`
+            : remoteColor
+              ? `2px solid ${remoteColor}`
+              : `2px dashed ${style.borderColor}`,
           borderRadius: '12px',
           boxShadow: isDropTarget ? '0 0 0 3px rgba(16, 185, 129, 0.25), 0 0 20px rgba(16, 185, 129, 0.35)' : undefined,
         }}

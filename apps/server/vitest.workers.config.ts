@@ -16,11 +16,15 @@ export default defineWorkersConfig(async () => {
       poolOptions: {
         workers: {
           singleWorker: true,
+          // The real Worker entry, so `SELF.fetch` exercises routing, auth and
+          // the Durable Object room end to end (test/cf/room.cf.test.ts).
+          main: './src/index.worker.ts',
           miniflare: {
             compatibilityDate: '2025-04-01',
             compatibilityFlags: ['nodejs_compat'],
             d1Databases: ['DB'],
-            bindings: { TEST_MIGRATIONS: migrations },
+            durableObjects: { CANVAS_ROOM: 'CanvasRoomObject' },
+            bindings: { TEST_MIGRATIONS: migrations, DEV_MODE: 'true', JWT_SECRET: 'test-secret' },
           },
         },
       },

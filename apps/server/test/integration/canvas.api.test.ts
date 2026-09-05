@@ -26,7 +26,7 @@ describe('canvas API', () => {
     expect(res.status).toBe(401);
   });
 
-  it('creates, lists, renames, saves and deletes a canvas', async () => {
+  it('creates, lists, renames and deletes a canvas', async () => {
     const meta = await createCanvas('Draft');
     expect(meta.name).toBe('Draft');
 
@@ -40,12 +40,13 @@ describe('canvas API', () => {
     });
     expect((await renamed.json() as CanvasMeta).name).toBe('Final');
 
-    const saved = await app.request(`/api/canvases/${meta.id}`, {
+    // Content is not writable over REST — it goes through the realtime room.
+    const put = await app.request(`/api/canvases/${meta.id}`, {
       method: 'PUT',
       headers: authHeaders(token),
       body: JSON.stringify({ snapshot: { nodes: [], edges: [], viewport: null } }),
     });
-    expect((await saved.json() as CanvasMeta).version).toBe(1);
+    expect(put.status).toBe(404);
 
     const del = await app.request(`/api/canvases/${meta.id}`, { method: 'DELETE', headers: authHeaders(token) });
     expect(del.status).toBe(204);

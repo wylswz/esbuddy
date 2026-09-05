@@ -1,5 +1,6 @@
+import type * as Y from 'yjs';
 import { EXAMPLE_CANVAS_NAME, exampleCanvasSnapshot } from '@esbuddy/sdk';
-import type { CanvasMeta, CanvasOwner, CanvasRecord, CanvasSnapshot } from '@esbuddy/sdk';
+import type { CanvasMeta, CanvasOwner, CanvasRecord } from '@esbuddy/sdk';
 import type { Db } from '../../db/types.js';
 import * as repo from './repo.js';
 
@@ -15,14 +16,17 @@ export function createCanvas(db: Db, name: string, owner: CanvasOwner, createdBy
   return repo.insertCanvas(db, { name, owner, snapshot: { nodes: [], edges: [], viewport: null }, createdById });
 }
 
-export function saveCanvas(
-  db: Db,
-  id: string,
-  snapshot: CanvasSnapshot,
-  name?: string,
-  actorId?: string,
-): Promise<CanvasMeta | null> {
-  return repo.saveCanvas(db, id, snapshot, name, actorId);
+/*
+ * Canvas *content* is edited collaboratively through a room (see `room.ts`),
+ * never via a REST write. Hosts use these two calls to hydrate a room when it
+ * opens and to flush it back.
+ */
+export function loadCanvasDoc(db: Db, id: string): Promise<Y.Doc | null> {
+  return repo.loadCanvasDoc(db, id);
+}
+
+export function saveCanvasDoc(db: Db, id: string, doc: Y.Doc): Promise<boolean> {
+  return repo.saveCanvasDoc(db, id, doc);
 }
 
 export function renameCanvas(db: Db, id: string, name: string): Promise<CanvasMeta | null> {

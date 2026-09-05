@@ -1,7 +1,10 @@
-import { eq, and, max, desc } from 'drizzle-orm';
+import { eq, and, desc, sql } from 'drizzle-orm';
+import * as Y from 'yjs';
+import { docToSnapshot, snapshotToDoc } from '@esbuddy/sdk';
 import type { CanvasMeta, CanvasOwner, CanvasRecord, CanvasSnapshot } from '@esbuddy/sdk';
 import type { Db } from '../../db/types.js';
 import { canvases, canvasEvents } from '../../db/schema.js';
+import { base64ToBytes, bytesToBase64 } from './codec.js';
 
 const now = () => Date.now();
 
@@ -69,36 +72,50 @@ export async function insertCanvas(
   return { id, name: input.name, owner: input.owner, version: 0, createdAt, updatedAt: createdAt };
 }
 
-export async function saveCanvas(
-  db: Db,
-  id: string,
-  snapshot: CanvasSnapshot,
-  name?: string,
-  actorId?: string,
-): Promise<CanvasMeta | null> {
-  const existing = await db.select().from(canvases).where(eq(canvases.id, id)).get();
-  if (!existing) return null;
+/**
+ * Load the canvas as a Y.Doc for a collaboration room. Prefers the stored CRDT
+ * state; a canvas that predates it (or was just created/seeded, which only
+ * writes `snapshot`) is converted from its JSON snapshot on first open.
+ * Returns null when the canvas does not exist.
+ */
+export async function loadCanvasDoc(db: Db, id: string): Promise<Y.Doc | null> {
+  const r = await db
+    .select({ ydoc: canvases.ydoc, snapshot: canvases.snapshot })
+    .from(canvases)
+    .where(eq(canvases.id, id))
+    .get();
+  if (!r) return null;
 
-  const seq = await nextSeq(db, id);
-  const updatedAt = now();
-  await db
+  const doc = new Y.Doc();
+  if (r.ydoc) {
+    Y.applyUpdate(doc, base64ToBytes(r.ydoc));
+  } else {
+    const snapshot = JSON.parse(r.snapshot) as Partial<CanvasSnapshot>;
+    if (snapshot.nodes?.length || snapshot.edges?.length) {
+      snapshotToDoc({ nodes: snapshot.nodes ?? [], edges: snapshot.edges ?? [], viewport: null }, doc);
+    }
+  }
+  return doc;
+}
+
+/**
+ * Persist a room's doc: the CRDT state (source of truth) plus the materialised
+ * JSON snapshot that gallery thumbnails and REST reads consume.
+ */
+export async function saveCanvasDoc(db: Db, id: string, doc: Y.Doc): Promise<boolean> {
+  const result = await db
     .update(canvases)
     .set({
-      ...(name ? { name } : {}),
-      snapshot: JSON.stringify(snapshot),
-      version: existing.version + 1,
-      updatedAt,
+      ydoc: bytesToBase64(Y.encodeStateAsUpdate(doc)),
+      snapshot: JSON.stringify(docToSnapshot(doc)),
+      version: sql`${canvases.version} + 1`,
+      updatedAt: now(),
     })
     .where(eq(canvases.id, id))
     .run();
-
-  await db
-    .insert(canvasEvents)
-    .values({ canvasId: id, seq, type: 'set_state', payload: JSON.stringify(snapshot), actorId: actorId ?? null, createdAt: updatedAt })
-    .run();
-
-  const updated = await db.select().from(canvases).where(eq(canvases.id, id)).get();
-  return updated ? rowToCanvasMeta(updated) : null;
+  // better-sqlite3 reports `changes`; D1 reports `meta.changes`.
+  const r = result as unknown as { changes?: number; meta?: { changes?: number } };
+  return (r.changes ?? r.meta?.changes ?? 0) > 0;
 }
 
 export async function renameCanvas(db: Db, id: string, name: string): Promise<CanvasMeta | null> {
@@ -125,13 +142,4 @@ export async function listEvents(db: Db, canvasId: string, afterSeq?: number): P
   return rows
     .filter((r) => afterSeq === undefined || r.seq > afterSeq)
     .map((r) => ({ seq: r.seq, type: r.type, payload: JSON.parse(r.payload), actorId: r.actorId, createdAt: r.createdAt }));
-}
-
-async function nextSeq(db: Db, canvasId: string): Promise<number> {
-  const r = await db
-    .select({ value: max(canvasEvents.seq) })
-    .from(canvasEvents)
-    .where(eq(canvasEvents.canvasId, canvasId))
-    .get();
-  return (r?.value ?? 0) + 1;
 }

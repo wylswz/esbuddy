@@ -1,4 +1,4 @@
-import type { CanvasOwner, CanvasSnapshot } from '@esbuddy/sdk';
+import { docToSnapshot, snapshotToDoc, type CanvasOwner, type CanvasSnapshot } from '@esbuddy/sdk';
 import { beforeEach, describe, expect, it } from 'vitest';
 import * as canvas from '../../src/modules/canvas/service.js';
 import type { Db } from '../../src/db/types.js';
@@ -28,13 +28,27 @@ describe('canvas service', () => {
     expect(rec?.snapshot).toEqual({ nodes: [], edges: [], viewport: null });
   });
 
-  it('bumps version and appends an event on save', async () => {
+  it('flushing a room doc bumps the version and materialises the snapshot', async () => {
     const meta = await canvas.createCanvas(db, 'C', owner, 'u1');
-    const saved = await canvas.saveCanvas(db, meta.id, snapshot(['n1']), undefined, 'u1');
-    expect(saved?.version).toBe(1);
-    const events = await canvas.listEvents(db, meta.id);
-    expect(events).toHaveLength(1);
-    expect(events[0].type).toBe('set_state');
+    const doc = (await canvas.loadCanvasDoc(db, meta.id))!;
+    snapshotToDoc(snapshot(['n1']), doc);
+    expect(await canvas.saveCanvasDoc(db, meta.id, doc)).toBe(true);
+
+    const rec = await canvas.getCanvas(db, meta.id);
+    expect(rec?.version).toBe(1);
+    expect(rec?.snapshot.nodes.map((n) => n.id)).toEqual(['n1']);
+
+    // Reloading prefers the stored CRDT state over the snapshot.
+    const again = (await canvas.loadCanvasDoc(db, meta.id))!;
+    expect(docToSnapshot(again).nodes.map((n) => n.id)).toEqual(['n1']);
+  });
+
+  it('loadCanvasDoc converts a snapshot-only (legacy/seeded) canvas and returns null when missing', async () => {
+    const meta = await canvas.seedExampleCanvas(db, 'w1', 'u1');
+    const doc = (await canvas.loadCanvasDoc(db, meta.id))!;
+    expect(docToSnapshot(doc).nodes.length).toBeGreaterThan(0);
+    expect(await canvas.loadCanvasDoc(db, 'does-not-exist')).toBeNull();
+    expect(await canvas.saveCanvasDoc(db, 'does-not-exist', doc)).toBe(false);
   });
 
   it('renames without bumping the version', async () => {
@@ -48,9 +62,8 @@ describe('canvas service', () => {
     expect(await canvas.renameCanvas(db, 'does-not-exist', 'X')).toBeNull();
   });
 
-  it('deletes a canvas together with its events', async () => {
+  it('deletes a canvas', async () => {
     const meta = await canvas.createCanvas(db, 'C', owner, 'u1');
-    await canvas.saveCanvas(db, meta.id, snapshot(['n1']), undefined, 'u1');
     await canvas.deleteCanvas(db, meta.id);
     expect(await canvas.getCanvas(db, meta.id)).toBeNull();
     expect(await canvas.listEvents(db, meta.id)).toHaveLength(0);
