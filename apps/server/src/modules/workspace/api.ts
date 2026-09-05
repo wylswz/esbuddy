@@ -38,6 +38,12 @@ workspaceRoutes.post('/:id/invitations', async (c) => {
 // Join a workspace via a share link (ADR-0001.5).
 export const invitationRoutes = new Hono<{ Variables: AppVariables }>();
 invitationRoutes.use('*', authMiddleware, requireAuth);
+// Preview an invitation (workspace name + role) so the recipient can confirm
+// before joining. Does not mutate membership.
+invitationRoutes.get('/:token', async (c) => {
+  const preview = await service.previewInvitation(c.var.db, c.req.param('token'));
+  return c.json(preview);
+});
 invitationRoutes.post('/:token/accept', async (c) => {
   const workspace = await service.acceptInvitation(c.var.db, c.req.param('token'), c.var.userId!);
   return workspace ? c.json(workspace) : c.json({ error: 'invalid or revoked invitation' }, 404);

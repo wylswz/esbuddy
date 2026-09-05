@@ -4,8 +4,11 @@ import './index.css'
 import App from './App.tsx'
 import { I18nProvider } from './i18n'
 import { captureAuthToken } from './auth.ts'
+import { captureInviteToken } from './invite.ts'
 
-// Persist an OAuth redirect token (if any) before the app boots.
+// Persist a share-invite token (if any) before the OAuth redirect drops the
+// query string, then persist an OAuth redirect token (if any) before boot.
+captureInviteToken()
 captureAuthToken()
 
 createRoot(document.getElementById('root')!).render(

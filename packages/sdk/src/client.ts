@@ -4,6 +4,7 @@ import type {
   CanvasRecord,
   CanvasSnapshot,
   Invitation,
+  InvitationPreview,
   Role,
   User,
   Workspace,
@@ -80,6 +81,10 @@ export class HttpStore implements Store {
 
   createInvitation(workspaceId: string, role: Role): Promise<Invitation> {
     return this.request<Invitation>('POST', `/workspaces/${workspaceId}/invitations`, { role });
+  }
+
+  previewInvitation(token: string): Promise<InvitationPreview> {
+    return this.request<InvitationPreview>('GET', `/invitations/${token}`);
   }
 
   acceptInvitation(token: string): Promise<Workspace> {

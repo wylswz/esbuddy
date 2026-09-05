@@ -3,9 +3,12 @@ import type { User, Workspace } from '@esbuddy/sdk';
 
 import { CanvasEditor } from './components/CanvasEditor';
 import { HomePage } from './components/HomePage';
+import { InviteAcceptPage } from './components/InviteAcceptPage';
 import { LoginPage } from './components/LoginPage';
+import { WorkspacePage } from './components/WorkspacePage';
 import { getStore, isRemoteMode } from './stores';
 import { clearAuthToken } from './auth';
+import { clearPendingInvite, getPendingInvite } from './invite';
 
 const WORKSPACE_STORAGE_KEY = 'esbuddy.workspace';
 
@@ -38,6 +41,12 @@ function App() {
 
   // Both modes start on the gallery; opening a card enters the editor.
   const [openCanvasId, setOpenCanvasId] = useState<string | null>(null);
+  // Workspace management page (share links, members).
+  const [showWorkspacePage, setShowWorkspacePage] = useState(false);
+  // Pending share invite captured from a `?invite=` link (survives SSO).
+  const [pendingInvite, setPendingInvite] = useState<string | null>(() =>
+    remote ? getPendingInvite() : null,
+  );
 
   // Resolve the auth state in remote mode (login page vs app).
   useEffect(() => {
@@ -101,9 +110,25 @@ function App() {
     [store, selectWorkspace],
   );
 
+  const handleInviteJoined = useCallback(
+    (ws: Workspace) => {
+      clearPendingInvite();
+      setPendingInvite(null);
+      setWorkspaces((prev) => (prev.some((w) => w.id === ws.id) ? prev : [...prev, ws]));
+      selectWorkspace(ws.id);
+    },
+    [selectWorkspace],
+  );
+
+  const dismissInvite = useCallback(() => {
+    clearPendingInvite();
+    setPendingInvite(null);
+  }, []);
+
   const logout = useCallback(() => {
     clearAuthToken();
     setOpenCanvasId(null);
+    setShowWorkspacePage(false);
     setUser(null);
     setAuth('anon');
   }, []);
@@ -120,9 +145,33 @@ function App() {
     return <LoginPage onLoggedIn={() => setAuth('authed')} />;
   }
 
+  // A share link was opened: confirm and join before showing the app.
+  if (remote && pendingInvite) {
+    return (
+      <InviteAcceptPage
+        store={store}
+        token={pendingInvite}
+        onJoined={handleInviteJoined}
+        onDismiss={dismissInvite}
+      />
+    );
+  }
+
   if (openCanvasId) {
     return (
       <CanvasEditor canvasId={openCanvasId} store={store} onBack={() => setOpenCanvasId(null)} />
+    );
+  }
+
+  const currentWorkspace = workspaces.find((w) => w.id === currentWorkspaceId) ?? null;
+  if (remote && showWorkspacePage && currentWorkspace) {
+    return (
+      <WorkspacePage
+        store={store}
+        workspace={currentWorkspace}
+        user={user}
+        onBack={() => setShowWorkspacePage(false)}
+      />
     );
   }
 
@@ -136,6 +185,7 @@ function App() {
       onSelectWorkspace={selectWorkspace}
       onCreateWorkspace={createWorkspace}
       onOpenCanvas={setOpenCanvasId}
+      onOpenWorkspaceSettings={currentWorkspace ? () => setShowWorkspacePage(true) : undefined}
       onLogout={logout}
     />
   );

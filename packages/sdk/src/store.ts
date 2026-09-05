@@ -4,6 +4,7 @@ import type {
   CanvasRecord,
   CanvasSnapshot,
   Invitation,
+  InvitationPreview,
   Role,
   User,
   Workspace,
@@ -24,6 +25,7 @@ export interface Store {
   listMembers(workspaceId: string): Promise<WorkspaceMember[]>;
   createWorkspace(name: string): Promise<Workspace>;
   createInvitation(workspaceId: string, role: Role): Promise<Invitation>;
+  previewInvitation(token: string): Promise<InvitationPreview>;
   acceptInvitation(token: string): Promise<Workspace>;
   // canvases
   listCanvases(scope?: { userId?: string; workspaceId?: string }): Promise<CanvasMeta[]>;

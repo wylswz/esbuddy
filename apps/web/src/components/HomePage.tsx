@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { LayoutGrid, LogOut, Plus } from 'lucide-react';
+import { LayoutGrid, LogOut, Plus, Users } from 'lucide-react';
 import type { CanvasMeta, Store, User, Workspace } from '@esbuddy/sdk';
 import { useI18n } from '../i18n/context';
 import { CanvasCard, CanvasCardSkeleton } from './CanvasCard';
@@ -14,6 +14,7 @@ interface HomePageProps {
   onSelectWorkspace: (id: string) => void;
   onCreateWorkspace: (name: string) => void;
   onOpenCanvas: (id: string) => void;
+  onOpenWorkspaceSettings?: (() => void) | undefined;
   onLogout: () => void;
 }
 
@@ -26,6 +27,7 @@ export function HomePage({
   onSelectWorkspace,
   onCreateWorkspace,
   onOpenCanvas,
+  onOpenWorkspaceSettings,
   onLogout,
 }: HomePageProps) {
   const { t } = useI18n();
@@ -110,6 +112,15 @@ export function HomePage({
                 onSelect={onSelectWorkspace}
                 onCreate={onCreateWorkspace}
               />
+            )}
+            {remote && onOpenWorkspaceSettings && (
+              <button
+                onClick={onOpenWorkspaceSettings}
+                className="p-1.5 rounded-lg text-fg-subtle hover:text-fg-secondary hover:bg-surface-muted transition-colors"
+                title={t('workspacePage.manage')}
+              >
+                <Users size={16} />
+              </button>
             )}
             {remote && user && (
               <div className="flex items-center gap-2">
