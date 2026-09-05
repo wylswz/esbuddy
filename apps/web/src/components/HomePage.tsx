@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { LayoutGrid, LogOut, Plus, Users } from 'lucide-react';
+import { LogOut, Plus, Users } from 'lucide-react';
 import type { CanvasMeta, Store, User, Workspace } from '@esbuddy/sdk';
 import { useI18n } from '../i18n/context';
 import { CanvasCard, CanvasCardSkeleton } from './CanvasCard';
+import { Masthead, PageBar, PageShell } from './PageChrome';
+import { ConfirmDialog } from './ui/AlertDialog';
+import { Button } from './ui/Button';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 
 interface HomePageProps {
@@ -30,10 +33,11 @@ export function HomePage({
   onOpenWorkspaceSettings,
   onLogout,
 }: HomePageProps) {
-  const { t } = useI18n();
+  const { t, locale, setLocale } = useI18n();
   const [canvases, setCanvases] = useState<CanvasMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   // In remote mode the list is scoped to the selected workspace; local mode is global.
   const scope = remote && currentWorkspaceId ? { workspaceId: currentWorkspaceId } : undefined;
@@ -90,81 +94,98 @@ export function HomePage({
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm(t('home.deleteConfirm'))) return;
+  const handleDelete = async () => {
+    if (!pendingDelete) return;
+    const id = pendingDelete;
+    setPendingDelete(null);
     await store.deleteCanvas(id);
     setCanvases((prev) => prev.filter((c) => c.id !== id));
   };
 
+  const currentWorkspace = workspaces.find((w) => w.id === currentWorkspaceId) ?? null;
+  const title = remote ? currentWorkspace?.name ?? t('workspace.select') : t('home.canvases');
+  const count = loading ? null : canvases.length;
+
   return (
-    <div className="w-full h-full overflow-y-auto bg-page">
-      <header className="sticky top-0 z-10 bg-surface/80 backdrop-blur border-b border-border-subtle">
-        <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-fg font-semibold">
-            <LayoutGrid size={20} className="text-fg-muted" />
-            <span>Esbuddy</span>
-          </div>
-          <div className="flex items-center gap-3">
-            {remote && (
-              <WorkspaceSwitcher
-                workspaces={workspaces}
-                currentId={currentWorkspaceId}
-                onSelect={onSelectWorkspace}
-                onCreate={onCreateWorkspace}
-              />
-            )}
-            {remote && onOpenWorkspaceSettings && (
-              <button
-                onClick={onOpenWorkspaceSettings}
-                className="p-1.5 rounded-lg text-fg-subtle hover:text-fg-secondary hover:bg-surface-muted transition-colors"
-                title={t('workspacePage.manage')}
-              >
-                <Users size={16} />
-              </button>
-            )}
+    <PageShell>
+      <PageBar
+        left={
+          remote && (
+            <WorkspaceSwitcher
+              workspaces={workspaces}
+              currentId={currentWorkspaceId}
+              onSelect={onSelectWorkspace}
+              onCreate={onCreateWorkspace}
+            />
+          )
+        }
+        right={
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setLocale(locale === 'en' ? 'zh' : 'en')}
+              className="text-xs"
+            >
+              {t('toolbar.switchLanguage')}
+            </Button>
             {remote && user && (
-              <div className="flex items-center gap-2">
+              <>
                 {user.avatarUrl ? (
-                  <img src={user.avatarUrl} alt="" className="w-7 h-7 rounded-full" />
+                  <img src={user.avatarUrl} alt="" className="w-7 h-7 rounded-full ml-1" />
                 ) : (
-                  <div className="w-7 h-7 rounded-full bg-surface-strong flex items-center justify-center text-xs font-medium text-fg-muted">
+                  <div className="w-7 h-7 rounded-full bg-ink text-paper flex items-center justify-center text-xs font-semibold ml-1">
                     {user.name.slice(0, 1).toUpperCase()}
                   </div>
                 )}
-                <button
-                  onClick={onLogout}
-                  className="p-1.5 rounded-lg text-fg-subtle hover:text-fg-secondary hover:bg-surface-muted transition-colors"
-                  title={t('home.logout')}
-                >
+                <Button variant="ghost" size="icon" onClick={onLogout} title={t('home.logout')} aria-label={t('home.logout')}>
                   <LogOut size={16} />
-                </button>
-              </div>
+                </Button>
+              </>
             )}
-          </div>
-        </div>
-      </header>
+          </>
+        }
+      />
 
-      <main
-        className="max-w-5xl mx-auto px-6 py-8"
-        style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom, 0px))' }}
-      >
-        <h1 className="text-lg font-semibold text-fg mb-4">{t('home.canvases')}</h1>
+      <Masthead
+        eyebrow={
+          <>
+            {remote ? t('workspace.title') : t('home.canvases')}
+            {count !== null && (
+              <>
+                <span className="mx-2 text-fg-subtle">·</span>
+                <span className="tabular-nums">{count}</span>
+              </>
+            )}
+          </>
+        }
+        title={title}
+        actions={
+          remote && onOpenWorkspaceSettings ? (
+            <Button variant="secondary" size="sm" onClick={onOpenWorkspaceSettings}>
+              <Users size={14} />
+              {t('workspacePage.manage')}
+            </Button>
+          ) : undefined
+        }
+      />
 
+      <main>
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" aria-label={t('home.loading')}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5" aria-label={t('home.loading')}>
             {Array.from({ length: 6 }, (_, i) => (
               <CanvasCardSkeleton key={i} index={i} />
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             <button
               onClick={handleCreate}
               disabled={creating}
-              className="group flex flex-col items-center justify-center gap-2 h-40 rounded-xl border-2 border-dashed border-border text-fg-subtle hover:border-border-strong hover:text-fg-muted transition-colors disabled:opacity-50 card-enter"
+              className="group relative flex flex-col justify-between h-44 p-5 rounded-md bg-accent text-ink text-left hover:bg-accent-deep hover:text-paper active:translate-y-px transition-[background-color,color,transform] disabled:opacity-50 card-enter focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
             >
-              <Plus size={24} />
-              <span className="text-sm font-medium">{t('home.newCanvas')}</span>
+              <Plus size={28} strokeWidth={2.25} />
+              <span className="font-display text-2xl font-bold tracking-[-0.02em] leading-none">{t('home.newCanvas')}</span>
             </button>
 
             {canvases.map((c, i) => (
@@ -175,16 +196,27 @@ export function HomePage({
                 index={i + 1}
                 onOpen={onOpenCanvas}
                 onRename={handleRename}
-                onDelete={handleDelete}
+                onDelete={(id) => setPendingDelete(id)}
               />
             ))}
           </div>
         )}
 
         {!loading && canvases.length === 0 && (
-          <p className="text-sm text-fg-subtle mt-4">{t('home.empty')}</p>
+          <p className="text-sm text-fg-muted mt-6">{t('home.empty')}</p>
         )}
       </main>
-    </div>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+        title={t('home.delete')}
+        description={t('home.deleteConfirm')}
+        confirmLabel={t('home.delete')}
+        cancelLabel={t('common.cancel')}
+        destructive
+        onConfirm={handleDelete}
+      />
+    </PageShell>
   );
 }

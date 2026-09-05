@@ -952,7 +952,7 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
     <div ref={canvasRef} className="w-full h-full relative">
       <button
         onClick={onBack}
-        className="safe-top absolute right-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface/90 backdrop-blur shadow-lg text-sm font-medium text-fg-secondary hover:bg-surface-hover transition-colors"
+        className="editor-chip safe-top absolute right-4 z-20 flex items-center gap-1.5 h-9 px-3 text-sm font-semibold hover:bg-ink hover:text-paper hover:border-ink"
         title={t('editor.back')}
       >
         <ArrowLeft size={16} />
@@ -975,12 +975,12 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
               }
             }}
             placeholder={t('editor.untitled')}
-            className="px-3 py-1.5 rounded-lg bg-surface/90 backdrop-blur shadow-lg text-sm font-medium text-fg text-center focus:outline-none focus:ring-2 focus:ring-border-strong"
+            className="editor-chip h-9 px-3 text-sm font-semibold text-center border-ink focus:outline-none"
           />
         ) : (
           <button
             onClick={startRename}
-            className="px-3 py-1.5 rounded-lg bg-surface/90 backdrop-blur shadow-lg text-sm font-medium text-fg-secondary hover:text-fg hover:bg-surface-hover transition-colors truncate max-w-full"
+            className="editor-chip h-9 px-3 text-sm font-semibold hover:border-ink truncate max-w-full"
             title={t('editor.rename')}
           >
             {name || t('editor.untitled')}
@@ -1041,7 +1041,7 @@ export function CanvasEditor({ canvasId, store, onBack }: CanvasEditorProps) {
         </DropTargetContext.Provider>
       </CanvasActionsContext.Provider>
 
-      {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
+      <HelpModal open={showHelp} onClose={() => setShowHelp(false)} />
     </div>
   );
 }

@@ -1,4 +1,8 @@
 export const en = {
+  common: {
+    cancel: 'Cancel',
+    close: 'Close',
+  },
   toolbar: {
     addElement: 'Add Element',
     groupAsAggregate: 'Group as Aggregate',
@@ -156,6 +160,10 @@ export const en = {
 export type Translation = typeof en;
 
 export const zh: Translation = {
+  common: {
+    cancel: '取消',
+    close: '关闭',
+  },
   toolbar: {
     addElement: '添加元素',
     groupAsAggregate: '聚合分组',
