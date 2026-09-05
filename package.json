@@ -17,7 +17,7 @@
     "build:fullstack": "pnpm --filter @esbuddy/sdk build && pnpm --filter @esbuddy/web build:fullstack && pnpm --filter @esbuddy/server build",
     "build:cf": "pnpm --filter @esbuddy/sdk build && pnpm --filter @esbuddy/web build:fullstack",
     "deploy:cf": "pnpm build:cf && pnpm --filter @esbuddy/server cf:deploy",
-    "typecheck": "pnpm -r typecheck",
+    "typecheck": "pnpm --filter @esbuddy/sdk build && pnpm -r typecheck",
     "test": "pnpm --filter @esbuddy/server test",
     "lint": "oxlint",
     "preview": "pnpm --filter @esbuddy/web preview"
