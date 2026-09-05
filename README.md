@@ -82,49 +82,6 @@ Each element is a square sticky note with:
 - **Import**: upload a `.cml` file to parse and render it.
 - Supported CML: `Aggregate`, `Command`, `DomainEvent`, and `Flow` relations.
 
-## Project Structure
-
-```
-apps/
-├── web/                       # React frontend (Vite + React Flow + Tailwind)
-│   └── src/
-│       ├── App.tsx            # React Flow canvas + state management
-│       ├── types.ts           # element styles (domain types come from @esbuddy/sdk)
-│       ├── storage.ts         # localStorage persistence primitives
-│       ├── stores/            # polymorphic Store layer (ADR-0001.1)
-│       │   ├── LocalStore.ts  # localStorage (stateless GitHub Pages build)
-│       │   └── index.ts       # factory: local | remote (VITE_STORE_MODE)
-│       ├── cmlExporter.ts     # canvas data → CML source
-│       ├── cmlImporter.ts     # CML source → canvas data + createNode factory
-│       └── components/
-└── server/                    # Hono backend (ADR-0001.10/11)
-    └── src/
-        │                      # Platform-agnostic core (no node:*/Workers imports):
-        ├── app.ts             # Hono app factory (buildApp) — injected db/env/staticHandler
-        ├── env.ts             # Env interface + isDevMode
-        ├── repo.ts            # repository layer (users/workspaces/canvases/events)
-        ├── context.ts         # Hono context variables
-        ├── auth/              # JWT + Google OAuth + middleware
-        ├── routes/            # auth / canvases / workspaces / invitations
-        ├── db/
-        │   ├── schema.ts      # Drizzle schema (sqlite-core, shared by both drivers)
-        │   ├── types.ts       # shared `Db` type
-        │   ├── index.node.ts  # better-sqlite3 factory (Node)
-        │   ├── migrate.node.ts# Node migration runner
-        │   └── d1.worker.ts   # D1 factory (Cloudflare)
-        │                      # Node-only entrypoints (*.node.ts):
-        ├── index.node.ts      # Node bootstrap (@hono/node-server)
-        ├── env.node.ts        # Env resolver from process.env / .env
-        ├── static.node.ts     # SPA serving via node:fs
-        │                      # Cloudflare Workers-only entrypoints (*.worker.ts):
-        ├── index.worker.ts    # Workers entrypoint (export default { fetch })
-        ├── env.worker.ts      # Env resolver from Workers bindings/vars
-        └── static.worker.ts   # SPA serving via the Assets binding
-
-packages/
-└── sdk/                       # shared domain types + Store interface + HttpStore client
-```
-
 ## Development
 
 Two local dev modes:
