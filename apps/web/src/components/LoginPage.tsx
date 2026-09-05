@@ -5,9 +5,16 @@ import { AuthShell } from './AuthShell';
 
 interface LoginPageProps {
   onLoggedIn: () => void;
+  /**
+   * Pure-frontend (local) mode: there is no backend and no account. Instead of
+   * the Google/dev sign-in, show a single "get started" button that drops the
+   * visitor straight into the workspace.
+   */
+  local?: boolean;
+  onStart?: () => void;
 }
 
-export function LoginPage({ onLoggedIn }: LoginPageProps) {
+export function LoginPage({ onLoggedIn, local = false, onStart }: LoginPageProps) {
   const { t } = useI18n();
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
@@ -15,8 +22,9 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
   const [devMode, setDevMode] = useState(false);
 
   useEffect(() => {
+    if (local) return;
     fetchDevMode().then(setDevMode);
-  }, []);
+  }, [local]);
 
   const handleGoogle = () => {
     window.location.href = '/api/auth/google';
@@ -34,6 +42,30 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
       setBusy(false);
     }
   };
+
+  if (local) {
+    return (
+      <AuthShell>
+        <div className="flex flex-col gap-8">
+          <div>
+            <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-[-0.02em] text-ink">
+              {t('login.localTitle')}
+            </h2>
+            <p className="text-sm sm:text-base text-fg-muted mt-3 leading-snug">
+              {t('login.localSubtitle')}
+            </p>
+          </div>
+
+          <button
+            onClick={onStart}
+            className="w-full flex items-center justify-center gap-3 px-5 py-3.5 rounded-md bg-ink text-paper text-sm font-semibold hover:bg-inverse-hover active:translate-y-px transition-[background-color,transform]"
+          >
+            {t('login.start')}
+          </button>
+        </div>
+      </AuthShell>
+    );
+  }
 
   return (
     <AuthShell>

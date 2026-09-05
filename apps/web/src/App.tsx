@@ -11,12 +11,21 @@ import { clearAuthToken } from './auth';
 import { clearPendingInvite, getPendingInvite } from './invite';
 
 const WORKSPACE_STORAGE_KEY = 'esbuddy.workspace';
+const STARTED_STORAGE_KEY = 'esbuddy.started';
 
 function App() {
   const remote = isRemoteMode();
-  const [auth, setAuth] = useState<'loading' | 'authed' | 'anon'>(() =>
-    remote ? 'loading' : 'authed',
-  );
+  // In local (pure-frontend) mode there is no account: the login page is just a
+  // welcome screen with a "start" button. Once the visitor has entered we
+  // remember it so a refresh drops them straight back onto the board.
+  const [auth, setAuth] = useState<'loading' | 'authed' | 'anon'>(() => {
+    if (remote) return 'loading';
+    try {
+      return localStorage.getItem(STARTED_STORAGE_KEY) ? 'authed' : 'anon';
+    } catch {
+      return 'anon';
+    }
+  });
   const store = useMemo(
     () =>
       getStore({
@@ -151,6 +160,15 @@ function App() {
     setPendingInvite(null);
   }, []);
 
+  const startLocal = useCallback(() => {
+    try {
+      localStorage.setItem(STARTED_STORAGE_KEY, '1');
+    } catch {
+      // ignore
+    }
+    setAuth('authed');
+  }, []);
+
   const logout = useCallback(() => {
     clearAuthToken();
     setOpenCanvasId(null);
@@ -168,7 +186,9 @@ function App() {
   }
 
   if (auth === 'anon') {
-    return <LoginPage onLoggedIn={() => setAuth('loading')} />;
+    return (
+      <LoginPage local={!remote} onLoggedIn={() => setAuth('loading')} onStart={startLocal} />
+    );
   }
 
   // A share link was opened: confirm and join before showing the app.

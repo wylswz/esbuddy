@@ -95,6 +95,9 @@ export const en = {
     devTitle: 'Local development',
     devEmailPlaceholder: 'Email (optional)',
     devLogin: 'Dev login',
+    localTitle: 'No account. Just the board.',
+    localSubtitle: 'This runs entirely in your browser, and your model is saved right here. Step up to the board whenever you are ready.',
+    start: 'Open the board',
   },
   workspace: {
     title: 'Workspaces',
@@ -303,6 +306,9 @@ export const zh: Translation = {
     devTitle: '本地开发',
     devEmailPlaceholder: '邮箱（可选）',
     devLogin: '开发登录',
+    localTitle: '无需登录，直接上板。',
+    localSubtitle: '一切都在这个浏览器里运行，你的模型就存在本地。准备好了，随时上板。',
+    start: '进入画布',
   },
   workspace: {
     title: '工作空间',
