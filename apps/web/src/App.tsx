@@ -48,9 +48,11 @@ function App() {
     remote ? getPendingInvite() : null,
   );
 
-  // Resolve the auth state in remote mode (login page vs app).
+  // Resolve the auth state in remote mode (login page vs app). Re-runs whenever
+  // auth returns to 'loading' (initial boot and just after login) so the user
+  // is fetched without requiring a full page reload.
   useEffect(() => {
-    if (!remote) return;
+    if (!remote || auth !== 'loading') return;
     let cancelled = false;
     store
       .getCurrentUser()
@@ -65,7 +67,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [store, remote]);
+  }, [store, remote, auth]);
 
   // Load the user's workspaces once authed; pick a sensible current one.
   useEffect(() => {
@@ -142,7 +144,7 @@ function App() {
   }
 
   if (auth === 'anon') {
-    return <LoginPage onLoggedIn={() => setAuth('authed')} />;
+    return <LoginPage onLoggedIn={() => setAuth('loading')} />;
   }
 
   // A share link was opened: confirm and join before showing the app.
