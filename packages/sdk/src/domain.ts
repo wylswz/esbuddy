@@ -48,6 +48,18 @@ export interface Invitation {
   revokedAt?: number | null;
 }
 
+/**
+ * Public, unauthenticated-safe view of an invitation used to render the
+ * "join this workspace?" confirmation before the invite is accepted. Never
+ * exposes the raw token or membership.
+ */
+export interface InvitationPreview {
+  valid: boolean;
+  workspaceId?: string;
+  workspaceName?: string;
+  role?: Role;
+}
+
 export interface CanvasMeta {
   id: string;
   name: string;

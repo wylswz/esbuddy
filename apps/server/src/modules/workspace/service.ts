@@ -1,4 +1,4 @@
-import type { Invitation, Role, Workspace, WorkspaceMember } from '@esbuddy/sdk';
+import type { Invitation, InvitationPreview, Role, Workspace, WorkspaceMember } from '@esbuddy/sdk';
 import type { Db } from '../../db/types.js';
 import { seedExampleCanvas } from '../canvas/service.js';
 import * as repo from './repo.js';
@@ -53,6 +53,19 @@ export async function inviteToWorkspace(
   const actorRole = await repo.getMemberRole(db, workspaceId, actorId);
   if (actorRole !== 'owner') return null;
   return repo.createInvitation(db, workspaceId, role, actorId);
+}
+
+/**
+ * Resolve a share token to a safe preview (workspace name + role) so the
+ * recipient can confirm before joining. Returns `{ valid: false }` for unknown
+ * or revoked tokens rather than leaking whether a token exists.
+ */
+export async function previewInvitation(db: Db, token: string): Promise<InvitationPreview> {
+  const inv = await repo.getInvitationByToken(db, token);
+  if (!inv || inv.revokedAt) return { valid: false };
+  const workspace = await repo.getWorkspace(db, inv.workspaceId);
+  if (!workspace) return { valid: false };
+  return { valid: true, workspaceId: workspace.id, workspaceName: workspace.name, role: inv.role };
 }
 
 /** Join a workspace via a share link (ADR-0001.5). */

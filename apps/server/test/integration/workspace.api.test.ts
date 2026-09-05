@@ -1,4 +1,4 @@
-import type { CanvasMeta, Invitation, Workspace, WorkspaceMember } from '@esbuddy/sdk';
+import type { CanvasMeta, Invitation, InvitationPreview, Workspace, WorkspaceMember } from '@esbuddy/sdk';
 import { describe, expect, it } from 'vitest';
 import { authHeaders, buildAppWithDb, devLogin, type TestApp } from '../helpers/app.js';
 import { createTestDb } from '../helpers/db.js';
@@ -48,6 +48,41 @@ describe('workspace API', () => {
       await app.request(`/api/workspaces/${ws.id}/members`, { headers: authHeaders(bob.token) })
     ).json()) as WorkspaceMember[];
     expect(members.map((m) => m.userId)).toContain(bob.user.id);
+  });
+
+  it('previews a share invitation without joining', async () => {
+    const app = buildAppWithDb(createTestDb());
+    const alice = await devLogin(app, { email: 'alice@x.com', name: 'Alice' });
+    const ws = await firstWorkspace(app, alice.token);
+
+    const invite = (await (
+      await app.request(`/api/workspaces/${ws.id}/invitations`, {
+        method: 'POST',
+        headers: authHeaders(alice.token),
+        body: JSON.stringify({ role: 'viewer' }),
+      })
+    ).json()) as Invitation;
+
+    const bob = await devLogin(app, { email: 'bob@x.com', name: 'Bob' });
+    const preview = (await (
+      await app.request(`/api/invitations/${invite.token}`, { headers: authHeaders(bob.token) })
+    ).json()) as InvitationPreview;
+    expect(preview).toMatchObject({ valid: true, workspaceName: ws.name, role: 'viewer' });
+
+    // Previewing must not add the user as a member.
+    const members = (await (
+      await app.request(`/api/workspaces/${ws.id}/members`, { headers: authHeaders(alice.token) })
+    ).json()) as WorkspaceMember[];
+    expect(members.map((m) => m.userId)).not.toContain(bob.user.id);
+  });
+
+  it('reports an invalid token as not valid', async () => {
+    const app = buildAppWithDb(createTestDb());
+    const alice = await devLogin(app, { email: 'alice@x.com', name: 'Alice' });
+    const preview = (await (
+      await app.request('/api/invitations/nope', { headers: authHeaders(alice.token) })
+    ).json()) as InvitationPreview;
+    expect(preview.valid).toBe(false);
   });
 
   it('non-owners cannot invite', async () => {

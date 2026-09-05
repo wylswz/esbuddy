@@ -4,6 +4,7 @@ import type {
   CanvasRecord,
   CanvasSnapshot,
   Invitation,
+  InvitationPreview,
   Store,
   User,
   Workspace,
@@ -64,6 +65,10 @@ export class LocalStore implements Store {
 
   createInvitation(): Promise<Invitation> {
     return Promise.reject(new Error(LOCAL_NOT_SUPPORTED));
+  }
+
+  previewInvitation(): Promise<InvitationPreview> {
+    return Promise.resolve({ valid: false });
   }
 
   acceptInvitation(): Promise<Workspace> {
