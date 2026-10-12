@@ -1,0 +1,1 @@
+ALTER TABLE `canvas_versions` ADD `is_public` integer DEFAULT false NOT NULL;

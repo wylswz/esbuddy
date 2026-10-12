@@ -20,7 +20,7 @@ const CORNERS = ['top-left', 'top-right', 'bottom-left', 'bottom-right'] as cons
 
 function AggregateNodeComponent({ id, data, selected }: NodeProps<AggregateNodeData>) {
   const store = useStoreApi();
-  const { updateNodeLabel } = useCanvasActions();
+  const { updateNodeLabel, readOnly } = useCanvasActions();
   const dropTargetId = useDropTarget();
   const { t } = useI18n();
   const [editing, setEditing] = useState(false);
@@ -134,9 +134,9 @@ function AggregateNodeComponent({ id, data, selected }: NodeProps<AggregateNodeD
           />
         ) : (
           <span
-            className="text-xs font-semibold uppercase tracking-wide cursor-text"
-            title={t('node.doubleClickEdit')}
-            onDoubleClick={() => setEditing(true)}
+            className={`text-xs font-semibold uppercase tracking-wide${readOnly ? '' : ' cursor-text'}`}
+            title={readOnly ? undefined : t('node.doubleClickEdit')}
+            onDoubleClick={readOnly ? undefined : () => setEditing(true)}
           >
             {data.label}
           </span>

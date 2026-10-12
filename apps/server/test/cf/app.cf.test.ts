@@ -1,4 +1,4 @@
-import type { CanvasMeta, Workspace } from '@esbuddy/sdk';
+import type { CanvasMeta, CanvasVersionMeta, PublishedCanvasVersion, Workspace } from '@esbuddy/sdk';
 import { env } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 import { createD1Db } from '../../src/db/d1.worker.js';
@@ -46,6 +46,38 @@ describe('Cloudflare (D1) integration', () => {
       await app.request(`/api/canvases?workspace=${workspaces[0].id}`, { headers: authHeaders(token) })
     ).json()) as CanvasMeta[];
     expect(canvases.length).toBeGreaterThan(0);
+  });
+
+  it('publishes a version and serves its public permalink on D1', async () => {
+    const app = cfApp();
+    const { token } = await devLogin(app, { email: 'pub@example.com', name: 'Pub' });
+    const meta = (await (
+      await app.request('/api/canvases', {
+        method: 'POST',
+        headers: authHeaders(token),
+        body: JSON.stringify({ name: 'Published on CF' }),
+      })
+    ).json()) as CanvasMeta;
+
+    const published = await app.request(`/api/canvases/${meta.id}/versions`, {
+      method: 'POST',
+      headers: authHeaders(token),
+      body: JSON.stringify({ description: 'v1', snapshot: { nodes: [], edges: [], viewport: null } }),
+    });
+    expect(published.status).toBe(201);
+    const version = (await published.json()) as CanvasVersionMeta;
+    expect(version.isPublic).toBe(false);
+    expect((await app.request(`/api/versions/${version.id}`)).status).toBe(404);
+
+    await app.request(`/api/canvases/${meta.id}/versions/${version.id}`, {
+      method: 'PATCH',
+      headers: authHeaders(token),
+      body: JSON.stringify({ isPublic: true }),
+    });
+
+    const pub = await app.request(`/api/versions/${version.id}`);
+    expect(pub.status).toBe(200);
+    expect(((await pub.json()) as PublishedCanvasVersion).description).toBe('v1');
   });
 
   it('rejects unauthenticated requests', async () => {

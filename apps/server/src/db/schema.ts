@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 // Shared schema for all SQLite-family drivers (node:sqlite locally, D1 on CF).
 // Postgres would be a separate pg-core schema (ADR-0001.3).
@@ -63,6 +63,24 @@ export const canvasEvents = sqliteTable(
   (t) => [primaryKey({ columns: [t.canvasId, t.seq] })],
 );
 
+// Published, immutable snapshots of a canvas. `id` is a random hex signature
+// (like a commit id) that doubles as the unguessable permalink token; the
+// permalink only resolves while `is_public` is on.
+export const canvasVersions = sqliteTable(
+  'canvas_versions',
+  {
+    id: text('id').primaryKey(),
+    canvasId: text('canvas_id').notNull(),
+    canvasName: text('canvas_name').notNull(),
+    description: text('description').notNull().default(''),
+    snapshot: text('snapshot').notNull(),
+    isPublic: integer('is_public', { mode: 'boolean' }).notNull().default(false),
+    createdById: text('created_by_id').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [index('canvas_versions_canvas_id_idx').on(t.canvasId, t.createdAt)],
+);
+
 export const invitations = sqliteTable('invitations', {
   id: text('id').primaryKey(),
   workspaceId: text('workspace_id').notNull(),
@@ -78,6 +96,7 @@ export type WorkspaceRow = typeof workspaces.$inferSelect;
 export type MemberRow = typeof workspaceMembers.$inferSelect;
 export type CanvasRow = typeof canvases.$inferSelect;
 export type EventRow = typeof canvasEvents.$inferSelect;
+export type CanvasVersionRow = typeof canvasVersions.$inferSelect;
 export type InvitationRow = typeof invitations.$inferSelect;
 
 export const schema = {
@@ -86,6 +105,7 @@ export const schema = {
   workspaceMembers,
   canvases,
   canvasEvents,
+  canvasVersions,
   invitations,
   sql,
 };

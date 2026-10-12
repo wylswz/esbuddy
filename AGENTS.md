@@ -86,6 +86,13 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm build
     (in-process map + `ws` upgrade on the same port) and `room.worker.ts`
     (`CanvasRoomObject` Durable Object, Hibernation WebSockets, DO storage hot /
     D1 cold). Auth happens in the host entry, not in the room.
+  - Published versions: `canvas_versions` rows are immutable snapshots keyed by
+    a random 40-hex signature, which is also the permalink token (`/v/<sig>`
+    in the SPA → unauthenticated `GET /api/versions/:sig`). Versions are
+    private by default; the permalink only resolves (and the UI only offers
+    the link) while `is_public` is on — private ones 404 like missing ones. The
+    snapshot is sent by the publishing client (the DB lags the live room).
+    Management routes live under `/api/canvases/:id/versions`. Backend modes only.
   - DB: `canvases.ydoc` (base64 Yjs state) is the source of truth;
     `canvases.snapshot` is a materialised view rewritten on flush. Canvases that
     only have a snapshot are converted on first room open.

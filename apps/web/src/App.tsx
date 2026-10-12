@@ -5,10 +5,12 @@ import { CanvasEditor } from './components/CanvasEditor';
 import { HomePage } from './components/HomePage';
 import { InviteAcceptPage } from './components/InviteAcceptPage';
 import { LoginPage } from './components/LoginPage';
+import { PublishedVersionPage } from './components/PublishedVersionPage';
 import { WorkspacePage } from './components/WorkspacePage';
 import { getStore, isRemoteMode } from './stores';
 import { clearAuthToken } from './auth';
 import { clearPendingInvite, getPendingInvite } from './invite';
+import { parseVersionPermalink } from './versions';
 
 const WORKSPACE_STORAGE_KEY = 'esbuddy.workspace';
 const STARTED_STORAGE_KEY = 'esbuddy.started';
@@ -238,4 +240,16 @@ function App() {
   );
 }
 
-export default App;
+/**
+ * A published version's permalink (`/v/<signature>`) is public: it renders a
+ * read-only view without going through login, invites or workspaces.
+ */
+function Root() {
+  const versionId = useMemo(
+    () => (isRemoteMode() ? parseVersionPermalink(window.location.pathname) : null),
+    [],
+  );
+  return versionId ? <PublishedVersionPage versionId={versionId} /> : <App />;
+}
+
+export default Root;

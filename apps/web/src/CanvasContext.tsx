@@ -4,6 +4,8 @@ import type { PeerUser } from './collab/awareness';
 export interface CanvasActions {
   updateNodeLabel: (id: string, label: string) => void;
   updateNodeDescription: (id: string, description: string) => void;
+  /** Viewing a published version: nodes must not enter edit mode. */
+  readOnly?: boolean;
 }
 
 export const CanvasActionsContext = createContext<CanvasActions>({

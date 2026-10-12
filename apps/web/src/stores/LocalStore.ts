@@ -3,8 +3,11 @@ import type {
   CanvasOwner,
   CanvasRecord,
   CanvasSnapshot,
+  CanvasVersion,
+  CanvasVersionMeta,
   Invitation,
   InvitationPreview,
+  PublishedCanvasVersion,
   Store,
   User,
   Workspace,
@@ -108,5 +111,30 @@ export class LocalStore implements Store {
     storage.deleteCanvas(id);
     // The canvas's CRDT document lives in IndexedDB (see collab/provider.ts).
     return deleteLocalCanvasDoc(id);
+  }
+
+  // Publishing needs a server to host permalinks.
+  listVersions(): Promise<CanvasVersionMeta[]> {
+    return Promise.resolve([]);
+  }
+
+  getVersion(): Promise<CanvasVersion> {
+    return Promise.reject(new Error(LOCAL_NOT_SUPPORTED));
+  }
+
+  publishVersion(): Promise<CanvasVersionMeta> {
+    return Promise.reject(new Error(LOCAL_NOT_SUPPORTED));
+  }
+
+  updateVersion(): Promise<CanvasVersionMeta> {
+    return Promise.reject(new Error(LOCAL_NOT_SUPPORTED));
+  }
+
+  deleteVersion(): Promise<void> {
+    return Promise.reject(new Error(LOCAL_NOT_SUPPORTED));
+  }
+
+  getPublishedVersion(): Promise<PublishedCanvasVersion | null> {
+    return Promise.resolve(null);
   }
 }

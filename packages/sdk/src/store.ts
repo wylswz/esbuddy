@@ -2,13 +2,30 @@ import type {
   CanvasMeta,
   CanvasOwner,
   CanvasRecord,
+  CanvasSnapshot,
+  CanvasVersion,
+  CanvasVersionMeta,
   Invitation,
   InvitationPreview,
+  PublishedCanvasVersion,
   Role,
   User,
   Workspace,
   WorkspaceMember,
 } from './domain.js';
+
+export interface PublishVersionInput {
+  description: string;
+  /** Off by default: no permalink until public access is switched on. */
+  isPublic: boolean;
+  snapshot: CanvasSnapshot;
+}
+
+/** Only metadata is mutable; content stays frozen. */
+export interface UpdateVersionInput {
+  description?: string;
+  isPublic?: boolean;
+}
 
 /**
  * Storage abstraction (ADR-0001.1). The app depends only on this interface;
@@ -34,4 +51,12 @@ export interface Store {
   createCanvas(name: string, owner?: CanvasOwner): Promise<CanvasMeta>;
   renameCanvas(id: string, name: string): Promise<CanvasMeta>;
   deleteCanvas(id: string): Promise<void>;
+  // published versions (backend modes only; LocalStore rejects)
+  listVersions(canvasId: string): Promise<CanvasVersionMeta[]>;
+  getVersion(canvasId: string, versionId: string): Promise<CanvasVersion>;
+  publishVersion(canvasId: string, input: PublishVersionInput): Promise<CanvasVersionMeta>;
+  updateVersion(canvasId: string, versionId: string, patch: UpdateVersionInput): Promise<CanvasVersionMeta>;
+  deleteVersion(canvasId: string, versionId: string): Promise<void>;
+  /** Public (no auth): resolve a permalink. Null if missing or not public. */
+  getPublishedVersion(versionId: string): Promise<PublishedCanvasVersion | null>;
 }

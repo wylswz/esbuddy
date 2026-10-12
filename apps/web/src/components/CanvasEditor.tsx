@@ -23,12 +23,12 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Upload } from 'lucide-react';
 
-import { StickyNode } from './StickyNode';
-import { AggregateNode } from './AggregateNode';
+import { nodeTypes } from './nodeTypes';
 import { Toolbar } from './Toolbar';
 import { HelpModal } from './HelpModal';
+import { VersionsDialog } from './VersionsDialog';
 import { PresenceBar } from './PresenceBar';
 import { RemoteCursors } from './RemoteCursors';
 import { createNode } from '../cmlImporter';
@@ -50,7 +50,16 @@ import { useCollabSession, type CollabSession } from '../collab/useCollabSession
 import { loadViewport, saveViewport } from '../collab/viewport';
 import { isRemoteMode } from '../stores/mode';
 import * as storage from '../storage';
-import { getEdgesMap, getNodesMap, type CanvasRecord, type CanvasSnapshot, type Store, type User } from '@esbuddy/sdk';
+import {
+  docToSnapshot,
+  getEdgesMap,
+  getNodesMap,
+  snapshotToDoc,
+  type CanvasRecord,
+  type CanvasSnapshot,
+  type Store,
+  type User,
+} from '@esbuddy/sdk';
 import { NOTE_DEFAULT_SIZE, ELEMENT_STYLES, type ElementType } from '../types';
 
 const AGGREGATE_PADDING = 40;
@@ -79,17 +88,6 @@ const NODE_SHORTCUTS: Record<string, ElementType> = {};
   const shortcut = ELEMENT_STYLES[type].shortcut;
   if (shortcut) NODE_SHORTCUTS[shortcut.toLowerCase()] = type;
 });
-
-const nodeTypes = {
-  event: StickyNode,
-  command: StickyNode,
-  aggregate: AggregateNode,
-  actor: StickyNode,
-  policy: StickyNode,
-  external: StickyNode,
-  hotspot: StickyNode,
-  readmodel: StickyNode,
-};
 
 const initialNodes: Node[] = [
   {
@@ -410,6 +408,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
   const [nodes, setNodes] = useState<Node[]>(() => nodesFromDoc(doc, []));
   const [edges, setEdges] = useState<Edge[]>(() => edgesFromDoc(doc, []));
   const [showHelp, setShowHelp] = useState(false);
+  const [showVersions, setShowVersions] = useState(false);
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>(provider.status);
@@ -798,7 +797,10 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
       const target = e.target as HTMLElement | null;
       if (
         target &&
-        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable ||
+          target.closest('[role="dialog"], [role="alertdialog"]'))
       ) {
         return;
       }
@@ -1106,6 +1108,25 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
   // Content persistence needs no code here: every edit is already in the shared
   // doc, which the provider syncs (IndexedDB locally, the room server remotely).
 
+  // ---- Published versions.
+  const getSnapshot = useCallback(() => docToSnapshot(doc), [doc]);
+  // Overwrite the board with a published snapshot as one undoable local step;
+  // it reaches peers through the doc like any other edit.
+  const restoreSnapshot = useCallback(
+    (snapshot: CanvasSnapshot) => {
+      commit();
+      snapshotToDoc(snapshot, doc, LOCAL_ORIGIN);
+      // The doc observers skip LOCAL_ORIGIN, so refresh the arrays here.
+      const nextNodes = nodesFromDoc(doc, nodesRef.current);
+      nodesRef.current = nextNodes;
+      setNodes(nextNodes);
+      const nextEdges = edgesFromDoc(doc, edgesRef.current);
+      edgesRef.current = nextEdges;
+      setEdges(nextEdges);
+    },
+    [commit, doc],
+  );
+
   const canGroup = useMemo(
     () =>
       selectedNodeIds.length >= 2 &&
@@ -1125,6 +1146,16 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
     >
       <div className="safe-top absolute right-4 z-20 flex items-center gap-2">
         <PresenceBar me={me} peers={peers} status={status} />
+        {isRemoteMode() && (
+          <button
+            onClick={() => setShowVersions(true)}
+            className="editor-chip flex items-center gap-1.5 h-9 px-3 text-sm font-semibold bg-accent hover:bg-ink hover:text-paper hover:border-ink"
+            title={t('versions.title')}
+          >
+            <Upload size={16} />
+            <span>{t('versions.publish')}</span>
+          </button>
+        )}
         <button
           onClick={onBack}
           className="editor-chip flex items-center gap-1.5 h-9 px-3 text-sm font-semibold hover:bg-ink hover:text-paper hover:border-ink"
@@ -1221,6 +1252,16 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
       </CanvasActionsContext.Provider>
 
       <HelpModal open={showHelp} onClose={() => setShowHelp(false)} />
+      {isRemoteMode() && (
+        <VersionsDialog
+          open={showVersions}
+          onOpenChange={setShowVersions}
+          store={store}
+          canvasId={canvasId}
+          getSnapshot={getSnapshot}
+          onRestore={restoreSnapshot}
+        />
+      )}
     </div>
   );
 }
