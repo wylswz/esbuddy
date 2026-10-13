@@ -7,6 +7,7 @@ import {
   BringToFront,
   SendToBack,
   CircleHelp,
+  FileDown,
 } from 'lucide-react';
 import { ELEMENT_STYLES, type ElementType } from '../types';
 import { useI18n } from '../i18n/context';
@@ -17,6 +18,7 @@ interface ToolbarProps {
   onBringToFront: () => void;
   onSendToBack: () => void;
   onHelp: () => void;
+  onExportYaml: () => void;
   onUndo: () => void;
   onRedo: () => void;
   canUndo: boolean;
@@ -26,7 +28,7 @@ interface ToolbarProps {
   touchMode: boolean;
 }
 
-const ELEMENT_ORDER: ElementType[] = ['event', 'command', 'actor', 'policy', 'external', 'hotspot', 'readmodel'];
+const ELEMENT_ORDER: ElementType[] = ['event', 'command', 'actor', 'policy', 'external', 'hotspot', 'readmodel', 'note'];
 
 const btn =
   'flex items-center gap-2 h-8 px-2.5 rounded-sm text-sm font-medium text-ink hover:bg-ink hover:text-paper transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-ink';
@@ -54,6 +56,7 @@ export function Toolbar({
   onBringToFront,
   onSendToBack,
   onHelp,
+  onExportYaml,
   onUndo,
   onRedo,
   canUndo,
@@ -76,6 +79,7 @@ export function Toolbar({
     { key: 'group', icon: <Group size={20} />, label: t('toolbar.groupAsAggregate'), onClick: onGroupAggregate, disabled: !canGroup },
     { key: 'front', icon: <BringToFront size={20} />, label: t('toolbar.bringToFront'), onClick: onBringToFront },
     { key: 'back', icon: <SendToBack size={20} />, label: t('toolbar.sendToBack'), onClick: onSendToBack },
+    { key: 'yaml', icon: <FileDown size={20} />, label: t('toolbar.exportYaml'), onClick: onExportYaml },
     { key: 'help', icon: <CircleHelp size={20} />, label: t('toolbar.help'), onClick: onHelp },
   ];
 
@@ -198,6 +202,11 @@ export function Toolbar({
       </div>
 
       <div className="h-px bg-ink-faint my-1" />
+
+      <button onClick={onExportYaml} className={btn}>
+        <FileDown size={16} />
+        <span>{t('toolbar.exportYaml')}</span>
+      </button>
 
       <button onClick={onHelp} className={btn}>
         <CircleHelp size={16} />

@@ -30,6 +30,9 @@
   --color-readmodel: #10b981;
   --color-readmodel-bg: #ecfdf5;
   --color-readmodel-border: #34d399;
+  --color-note: #6b7280;
+  --color-note-bg: #f3f4f6;
+  --color-note-border: #9ca3af;
 
   /* --- UI chrome: surfaces --- */
   --color-page: #f9fafb;
@@ -48,6 +51,7 @@
   --color-fg-subtle: #9ca3af;
   --color-fg-inverse: #ffffff;
   --color-danger: #dc2626;
+  --color-warning: #d97706;
 
   /* --- UI chrome: borders --- */
   --color-border: #e5e7eb;

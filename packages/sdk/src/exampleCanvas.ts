@@ -17,6 +17,8 @@ interface Seed {
   y: number;
   label: string;
   aggregateId?: string;
+  /** The note this one is stuck onto (a binding: they move as a group). */
+  boundTo?: string;
   description?: string;
   w?: number;
   h?: number;
@@ -35,13 +37,14 @@ const NODES: Seed[] = [
 
   // Commands — intents that (may) produce events.
   { id: 'cmd_place_order', type: 'command', x: 118, y: 232, label: 'Place Order', w: 165, h: 155 },
-  { id: 'cmd_confirm_payment', type: 'command', x: 905, y: 218, label: 'Confirm Payment', w: 160, h: 165 },
+  { id: 'cmd_confirm_order', type: 'command', x: 392, y: 236, label: 'Confirm Order', w: 160, h: 150 },
+  { id: 'cmd_request_payment', type: 'command', x: 690, y: 228, label: 'Request Payment', w: 160, h: 155 },
   { id: 'cmd_prepare_shipment', type: 'command', x: 1232, y: 246, label: 'Prepare Shipment', w: 158, h: 150 },
   { id: 'cmd_ship_order', type: 'command', x: 1520, y: 226, label: 'Ship Order', w: 170, h: 158 },
 
   // Actors — small notes stuck onto the corner of the command they issue (no arrow needed).
-  { id: 'actor_customer', type: 'actor', x: 62, y: 308, label: 'Customer', w: 120, h: 92 },
-  { id: 'actor_warehouse', type: 'actor', x: 1462, y: 298, label: 'Warehouse Staff', w: 128, h: 96 },
+  { id: 'actor_customer', type: 'actor', x: 62, y: 308, label: 'Customer', boundTo: 'cmd_place_order', w: 120, h: 92 },
+  { id: 'actor_warehouse', type: 'actor', x: 1462, y: 298, label: 'Warehouse Staff', boundTo: 'cmd_ship_order', w: 128, h: 96 },
 
   // Events — facts on the timeline, grouped into their aggregates.
   {
@@ -69,14 +72,17 @@ const NODES: Seed[] = [
     x: 788,
     y: 566,
     label: 'Payment failure?',
+    boundTo: 'ev_payment_requested',
     description: 'Timeouts, declines, partial captures?',
     w: 138,
     h: 118,
   },
 
-  // Read models — tucked right under the event they project from (no arrow, just proximity).
-  { id: 'rm_order_summary', type: 'readmodel', x: 412, y: 578, label: 'Order Summary', w: 150, h: 120 },
-  { id: 'rm_shipment_tracking', type: 'readmodel', x: 1782, y: 574, label: 'Shipment Tracking', w: 150, h: 124 },
+  // Read models — stuck on the command whose decision they support; arrows from events
+  // into a read model are what keep it up to date.
+  { id: 'rm_cart', type: 'readmodel', x: 228, y: 168, label: 'Cart', boundTo: 'cmd_place_order', w: 130, h: 100 },
+  { id: 'rm_picking_list', type: 'readmodel', x: 1640, y: 160, label: 'Picking List', boundTo: 'cmd_ship_order', w: 140, h: 100 },
+  { id: 'rm_shipment_tracking', type: 'readmodel', x: 1770, y: 650, label: 'Shipment Tracking', w: 150, h: 124 },
 
   // Policies — reactive "when X, then Y" rules.
   {
@@ -84,13 +90,13 @@ const NODES: Seed[] = [
     type: 'policy',
     x: 402,
     y: 752,
-    label: 'When Order Placed → Request Payment',
+    label: 'Collect Payment',
     description: 'Whenever an order is placed, ask the customer to pay.',
     w: 172,
     h: 168,
   },
-  { id: 'pol_confirm_order', type: 'policy', x: 706, y: 774, label: 'When Payment Confirmed → Confirm Order', w: 160, h: 160 },
-  { id: 'pol_prepare_shipment', type: 'policy', x: 964, y: 742, label: 'When Order Confirmed → Prepare Shipment', w: 166, h: 172 },
+  { id: 'pol_confirm_order', type: 'policy', x: 706, y: 774, label: 'Confirm Paid Orders', w: 160, h: 160 },
+  { id: 'pol_prepare_shipment', type: 'policy', x: 964, y: 742, label: 'Ship Confirmed Orders', w: 166, h: 172 },
 
   // External systems.
   { id: 'ext_payment_gateway', type: 'external', x: 662, y: 1004, label: 'Payment Gateway', w: 158, h: 148 },
@@ -99,24 +105,31 @@ const NODES: Seed[] = [
 
 /*
  * Arrows are used sparingly — only where a causal flow isn't obvious from placement.
- * Actors sit on their command, read models sit under their event, and the hot spot
- * is stuck onto the event it questions, so none of those need an edge.
+ * Actors and the read models a decision relies on sit on their command, and the hot
+ * spot is stuck onto the event it questions (each bound via `boundTo`), so none of
+ * those need an edge.
+ *
+ * Every edge and overlap follows the canvas grammar (`grammar.ts`), so the board
+ * compiles without errors or warnings.
  */
 const EDGES: [string, string][] = [
   ['cmd_place_order', 'ev_order_placed'],
   ['ev_order_placed', 'pol_request_payment'],
-  ['pol_request_payment', 'ev_payment_requested'],
-  ['ev_payment_requested', 'ext_payment_gateway'],
-  ['ext_payment_gateway', 'cmd_confirm_payment'],
-  ['cmd_confirm_payment', 'ev_payment_confirmed'],
+  ['pol_request_payment', 'cmd_request_payment'],
+  ['cmd_request_payment', 'ev_payment_requested'],
+  ['cmd_request_payment', 'ext_payment_gateway'],
+  ['ext_payment_gateway', 'ev_payment_confirmed'],
   ['ev_payment_confirmed', 'pol_confirm_order'],
-  ['pol_confirm_order', 'ev_order_confirmed'],
+  ['pol_confirm_order', 'cmd_confirm_order'],
+  ['cmd_confirm_order', 'ev_order_confirmed'],
   ['ev_order_confirmed', 'pol_prepare_shipment'],
   ['pol_prepare_shipment', 'cmd_prepare_shipment'],
   ['cmd_prepare_shipment', 'ev_shipment_prepared'],
+  ['ev_shipment_prepared', 'rm_picking_list'],
   ['cmd_ship_order', 'ev_order_shipped'],
-  ['ev_order_shipped', 'ext_shipping_provider'],
+  ['cmd_ship_order', 'ext_shipping_provider'],
   ['ext_shipping_provider', 'ev_order_delivered'],
+  ['ev_order_delivered', 'rm_shipment_tracking'],
 ];
 
 export const EXAMPLE_CANVAS_NAME = 'Example: Order Fulfillment';
@@ -132,6 +145,7 @@ export function exampleCanvasSnapshot(): CanvasSnapshot {
       label: n.label,
       type: n.type,
       ...(n.aggregateId ? { aggregateId: n.aggregateId } : {}),
+      ...(n.boundTo ? { boundTo: n.boundTo } : {}),
       ...(n.description ? { description: n.description } : {}),
     },
   }));

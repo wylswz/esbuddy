@@ -11,4 +11,5 @@ export const nodeTypes = {
   external: StickyNode,
   hotspot: StickyNode,
   readmodel: StickyNode,
+  note: StickyNode,
 };

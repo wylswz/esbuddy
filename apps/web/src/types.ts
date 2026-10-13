@@ -1,13 +1,10 @@
 import type { ElementType } from '@esbuddy/sdk';
 
 export type { ElementType } from '@esbuddy/sdk';
+// Shared with the compiler, which needs the same sizes to detect overlaps.
+export { NOTE_DEFAULT_SIZE, ELEMENT_DEFAULT_SIZE } from '@esbuddy/sdk';
 
-export const NOTE_DEFAULT_SIZE = 180;
 export const NOTE_MIN_SIZE = 120;
-
-export const ELEMENT_DEFAULT_SIZE: Partial<Record<ElementType, { width: number; height: number }>> = {
-  actor: { width: 140, height: 100 },
-};
 
 export interface ElementData {
   label: string;
@@ -65,4 +62,5 @@ export const ELEMENT_STYLES: Record<ElementType, ElementStyle> = {
   external: elementStyle('external', 'X'),
   hotspot: elementStyle('hotspot', 'H'),
   readmodel: elementStyle('readmodel', 'R'),
+  note: elementStyle('note', 'N'),
 };
