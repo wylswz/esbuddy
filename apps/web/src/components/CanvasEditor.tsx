@@ -23,16 +23,23 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-import { ArrowLeft, Upload } from 'lucide-react';
+import { ArrowLeft, ScrollText, Upload } from 'lucide-react';
 
 import { nodeTypes } from './nodeTypes';
 import { Toolbar } from './Toolbar';
 import { HelpModal } from './HelpModal';
 import { VersionsDialog } from './VersionsDialog';
+import { CompilePanel } from './CompilePanel';
 import { PresenceBar } from './PresenceBar';
 import { RemoteCursors } from './RemoteCursors';
 import { createNode } from '../cmlImporter';
-import { CanvasActionsContext, DropTargetContext, RemoteSelectionContext } from '../CanvasContext';
+import {
+  CanvasActionsContext,
+  DiagnosticsContext,
+  DropTargetContext,
+  RemoteSelectionContext,
+  diagnosticColor,
+} from '../CanvasContext';
 import { useI18n } from '../i18n/context';
 import { useTouchMode } from '../useMediaQuery';
 import { useAwarenessPeers, userColor, type PeerUser } from '../collab/awareness';
@@ -51,10 +58,19 @@ import { loadViewport, saveViewport } from '../collab/viewport';
 import { isRemoteMode } from '../stores/mode';
 import * as storage from '../storage';
 import {
+  bindingTarget,
+  boundToOf,
+  canConnect,
+  compileCanvas,
+  isElementType,
+  nodeRect,
+  OVERLAP_RULES,
   docToSnapshot,
   getEdgesMap,
   getNodesMap,
   snapshotToDoc,
+  type Diagnostic,
+  type Severity,
   type CanvasRecord,
   type CanvasSnapshot,
   type Store,
@@ -67,10 +83,24 @@ const AGGREGATE_PADDING = 40;
 /*
  * Modifier key scheme (one concern per modifier, no overlap):
  *   Shift            — break containment: drag a child out of its aggregate to remove it.
- *   Alt / ⌥ Option   — create a relation: select a node, then click another to connect them.
+ *   Alt / ⌥ Option   — relations: click a node to connect the selection to it;
+ *                      drag a bound note off its target to unbind it.
  *   Cmd/Ctrl (⌘)     — multi-select (React Flow default).
  */
-const REMOVE_MODIFIER_KEY: 'Shift' | 'Alt' | 'Control' | 'Meta' = 'Shift';
+type ModifierKey = 'Shift' | 'Alt' | 'Control' | 'Meta';
+const REMOVE_MODIFIER_KEY: ModifierKey = 'Shift';
+const UNBIND_MODIFIER_KEY: ModifierKey = 'Alt';
+
+/*
+ * Binding invariants (a note stuck onto another — see grammar.ts):
+ *   - Dropping an attacher (actor, read model, hot spot) onto exactly one note it can
+ *     attach to binds it (`data.boundTo`); several candidates bind nothing.
+ *   - A bound pair is a group: moving the target moves its attachers (followDependents).
+ *   - A bound note can't be dragged off its target (keepBoundNotesAttached); hold
+ *     ⌥ Option to drag it free, which unbinds it on drop.
+ *   - Deleting the target unbinds its attachers (handleNodeRemovals).
+ */
+const MIN_BIND_OVERLAP = 24;
 
 /*
  * Touch scheme (phones / tablets, detected via `pointer: coarse`):
@@ -145,31 +175,79 @@ function fitAggregateToChildren(nds: Node[], aggId: string): Node[] {
   );
 }
 
-// While an aggregate is being dragged, move its children by the same delta.
-function followAggregateChildren(prevNodes: Node[], nextNodes: Node[], changes: NodeChange[]): Node[] {
-  const movedIds = new Set<string>();
-  const aggregateDeltas = new Map<string, { dx: number; dy: number }>();
+function draggingIdsOf(changes: NodeChange[]): Set<string> {
+  const ids = new Set<string>();
+  for (const c of changes) if (c.type === 'position' && c.dragging) ids.add(c.id);
+  return ids;
+}
 
-  for (const change of changes) {
-    if (change.type !== 'position' || !change.dragging || !change.position) continue;
-    movedIds.add(change.id);
-    const prev = prevNodes.find((n) => n.id === change.id);
-    if (prev?.type === 'aggregate') {
-      aggregateDeltas.set(change.id, {
-        dx: change.position.x - prev.position.x,
-        dy: change.position.y - prev.position.y,
-      });
-    }
-  }
+// The node a note moves with: the note it is bound to, else its aggregate.
+function parentOf(n: Node | undefined): string | null {
+  if (!n) return null;
+  return boundToOf(n) ?? ((n.data?.aggregateId as string | undefined) || null);
+}
 
-  if (aggregateDeltas.size === 0) return nextNodes;
+// While a node is dragged, everything hanging from it moves by the same delta:
+// an aggregate's members, a note's bound attachers, and theirs in turn.
+function followDependents(prevNodes: Node[], nextNodes: Node[], changes: NodeChange[]): Node[] {
+  const movedIds = draggingIdsOf(changes);
+  if (movedIds.size === 0) return nextNodes;
+
+  const prevById = new Map(prevNodes.map((n) => [n.id, n]));
+  const nextById = new Map(nextNodes.map((n) => [n.id, n]));
+  const deltas = new Map<string, { dx: number; dy: number }>();
+  movedIds.forEach((id) => {
+    const p = prevById.get(id);
+    const n = nextById.get(id);
+    if (p && n) deltas.set(id, { dx: n.position.x - p.position.x, dy: n.position.y - p.position.y });
+  });
+
+  const deltaOf = (id: string, depth = 0): { dx: number; dy: number } | undefined => {
+    if (deltas.has(id)) return deltas.get(id);
+    const parent = depth < 8 ? parentOf(nextById.get(id)) : null;
+    const d = parent ? deltaOf(parent, depth + 1) : undefined;
+    if (d) deltas.set(id, d);
+    return d;
+  };
 
   return nextNodes.map((n) => {
-    if (!n.data?.aggregateId || movedIds.has(n.id)) return n;
-    const delta = aggregateDeltas.get(n.data.aggregateId as string);
-    if (!delta) return n;
-    return { ...n, position: { x: n.position.x + delta.dx, y: n.position.y + delta.dy } };
+    if (movedIds.has(n.id)) return n;
+    const d = deltaOf(n.id);
+    return d && (d.dx || d.dy) ? { ...n, position: { x: n.position.x + d.dx, y: n.position.y + d.dy } } : n;
   });
+}
+
+// A dragged bound note stays stuck on its target (unless the unbind modifier is held).
+function keepBoundNotesAttached(nextNodes: Node[], changes: NodeChange[], constrain: boolean): Node[] {
+  const dragging = draggingIdsOf(changes);
+  if (!constrain || dragging.size === 0) return nextNodes;
+  const byId = new Map(nextNodes.map((n) => [n.id, n]));
+  const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
+  return nextNodes.map((n) => {
+    const parentId = dragging.has(n.id) ? boundToOf(n) : null;
+    const parent = parentId && !dragging.has(parentId) ? byId.get(parentId) : undefined;
+    if (!parent) return n;
+    const r = nodeRect(n);
+    const p = nodeRect(parent);
+    const m = Math.min(MIN_BIND_OVERLAP, r.w / 2, r.h / 2, p.w / 2, p.h / 2);
+    const x = clamp(r.x, p.x - r.w + m, p.x + p.w - m);
+    const y = clamp(r.y, p.y - r.h + m, p.y + p.h - m);
+    return x === r.x && y === r.y ? n : { ...n, position: { x, y } };
+  });
+}
+
+// Set (or clear) a note's binding; a newly bound note is raised above its target.
+// Add a note; one created right on top of a note it can attach to is bound to it.
+function addNoteBound(nds: Node[], node: Node): Node[] {
+  const target = bindingTarget(node, nds);
+  return [...nds, target ? { ...node, data: { ...node.data, boundTo: target } } : node];
+}
+
+function setBinding(nds: Node[], id: string, target: string | null): Node[] {
+  const node = nds.find((n) => n.id === id);
+  if (!node || boundToOf(node) === target) return nds;
+  const updated = { ...node, data: { ...node.data, boundTo: target } };
+  return target ? [...nds.filter((n) => n.id !== id), updated] : nds.map((n) => (n.id === id ? updated : n));
 }
 
 /*
@@ -182,20 +260,33 @@ function followAggregateChildren(prevNodes: Node[], nextNodes: Node[], changes: 
  *    To break out, hold Shift while dragging (removes the child instead).
  *
  * 2. No nesting — an aggregate can never contain another aggregate. Enforced by
- *    skipping aggregates in drop-to-join and only grouping events/commands.
+ *    only letting events/commands join (drop-to-join and grouping alike); the
+ *    compiler rejects any other member (`invalid-membership`).
  *
  * 3. Single parent — an element belongs to at most one aggregate (single aggregateId).
  *
  * 4. No orphans — an aggregate left with zero children is removed (removeEmptyAggregates).
  */
 
-function isRemoveModifierHeld(e: {
-  shiftKey: boolean;
-  altKey: boolean;
-  ctrlKey: boolean;
-  metaKey: boolean;
-}): boolean {
-  switch (REMOVE_MODIFIER_KEY) {
+function canJoinAggregate(n: Node): boolean {
+  return n.type === 'event' || n.type === 'command';
+}
+
+// Notes that bind by being stuck onto another note (actor, read model, hot spot).
+function isAttacher(n: Node): boolean {
+  return !!n.type && isElementType(n.type) && !!OVERLAP_RULES[n.type];
+}
+
+function isModifierHeld(
+  e: {
+    shiftKey: boolean;
+    altKey: boolean;
+    ctrlKey: boolean;
+    metaKey: boolean;
+  },
+  key: ModifierKey,
+): boolean {
+  switch (key) {
     case 'Alt':
       return e.altKey;
     case 'Control':
@@ -299,7 +390,11 @@ function handleNodeRemovals(prevNodes: Node[], nextNodes: Node[], changes: NodeC
   }
   if (removedIds.size === 0) return nextNodes;
 
-  let result = nextNodes;
+  // Deleting a note unbinds whatever was stuck onto it.
+  let result = nextNodes.map((n) => {
+    const b = boundToOf(n);
+    return b && removedIds.has(b) ? { ...n, data: { ...n.data, boundTo: null } } : n;
+  });
   const affectedAggIds = new Set<string>();
 
   removedIds.forEach((id) => {
@@ -409,6 +504,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
   const [edges, setEdges] = useState<Edge[]>(() => edgesFromDoc(doc, []));
   const [showHelp, setShowHelp] = useState(false);
   const [showVersions, setShowVersions] = useState(false);
+  const [showCompile, setShowCompile] = useState(false);
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>(provider.status);
@@ -593,17 +689,18 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
     return () => window.removeEventListener('mousemove', onMove);
   }, []);
 
-  const removeKeyRef = useRef(false);
+  // Modifier keys currently held (drag changes carry no key state).
+  const heldKeysRef = useRef(new Set<string>());
   useEffect(() => {
-    const isRemoveKey = (e: KeyboardEvent) => e.key === REMOVE_MODIFIER_KEY;
+    const held = heldKeysRef.current;
     const onDown = (e: KeyboardEvent) => {
-      if (isRemoveKey(e)) removeKeyRef.current = true;
+      held.add(e.key);
     };
     const onUp = (e: KeyboardEvent) => {
-      if (isRemoveKey(e)) removeKeyRef.current = false;
+      held.delete(e.key);
     };
     const onBlur = () => {
-      removeKeyRef.current = false;
+      held.clear();
     };
     window.addEventListener('keydown', onDown);
     window.addEventListener('keyup', onUp);
@@ -645,9 +742,11 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
     if (shouldCommit) commit();
 
     updateNodes((nds) => {
+      const held = heldKeysRef.current;
       const applied = applyNodeChanges(changes, nds);
-      const followed = followAggregateChildren(nds, applied, changes);
-      const grown = growAggregatesForDraggedChildren(followed, changes, !removeKeyRef.current);
+      const attached = keepBoundNotesAttached(applied, changes, !held.has(UNBIND_MODIFIER_KEY));
+      const followed = followDependents(nds, attached, changes);
+      const grown = growAggregatesForDraggedChildren(followed, changes, !held.has(REMOVE_MODIFIER_KEY));
       return handleNodeRemovals(nds, grown, changes);
     });
   }, [commit, updateNodes]);
@@ -660,19 +759,31 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
     [commit, updateEdges],
   );
 
+  // Only edges the Event Storming grammar gives a meaning to can be drawn.
+  const isValidConnection = useCallback((conn: Connection) => {
+    if (!conn.source || !conn.target || conn.source === conn.target) return false;
+    const s = nodesRef.current.find((n) => n.id === conn.source);
+    const t = nodesRef.current.find((n) => n.id === conn.target);
+    return !!s?.type && !!t?.type && canConnect(s.type, t.type);
+  }, []);
+
   const onConnect = useCallback(
     (conn: Connection) => {
+      if (!isValidConnection(conn)) return;
       commit();
       updateEdges((eds) => addEdge({ ...conn, markerEnd: { type: MarkerType.ArrowClosed } }, eds));
     },
-    [commit, updateEdges],
+    [commit, updateEdges, isValidConnection],
   );
 
   // Hold Alt and click a node to connect the previously selected node(s) to it.
+  // Sources the grammar can't connect to this node are skipped.
   const onNodeClick = useCallback<NodeMouseHandler>(
     (event, node) => {
       if (!event.altKey) return;
-      const sources = prevSelectionRef.current.filter((id) => id !== node.id);
+      const sources = prevSelectionRef.current.filter((id) =>
+        isValidConnection({ source: id, target: node.id, sourceHandle: null, targetHandle: null }),
+      );
       if (sources.length === 0) return;
 
       const willAdd = sources.some(
@@ -700,7 +811,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
         return next;
       });
     },
-    [commit, updateEdges],
+    [commit, updateEdges, isValidConnection],
   );
 
   const onSelectionChange = useCallback(
@@ -749,7 +860,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
         y: (mouseRef.current.y - (rect?.top ?? 0) - vp.y) / vp.zoom,
       };
       commit();
-      updateNodes((nds) => [...nds, createNode(type, pos, t(`elements.${type}.newLabel`))]);
+      updateNodes((nds) => addNoteBound(nds, createNode(type, pos, t(`elements.${type}.newLabel`)) as Node));
     },
     [commit, t, updateNodes],
   );
@@ -763,7 +874,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
         y: ((rect?.height ?? 600) / 2 - vp.y) / vp.zoom,
       };
       commit();
-      updateNodes((nds) => [...nds, createNode(type, pos, t(`elements.${type}.newLabel`))]);
+      updateNodes((nds) => addNoteBound(nds, createNode(type, pos, t(`elements.${type}.newLabel`)) as Node));
     },
     [commit, t, updateNodes],
   );
@@ -889,9 +1000,16 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
   }, [selectedNodeIds, nodes, t, commit, updateNodes]);
 
   const onNodeDrag = useCallback<NodeDragHandler>(
-    (_event, node) => {
-      // Only free elements can become a new child — highlight the aggregate under them.
-      if (node.type === 'aggregate' || node.data?.aggregateId) {
+    (event, node) => {
+      // A free (or being-unbound) attacher: highlight the note it would bind to on drop.
+      if (isAttacher(node)) {
+        const free = !boundToOf(node) || isModifierHeld(event, UNBIND_MODIFIER_KEY);
+        setDropTargetId(free ? bindingTarget(node, nodesRef.current) : null);
+        return;
+      }
+
+      // Only free events/commands can become a new child — highlight the aggregate under them.
+      if (!canJoinAggregate(node) || node.data?.aggregateId) {
         setDropTargetId(null);
         return;
       }
@@ -927,7 +1045,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
       const oldAggId = (dragged.data?.aggregateId as string) ?? null;
 
       // Removal: hold Shift and drag a child out of its aggregate.
-      if (oldAggId && isRemoveModifierHeld(event)) {
+      if (oldAggId && isModifierHeld(event, REMOVE_MODIFIER_KEY)) {
         const agg = nodes.find((n) => n.id === oldAggId);
         if (agg && isNodeCenterOutside(dragged, agg)) {
           updateNodes((nds) => {
@@ -940,12 +1058,23 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
         return;
       }
 
-      // Drop-to-join (never nest aggregates).
+      // Binding: a bound note stays bound unless dragged with ⌥ Option; a free (or
+      // just unbound) one binds to the single note it was dropped onto, if any.
+      if (isAttacher(dragged)) {
+        if (boundToOf(dragged) && !isModifierHeld(event, UNBIND_MODIFIER_KEY)) return;
+        updateNodes((nds) => {
+          const cur = nds.find((n) => n.id === node.id);
+          return cur ? setBinding(nds, cur.id, bindingTarget(cur, nds)) : nds;
+        });
+        return;
+      }
+
+      // Drop-to-join (never nest aggregates; only events/commands are members).
       const w = dragged.width ?? 180;
       const h = dragged.height ?? 84;
       const rect = { x: dragged.position.x, y: dragged.position.y, w, h };
 
-      const target = nodes.find((n) => {
+      const target = canJoinAggregate(dragged) && nodes.find((n) => {
         if (n.type !== 'aggregate' || n.id === oldAggId) return false;
         const aw = (n.width ?? (n.style?.width as number | undefined) ?? 0);
         const ah = (n.height ?? (n.style?.height as number | undefined) ?? 0);
@@ -1127,6 +1256,61 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
     [commit, doc],
   );
 
+  // ---- Compile to natural language. Re-analysed live while the panel is open,
+  // so problems disappear as the user fixes them.
+  const compileInput = useMemo(
+    () => (showCompile ? { nodes: nodes.map(fromFlowNode), edges: edges.map(fromFlowEdge) } : null),
+    [showCompile, nodes, edges],
+  );
+  const compiled = useMemo(
+    () => (compileInput ? compileCanvas(compileInput, { title: name }) : null),
+    [compileInput, name],
+  );
+  const compileNodesById = useMemo(
+    () => new Map((compileInput?.nodes ?? []).map((n) => [n.id, n])),
+    [compileInput],
+  );
+  const nodeDiagnostics = useMemo(() => {
+    const map = new Map<string, Severity>();
+    for (const d of compiled?.diagnostics ?? []) {
+      for (const id of d.nodeIds) if (map.get(id) !== 'error') map.set(id, d.severity);
+    }
+    return map;
+  }, [compiled]);
+  // Render-only edge styling: never written to the doc (the binding ignores style).
+  const renderedEdges = useMemo(() => {
+    const worst = new Map<string, Severity>();
+    for (const d of compiled?.diagnostics ?? []) {
+      for (const id of d.edgeIds) if (worst.get(id) !== 'error') worst.set(id, d.severity);
+    }
+    if (worst.size === 0) return edges;
+    return edges.map((e) => {
+      const color = diagnosticColor(worst.get(e.id));
+      return color ? { ...e, style: { ...e.style, stroke: color, strokeWidth: 2.5 } } : e;
+    });
+  }, [edges, compiled]);
+
+  const focusDiagnostic = useCallback(
+    (d: Diagnostic) => {
+      const nodeIds = new Set(d.nodeIds);
+      const edgeIds = new Set(d.edgeIds);
+      onNodesChange(
+        nodesRef.current
+          .filter((n) => !!n.selected !== nodeIds.has(n.id))
+          .map((n) => ({ type: 'select' as const, id: n.id, selected: nodeIds.has(n.id) })),
+      );
+      onEdgesChange(
+        edgesRef.current
+          .filter((e) => !!e.selected !== edgeIds.has(e.id))
+          .map((e) => ({ type: 'select' as const, id: e.id, selected: edgeIds.has(e.id) })),
+      );
+      if (nodeIds.size > 0) {
+        rfInstanceRef.current?.fitView({ nodes: [...nodeIds].map((id) => ({ id })), padding: 0.6, duration: 300, maxZoom: 1.2 });
+      }
+    },
+    [onNodesChange, onEdgesChange],
+  );
+
   const canGroup = useMemo(
     () =>
       selectedNodeIds.length >= 2 &&
@@ -1146,6 +1330,15 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
     >
       <div className="safe-top absolute right-4 z-20 flex items-center gap-2">
         <PresenceBar me={me} peers={peers} status={status} />
+        <button
+          onClick={() => setShowCompile((v) => !v)}
+          aria-pressed={showCompile}
+          className={`editor-chip flex items-center gap-1.5 h-9 px-3 text-sm font-semibold hover:bg-ink hover:text-paper hover:border-ink${showCompile ? ' bg-ink text-paper border-ink' : ''}`}
+          title={t('compile.title')}
+        >
+          <ScrollText size={16} />
+          <span>{t('compile.open')}</span>
+        </button>
         {isRemoteMode() && (
           <button
             onClick={() => setShowVersions(true)}
@@ -1197,6 +1390,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
       <CanvasActionsContext.Provider value={actions}>
         <DropTargetContext.Provider value={dropTargetId}>
         <RemoteSelectionContext.Provider value={remoteSelection}>
+        <DiagnosticsContext.Provider value={nodeDiagnostics}>
           <Toolbar
             onAddElement={addElement}
             onGroupAggregate={groupAsAggregate}
@@ -1213,11 +1407,12 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
 
           <ReactFlow
             nodes={nodes}
-            edges={edges}
+            edges={renderedEdges}
             nodeTypes={nodeTypes}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            isValidConnection={isValidConnection}
             onNodeClick={onNodeClick}
             onSelectionChange={onSelectionChange}
             onNodeDrag={onNodeDrag}
@@ -1247,10 +1442,20 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
             )}
             <RemoteCursors peers={peers} />
           </ReactFlow>
+        </DiagnosticsContext.Provider>
         </RemoteSelectionContext.Provider>
         </DropTargetContext.Provider>
       </CanvasActionsContext.Provider>
 
+      {compiled && (
+        <CompilePanel
+          result={compiled}
+          nodes={compileNodesById}
+          fileName={name}
+          onFocus={focusDiagnostic}
+          onClose={() => setShowCompile(false)}
+        />
+      )}
       <HelpModal open={showHelp} onClose={() => setShowHelp(false)} />
       {isRemoteMode() && (
         <VersionsDialog

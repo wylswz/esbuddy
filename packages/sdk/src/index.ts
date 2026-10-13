@@ -3,3 +3,5 @@ export * from './store.js';
 export * from './client.js';
 export * from './exampleCanvas.js';
 export * from './ydoc.js';
+export * from './grammar.js';
+export * from './compiler.js';

@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react';
+import type { Severity } from '@esbuddy/sdk';
 import type { PeerUser } from './collab/awareness';
 
 export interface CanvasActions {
@@ -13,7 +14,8 @@ export const CanvasActionsContext = createContext<CanvasActions>({
   updateNodeDescription: () => {},
 });
 
-// Id of the aggregate currently being hovered as a drop target (or null).
+// Id of the node a drag would attach to on drop (or null): the aggregate an
+// event/command would join, or the note an attacher would bind to.
 export const DropTargetContext = createContext<string | null>(null);
 
 export function useCanvasActions(): CanvasActions {
@@ -30,4 +32,16 @@ export const RemoteSelectionContext = createContext<ReadonlyMap<string, PeerUser
 
 export function useRemoteSelection(nodeId: string): PeerUser[] {
   return useContext(RemoteSelectionContext).get(nodeId) ?? NO_PEERS;
+}
+
+// nodeId -> worst compiler diagnostic on that node, while the compile panel is open.
+export const DiagnosticsContext = createContext<ReadonlyMap<string, Severity>>(new Map());
+
+export function useNodeDiagnostic(nodeId: string): Severity | undefined {
+  return useContext(DiagnosticsContext).get(nodeId);
+}
+
+/** Outline colour for a note carrying a diagnostic. */
+export function diagnosticColor(severity: Severity | undefined): string | undefined {
+  return severity === 'error' ? 'var(--color-danger)' : severity === 'warning' ? 'var(--color-warning)' : undefined;
 }

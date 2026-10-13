@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { EDGE_RULES, OVERLAP_RULES, type OverlapRule, type Relation } from '@esbuddy/sdk';
 import { ELEMENT_STYLES, type ElementType } from '../types';
 import { useI18n } from '../i18n/context';
 import { SectionLabel } from './PageChrome';
@@ -21,8 +22,14 @@ function Kbd({ children }: { children: ReactNode }) {
   );
 }
 
+const GRAMMAR_EDGES = (Object.entries(EDGE_RULES) as [ElementType, Partial<Record<ElementType, Relation>>][]).flatMap(
+  ([s, targets]) => (Object.entries(targets) as [ElementType, Relation][]).map(([tgt, rel]) => [s, tgt, rel] as const),
+);
+const GRAMMAR_OVERLAPS = Object.entries(OVERLAP_RULES) as [ElementType, OverlapRule][];
+
 export function HelpModal({ open, onClose }: HelpModalProps) {
   const { t } = useI18n();
+  const name = (type: ElementType) => t(`elements.${type}.label`);
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -48,6 +55,38 @@ export function HelpModal({ open, onClose }: HelpModalProps) {
             </div>
           </section>
 
+          {/* Grammar: rendered from the same rules the editor and compiler enforce */}
+          <section>
+            <SectionLabel className="mb-1">{t('help.grammarTitle')}</SectionLabel>
+            <p className="mb-3 text-sm text-fg-muted">{t('help.grammarIntro')}</p>
+            <div className="grid sm:grid-cols-2 gap-6 text-sm">
+              <div>
+                <div className="font-semibold text-ink mb-1.5">{t('help.grammarEdges')}</div>
+                <ul className="space-y-1 text-fg-muted">
+                  {GRAMMAR_EDGES.map(([s, tgt, rel]) => (
+                    <li key={`${s}-${tgt}`}>
+                      {name(s)} → {name(tgt)} <span className="text-fg-subtle">· {t(`help.relations.${rel}`)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <div className="font-semibold text-ink mb-1.5">{t('help.grammarOverlaps')}</div>
+                <ul className="space-y-1 text-fg-muted">
+                  {GRAMMAR_OVERLAPS.map(([att, rule]) => (
+                    <li key={att}>
+                      {t('help.stuckOn', {
+                        a: name(att),
+                        b: rule.targets.length > 2 ? t('help.anyNote') : rule.targets.map(name).join(' / '),
+                      })}{' '}
+                      <span className="text-fg-subtle">· {t(`help.relations.${rule.relation}`)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </section>
+
           {/* Shortcuts */}
           <section>
             <SectionLabel className="mb-3">{t('help.shortcuts')}</SectionLabel>
@@ -60,6 +99,7 @@ export function HelpModal({ open, onClose }: HelpModalProps) {
               ))}
               <div>{t('help.shiftDragOut')}</div>
               <div>{t('help.optionClick')}</div>
+              <div>{t('help.optionDragOff')}</div>
               <div>{t('help.zOrder')}</div>
               <div>{t('help.multiSelectShortcut')}</div>
               <div>{t('help.doubleClick')}</div>

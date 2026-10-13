@@ -93,6 +93,24 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm build
     the link) while `is_public` is on — private ones 404 like missing ones. The
     snapshot is sent by the publishing client (the DB lags the live room).
     Management routes live under `/api/canvases/:id/versions`. Backend modes only.
+- **Canvas grammar + natural-language compiler** (`packages/sdk/src/grammar.ts`,
+  `compiler.ts`). `grammar.ts` is the single source of truth for which relations
+  Event Storming allows: `EDGE_RULES` (legal `source → target` edges) and
+  `OVERLAP_RULES` (notes stuck onto another note — actor on command, read model
+  on command, hot spot on anything). An edge and a binding spell the same
+  relation. Bindings are explicit like `aggregateId`: `data.boundTo` is set when
+  an attacher is dropped onto exactly one valid note (`bindingTarget`); the pair
+  then moves as a group and ⌥ Option + drag-off unbinds (see "Binding
+  invariants" in `CanvasEditor.tsx`). The compiler reads `boundTo`, never
+  geometry; overlaps outside a group are errors. The editor enforces edges
+  (`isValidConnection`, per-type handles). `analyzeCanvas` resolves both into relations and
+  reports diagnostics (errors = illegal/ambiguous/incomplete, warnings = likely
+  gaps); `compileCanvas` refuses to compile while errors remain, else renders
+  English, each relation stated once. No fuzzy guessing — anything the grammar
+  can't read is an error for the user to fix. UI: `CompilePanel.tsx`. Tests:
+  `apps/server/test/unit/compiler.test.ts` (the example board must compile with
+  zero diagnostics). Aggregate membership stays explicit (`aggregateId`, events
+  and commands only), never geometric.
   - DB: `canvases.ydoc` (base64 Yjs state) is the source of truth;
     `canvases.snapshot` is a materialised view rewritten on flush. Canvases that
     only have a snapshot are converted on first room open.

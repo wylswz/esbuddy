@@ -28,7 +28,7 @@ docker compose --env-file apps/server/.env.example up --build
 ## Notes & Aggregates
 
 - Each element is a square sticky note with a **title** and optional **memo** (double-click to edit), resizable via corner handles, with adjustable z-order.
-- Select 2+ Events/Commands and click **Group as Aggregate** to draw a boundary box. It always covers its children (drag a child out to grow it, or hold `Shift` to remove it), moves them along with it, and accepts free elements dropped onto it.
+- Select 2+ Events/Commands and click **Group as Aggregate** to draw a boundary box. It always covers its children (drag a child out to grow it, or hold `Shift` to remove it), moves them along with it, and accepts free Events/Commands dropped onto it.
 - **Invariants**: a child never leaves its aggregate · aggregates can't nest · an element belongs to at most one aggregate · empty aggregates are removed.
 
 ## Keyboard Shortcuts
@@ -38,16 +38,41 @@ docker compose --env-file apps/server/.env.example up --build
 | `E` `C` `A` `P` `X` `H` `R` | Add an Event / Command / Actor / Policy / External System / Hot Spot / Read Model at the cursor |
 | `Shift` + drag out | Remove a child from its aggregate |
 | `⌥ Option` / `Alt` + click | Connect the selected node(s) to the clicked node |
+| `⌥ Option` / `Alt` + drag a stuck note off | Unbind it from the note it is stuck on |
 | `[` / `]` | Send to back / bring to front |
 | `⌘`/`Ctrl` + `Z`, `⌘`/`Ctrl` + `⇧Z` (or `Ctrl`+`Y`) | Undo / Redo |
 | `⌘`/`Ctrl` + click | Multi-select |
 | double-click | Edit a note's title or memo |
 
-One concern per modifier: **Shift** removes from an aggregate · **⌥/Alt** connects nodes · **⌘/Ctrl** multi-selects.
+One concern per modifier: **Shift** removes from an aggregate · **⌥/Alt** connects / unbinds nodes · **⌘/Ctrl** multi-selects.
 
 ## Canvas
 
 Infinite canvas with zoom, pan, and MiniMap. Pan with two-finger scroll, middle/right drag, or `Space` + drag; box-select by dragging empty canvas; connect by dragging a handle or `⌥`-clicking. Nodes, edges, and viewport auto-save and restore on refresh.
+
+## Grammar & Compile to Text
+
+Only relations Event Storming gives a meaning to are accepted, so a board can be compiled into plain English. A relation is written either by connecting notes or by sticking one note onto another — both mean the same.
+
+| Connect | Meaning |
+|---|---|
+| Command → Event | produces |
+| Event → Policy | triggers |
+| Policy → Command, Actor → Command | issues |
+| Event → Read Model | updates |
+| Read Model → Command | supports (the data the decision is based on) |
+| Command → External System | invokes |
+| External System → Event | emits |
+
+| Stick onto | Meaning |
+|---|---|
+| Actor on a Command | the actor issues it |
+| Read Model on a Command | it supports that decision (an arrow *into* a read model is what updates it) |
+| Hot Spot on any note (or bare aggregate space) | a question about it |
+
+Sticking is a **binding**, like aggregate membership: drop an Actor / Read Model / Hot Spot onto exactly one note it can attach to (it lights up while dragging) and the two become a group — moving the note moves what is stuck on it, and the stuck note can't be dragged off. Hold `⌥ Option` and drag it off to unbind. Dropped over several candidates, nothing is bound — the editor never guesses.
+
+Any other edge can't be drawn. Overlaps are free while brainstorming, but **Compile** flags anything the grammar can't read without guessing (meaningless overlaps, overlaps that were never bound, unnamed notes, policies missing a trigger or a command…). Click a problem to jump to it; once there are no errors, copy or download the text as Markdown. Warnings (e.g. a command producing no event) never block compiling. Only Events and Commands can belong to an aggregate.
 
 ## Import / Export
 

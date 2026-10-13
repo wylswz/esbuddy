@@ -1,12 +1,14 @@
 import { memo, useCallback, useState } from 'react';
 import {
+  Handle,
   NodeResizeControl,
+  Position,
   useStoreApi,
   type NodeProps,
   type ShouldResize,
 } from 'reactflow';
 import { ELEMENT_STYLES } from '../types';
-import { useCanvasActions, useDropTarget, useRemoteSelection } from '../CanvasContext';
+import { diagnosticColor, useCanvasActions, useDropTarget, useNodeDiagnostic, useRemoteSelection } from '../CanvasContext';
 import { useI18n } from '../i18n/context';
 import { ColorDot } from './ColorDot';
 
@@ -17,6 +19,7 @@ interface AggregateNodeData {
 }
 
 const CORNERS = ['top-left', 'top-right', 'bottom-left', 'bottom-right'] as const;
+const HIDDEN_HANDLE = { opacity: 0, pointerEvents: 'none' } as const;
 
 function AggregateNodeComponent({ id, data, selected }: NodeProps<AggregateNodeData>) {
   const store = useStoreApi();
@@ -28,6 +31,7 @@ function AggregateNodeComponent({ id, data, selected }: NodeProps<AggregateNodeD
   const style = ELEMENT_STYLES.aggregate;
   const remotePeers = useRemoteSelection(id);
   const remoteColor = remotePeers[0]?.color;
+  const diagColor = diagnosticColor(useNodeDiagnostic(id));
 
   const focusAndSelect = useCallback((el: HTMLInputElement | null) => {
     if (el) {
@@ -68,6 +72,9 @@ function AggregateNodeComponent({ id, data, selected }: NodeProps<AggregateNodeD
 
   return (
     <div className="relative w-full h-full min-w-[200px] min-h-[120px]">
+      {/* Aggregates take no edges; hidden handles only let legacy edges render so they can be deleted. */}
+      <Handle type="target" position={Position.Left} isConnectable={false} style={HIDDEN_HANDLE} />
+      <Handle type="source" position={Position.Right} isConnectable={false} style={HIDDEN_HANDLE} />
       {selected &&
         CORNERS.map((position) => (
           <NodeResizeControl
@@ -98,9 +105,11 @@ function AggregateNodeComponent({ id, data, selected }: NodeProps<AggregateNodeD
               : 'rgba(16, 185, 129, 0.08)',
           border: isDropTarget
             ? `2px solid ${style.color}`
-            : remoteColor
-              ? `2px solid ${remoteColor}`
-              : `2px dashed ${style.borderColor}`,
+            : diagColor
+              ? `2px solid ${diagColor}`
+              : remoteColor
+                ? `2px solid ${remoteColor}`
+                : `2px dashed ${style.borderColor}`,
           borderRadius: '12px',
           boxShadow: isDropTarget ? '0 0 0 3px rgba(16, 185, 129, 0.25), 0 0 20px rgba(16, 185, 129, 0.35)' : undefined,
         }}

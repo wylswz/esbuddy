@@ -1,7 +1,14 @@
 import { memo, useCallback, useState } from 'react';
 import { Handle, Position, NodeResizeControl, type NodeProps } from 'reactflow';
+import { hasIncomingEdges, hasOutgoingEdges } from '@esbuddy/sdk';
 import { ELEMENT_STYLES, NOTE_MIN_SIZE, type ElementType } from '../types';
-import { useCanvasActions, useRemoteSelection } from '../CanvasContext';
+import {
+  diagnosticColor,
+  useCanvasActions,
+  useDropTarget,
+  useNodeDiagnostic,
+  useRemoteSelection,
+} from '../CanvasContext';
 import { useI18n } from '../i18n/context';
 import { ColorDot } from './ColorDot';
 
@@ -15,8 +22,9 @@ interface StickyNodeData {
 type EditField = 'title' | 'memo';
 
 const CORNERS = ['top-left', 'top-right', 'bottom-left', 'bottom-right'] as const;
+const HIDDEN_HANDLE = { opacity: 0, pointerEvents: 'none' } as const;
 
-function StickyNodeComponent({ id, data, selected, dragging }: NodeProps<StickyNodeData>) {
+function StickyNodeComponent({ id, type, data, selected, dragging }: NodeProps<StickyNodeData>) {
   const style = ELEMENT_STYLES[data.type];
   const { updateNodeLabel, updateNodeDescription, readOnly } = useCanvasActions();
   const { t } = useI18n();
@@ -25,6 +33,11 @@ function StickyNodeComponent({ id, data, selected, dragging }: NodeProps<StickyN
   // Peers who have this note selected: outline it in their colour.
   const remotePeers = useRemoteSelection(id);
   const remoteRing = remotePeers.length > 0 ? `0 0 0 2.5px ${remotePeers[0].color}` : null;
+  // Compiler diagnostic on this note: a ring outside the peer ring, if any.
+  const diagColor = diagnosticColor(useNodeDiagnostic(id));
+  const diagRing = diagColor ? `0 0 0 ${remoteRing ? 5.5 : 3}px ${diagColor}` : null;
+  // The note a dragged attacher would bind to on drop.
+  const bindRing = useDropTarget() === id ? '0 0 0 3px var(--color-accent), 0 0 18px var(--color-accent)' : null;
 
   const focusAndSelect = useCallback((el: HTMLInputElement | HTMLTextAreaElement | null) => {
     if (el) {
@@ -38,8 +51,23 @@ function StickyNodeComponent({ id, data, selected, dragging }: NodeProps<StickyN
       className="relative w-full h-full"
       style={{ minWidth: NOTE_MIN_SIZE, minHeight: NOTE_MIN_SIZE }}
     >
-      <Handle type="target" position={Position.Left} style={{ background: style.color }} />
-      <Handle type="source" position={Position.Right} style={{ background: style.color }} />
+      {/*
+        Only the ends the grammar allows are usable (an actor only starts edges, a hot
+        spot has none). Disallowed handles stay mounted, hidden, so legacy illegal
+        edges still render and can be found and deleted.
+      */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        isConnectable={hasIncomingEdges(type)}
+        style={hasIncomingEdges(type) ? { background: style.color } : HIDDEN_HANDLE}
+      />
+      <Handle
+        type="source"
+        position={Position.Right}
+        isConnectable={hasOutgoingEdges(type)}
+        style={hasOutgoingEdges(type) ? { background: style.color } : HIDDEN_HANDLE}
+      />
 
       {selected &&
         CORNERS.map((position) => (
@@ -68,7 +96,9 @@ function StickyNodeComponent({ id, data, selected, dragging }: NodeProps<StickyN
           backgroundColor: style.bgColor,
           borderRadius: '2px',
           boxShadow: [
+            bindRing,
             remoteRing,
+            diagRing,
             lifted
               ? '0 2px 4px rgba(0, 0, 0, 0.14), 0 7px 16px rgba(0, 0, 0, 0.16), 0 18px 36px rgba(0, 0, 0, 0.18)'
               : '0 1px 2px rgba(0, 0, 0, 0.08), 0 4px 9px rgba(0, 0, 0, 0.10), 0 10px 22px rgba(0, 0, 0, 0.12)',
