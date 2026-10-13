@@ -61,9 +61,10 @@ import {
   bindingTarget,
   boundToOf,
   canConnect,
+  canvasToYaml,
   compileCanvas,
   isElementType,
-  nodeRect,
+  nextBinding,
   OVERLAP_RULES,
   docToSnapshot,
   getEdgesMap,
@@ -83,24 +84,22 @@ const AGGREGATE_PADDING = 40;
 /*
  * Modifier key scheme (one concern per modifier, no overlap):
  *   Shift            — break containment: drag a child out of its aggregate to remove it.
- *   Alt / ⌥ Option   — relations: click a node to connect the selection to it;
- *                      drag a bound note off its target to unbind it.
+ *   Alt / ⌥ Option   — create a relation: select a node, then click another to connect them.
  *   Cmd/Ctrl (⌘)     — multi-select (React Flow default).
  */
 type ModifierKey = 'Shift' | 'Alt' | 'Control' | 'Meta';
 const REMOVE_MODIFIER_KEY: ModifierKey = 'Shift';
-const UNBIND_MODIFIER_KEY: ModifierKey = 'Alt';
 
 /*
  * Binding invariants (a note stuck onto another — see grammar.ts):
  *   - Dropping an attacher (actor, read model, hot spot) onto exactly one note it can
  *     attach to binds it (`data.boundTo`); several candidates bind nothing.
- *   - A bound pair is a group: moving the target moves its attachers (followDependents).
- *   - A bound note can't be dragged off its target (keepBoundNotesAttached); hold
- *     ⌥ Option to drag it free, which unbinds it on drop.
+ *   - While dragging an attacher, the note it would be bound to on drop is highlighted.
+ *   - Moving the target moves its attachers along (followDependents).
+ *   - Dropping an attacher off its target unbinds it, or rebinds it to the single
+ *     new note it lands on (nextBinding). No modifier key involved.
  *   - Deleting the target unbinds its attachers (handleNodeRemovals).
  */
-const MIN_BIND_OVERLAP = 24;
 
 /*
  * Touch scheme (phones / tablets, detected via `pointer: coarse`):
@@ -217,26 +216,6 @@ function followDependents(prevNodes: Node[], nextNodes: Node[], changes: NodeCha
   });
 }
 
-// A dragged bound note stays stuck on its target (unless the unbind modifier is held).
-function keepBoundNotesAttached(nextNodes: Node[], changes: NodeChange[], constrain: boolean): Node[] {
-  const dragging = draggingIdsOf(changes);
-  if (!constrain || dragging.size === 0) return nextNodes;
-  const byId = new Map(nextNodes.map((n) => [n.id, n]));
-  const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
-  return nextNodes.map((n) => {
-    const parentId = dragging.has(n.id) ? boundToOf(n) : null;
-    const parent = parentId && !dragging.has(parentId) ? byId.get(parentId) : undefined;
-    if (!parent) return n;
-    const r = nodeRect(n);
-    const p = nodeRect(parent);
-    const m = Math.min(MIN_BIND_OVERLAP, r.w / 2, r.h / 2, p.w / 2, p.h / 2);
-    const x = clamp(r.x, p.x - r.w + m, p.x + p.w - m);
-    const y = clamp(r.y, p.y - r.h + m, p.y + p.h - m);
-    return x === r.x && y === r.y ? n : { ...n, position: { x, y } };
-  });
-}
-
-// Set (or clear) a note's binding; a newly bound note is raised above its target.
 // Add a note; one created right on top of a note it can attach to is bound to it.
 function addNoteBound(nds: Node[], node: Node): Node[] {
   const target = bindingTarget(node, nds);
@@ -744,8 +723,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
     updateNodes((nds) => {
       const held = heldKeysRef.current;
       const applied = applyNodeChanges(changes, nds);
-      const attached = keepBoundNotesAttached(applied, changes, !held.has(UNBIND_MODIFIER_KEY));
-      const followed = followDependents(nds, attached, changes);
+      const followed = followDependents(nds, applied, changes);
       const grown = growAggregatesForDraggedChildren(followed, changes, !held.has(REMOVE_MODIFIER_KEY));
       return handleNodeRemovals(nds, grown, changes);
     });
@@ -1000,11 +978,10 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
   }, [selectedNodeIds, nodes, t, commit, updateNodes]);
 
   const onNodeDrag = useCallback<NodeDragHandler>(
-    (event, node) => {
-      // A free (or being-unbound) attacher: highlight the note it would bind to on drop.
+    (_event, node) => {
+      // An attacher: highlight the note it would be bound to if dropped here.
       if (isAttacher(node)) {
-        const free = !boundToOf(node) || isModifierHeld(event, UNBIND_MODIFIER_KEY);
-        setDropTargetId(free ? bindingTarget(node, nodesRef.current) : null);
+        setDropTargetId(nextBinding(node, nodesRef.current));
         return;
       }
 
@@ -1058,13 +1035,12 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
         return;
       }
 
-      // Binding: a bound note stays bound unless dragged with ⌥ Option; a free (or
-      // just unbound) one binds to the single note it was dropped onto, if any.
+      // Binding: still on its target ⇒ stays bound; moved off ⇒ unbound, or rebound
+      // to the single note it was dropped onto.
       if (isAttacher(dragged)) {
-        if (boundToOf(dragged) && !isModifierHeld(event, UNBIND_MODIFIER_KEY)) return;
         updateNodes((nds) => {
           const cur = nds.find((n) => n.id === node.id);
-          return cur ? setBinding(nds, cur.id, bindingTarget(cur, nds)) : nds;
+          return cur ? setBinding(nds, cur.id, nextBinding(cur, nds)) : nds;
         });
         return;
       }
@@ -1239,6 +1215,17 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
 
   // ---- Published versions.
   const getSnapshot = useCallback(() => docToSnapshot(doc), [doc]);
+
+  // ---- Export the raw board (nodes + edges) as YAML.
+  const exportYaml = useCallback(() => {
+    const yaml = canvasToYaml(docToSnapshot(doc), { name });
+    const url = URL.createObjectURL(new Blob([yaml], { type: 'application/yaml' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${name.trim() || 'canvas'}.yaml`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [doc, name]);
   // Overwrite the board with a published snapshot as one undoable local step;
   // it reaches peers through the doc like any other edit.
   const restoreSnapshot = useCallback(
@@ -1397,6 +1384,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
             onBringToFront={bringToFront}
             onSendToBack={sendToBack}
             onHelp={() => setShowHelp(true)}
+            onExportYaml={exportYaml}
             onUndo={undo}
             onRedo={redo}
             canUndo={canUndo}

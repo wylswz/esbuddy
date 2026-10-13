@@ -39,13 +39,12 @@ docker compose --env-file apps/server/.env.example up --build
 | `E` `C` `A` `P` `X` `H` `R` `N` | Add an Event / Command / Actor / Policy / External System / Hot Spot / Read Model / Note at the cursor |
 | `Shift` + drag out | Remove a child from its aggregate |
 | `⌥ Option` / `Alt` + click | Connect the selected node(s) to the clicked node |
-| `⌥ Option` / `Alt` + drag a stuck note off | Unbind it from the note it is stuck on |
 | `[` / `]` | Send to back / bring to front |
 | `⌘`/`Ctrl` + `Z`, `⌘`/`Ctrl` + `⇧Z` (or `Ctrl`+`Y`) | Undo / Redo |
 | `⌘`/`Ctrl` + click | Multi-select |
 | double-click | Edit a note's title or memo |
 
-One concern per modifier: **Shift** removes from an aggregate · **⌥/Alt** connects / unbinds nodes · **⌘/Ctrl** multi-selects.
+One concern per modifier: **Shift** removes from an aggregate · **⌥/Alt** connects nodes · **⌘/Ctrl** multi-selects.
 
 ## Canvas
 
@@ -71,11 +70,13 @@ Only relations Event Storming gives a meaning to are accepted, so a board can be
 | Read Model on a Command | it supports that decision (an arrow *into* a read model is what updates it) |
 | Hot Spot on any note (or bare aggregate space) | a question about it |
 
-Sticking is a **binding**, like aggregate membership: drop an Actor / Read Model / Hot Spot onto exactly one note it can attach to (it lights up while dragging) and the two become a group — moving the note moves what is stuck on it, and the stuck note can't be dragged off. Hold `⌥ Option` and drag it off to unbind. Dropped over several candidates, nothing is bound — the editor never guesses.
+Sticking is a **binding**, like aggregate membership: drop an Actor / Read Model / Hot Spot onto exactly one note it can attach to (it lights up while dragging) and they are bound — moving the note moves what is stuck on it. Drag the stuck note off to unbind it (or onto another note to rebind). Dropped over several candidates, nothing is bound — the editor never guesses.
 
 Any other edge can't be drawn. Overlaps are free while brainstorming, but **Compile** flags anything the grammar can't read without guessing (meaningless overlaps, overlaps that were never bound, unnamed notes, policies missing a trigger or a command…). Click a problem to jump to it; once there are no errors, copy or download the text as Markdown. Warnings (e.g. a command producing no event) never block compiling. Only Events and Commands can belong to an aggregate. Notes sit outside the grammar: they take no edges or bindings, may overlap anything, and are left out of the compiled text.
 
 ## Import / Export
+
+**Export YAML** (toolbar) downloads the raw board — every node and edge as stored (id, type, position, size, label, memo, aggregate membership, bindings) — as `<canvas name>.yaml`, for backups, diffs and tooling. Unlike **Compile**, it doesn't check the grammar.
 
 Export the canvas as Context Mapper (CML) — copy to clipboard or download `.cml`; import a `.cml` to render it. Supported: `Aggregate`, `Command`, `DomainEvent`, and `Flow` relations.
 

@@ -6,3 +6,4 @@ export * from './ydoc.js';
 export * from './grammar.js';
 export * from './analysis/index.js';
 export * from './compiler.js';
+export * from './canvasYaml.js';

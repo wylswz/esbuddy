@@ -99,7 +99,6 @@ export function HelpModal({ open, onClose }: HelpModalProps) {
               ))}
               <div>{t('help.shiftDragOut')}</div>
               <div>{t('help.optionClick')}</div>
-              <div>{t('help.optionDragOff')}</div>
               <div>{t('help.zOrder')}</div>
               <div>{t('help.multiSelectShortcut')}</div>
               <div>{t('help.doubleClick')}</div>

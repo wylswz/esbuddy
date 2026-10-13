@@ -1,6 +1,7 @@
 import {
   analyzeCanvas,
   bindingTarget,
+  nextBinding,
   buildContext,
   CHECKERS,
   type Checker,
@@ -232,6 +233,36 @@ describe('canvas analysis: completeness', () => {
       'command-without-issuer',
       'event-without-source',
     ]);
+  });
+});
+
+describe('nextBinding', () => {
+  it('keeps the binding while the note still overlaps its target', () => {
+    const nodes = [note('c', 'command', at(0, 0)), note('a', 'actor', { ...at(80, 80), boundTo: 'c' })];
+    expect(nextBinding(nodes[1], nodes)).toBe('c');
+  });
+
+  it('unbinds once dropped off the target', () => {
+    const nodes = [note('c', 'command', at(0, 0)), note('a', 'actor', { ...at(500, 500), boundTo: 'c' })];
+    expect(nextBinding(nodes[1], nodes)).toBeNull();
+  });
+
+  it('rebinds when dropped onto another valid note', () => {
+    const nodes = [
+      note('c1', 'command', at(0, 0)),
+      note('c2', 'command', at(500, 0)),
+      note('a', 'actor', { ...at(550, 50), boundTo: 'c1' }),
+    ];
+    expect(nextBinding(nodes[2], nodes)).toBe('c2');
+  });
+
+  it('keeps the current target even if the note also touches another candidate', () => {
+    const nodes = [
+      note('c1', 'command', at(0, 0)),
+      note('c2', 'command', at(150, 0)),
+      note('a', 'actor', { ...at(80, 20), boundTo: 'c1' }),
+    ];
+    expect(nextBinding(nodes[2], nodes)).toBe('c1');
   });
 });
 

@@ -100,8 +100,8 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm build
   on command, hot spot on anything). An edge and a binding spell the same
   relation. Bindings are explicit like `aggregateId`: `data.boundTo` is set when
   an attacher is dropped onto exactly one valid note (`bindingTarget`); the pair
-  then moves as a group and ⌥ Option + drag-off unbinds (see "Binding
-  invariants" in `CanvasEditor.tsx`). The compiler reads `boundTo`, never
+  then moves with its target, and dropping it off the target unbinds it
+  (`nextBinding`; see "Binding invariants" in `CanvasEditor.tsx`). The compiler reads `boundTo`, never
   geometry; overlaps outside a group are errors. The editor enforces edges
   (`isValidConnection`, per-type handles). Analysis lives in
   `packages/sdk/src/analysis/`: `buildContext` computes facts only (relations

@@ -11,9 +11,10 @@ import type { ElementType } from './domain.js';
  * analyzer before compiling. There is no fuzzy guessing.
  *
  * Bindings are explicit, like aggregate membership: dropping an attacher onto
- * exactly one note it can attach to sets `data.boundTo`; the pair then moves as
- * a group until it is unbound (⌥ Option + drag out). Geometry only decides
- * *when* the editor binds; the compiler reads `boundTo`, never positions.
+ * exactly one note it can attach to sets `data.boundTo`; moving the target moves
+ * it along, and dropping it off the target unbinds it (`nextBinding`). Geometry
+ * only decides *when* the editor binds; the compiler reads `boundTo`, never
+ * positions.
  *
  * Aggregate membership is explicit (`data.aggregateId`), never geometric.
  */
@@ -236,4 +237,17 @@ export function bindingTarget(attacher: PlacedNode, nodes: readonly PlacedNode[]
   if (notes.length > 0) return notes.length === 1 ? notes[0].id : null;
   const aggs = under.filter((n) => n.type === 'aggregate' && canBind(type, 'aggregate'));
   return aggs.length === 1 ? aggs[0].id : null;
+}
+
+/**
+ * The binding an attacher should have after being dropped where it is: it keeps
+ * its current target while it still overlaps it; moved off, it unbinds — or
+ * rebinds to the single new note it was dropped onto (`bindingTarget`).
+ */
+export function nextBinding(attacher: PlacedNode, nodes: readonly PlacedNode[]): string | null {
+  const current = nodes.find((n) => n.id === boundToOf(attacher));
+  if (current && canBind(attacher.type ?? '', current.type ?? '') && rectsOverlap(nodeRect(attacher), nodeRect(current))) {
+    return current.id;
+  }
+  return bindingTarget(attacher, nodes);
 }
