@@ -103,9 +103,14 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm build
   then moves as a group and ⌥ Option + drag-off unbinds (see "Binding
   invariants" in `CanvasEditor.tsx`). The compiler reads `boundTo`, never
   geometry; overlaps outside a group are errors. The editor enforces edges
-  (`isValidConnection`, per-type handles). `analyzeCanvas` resolves both into relations and
-  reports diagnostics (errors = illegal/ambiguous/incomplete, warnings = likely
-  gaps); `compileCanvas` refuses to compile while errors remain, else renders
+  (`isValidConnection`, per-type handles). Analysis lives in
+  `packages/sdk/src/analysis/`: `buildContext` computes facts only (relations
+  from legal edges/bindings, overlaps across groups); each rule is a `Checker`
+  (one diagnostic code, `check(ctx)` yields findings) under `checkers/`, listed
+  in the `CHECKERS` registry; `analyzeCanvas` runs them (errors = illegal /
+  incomplete, warnings = likely gaps). To add a rule: write a checker, register
+  it, add the code to `DiagnosticCode` and its UI translation.
+  `compileCanvas` refuses to compile while errors remain, else renders
   English, each relation stated once. No fuzzy guessing — anything the grammar
   can't read is an error for the user to fix. UI: `CompilePanel.tsx`. Tests:
   `apps/server/test/unit/compiler.test.ts` (the example board must compile with

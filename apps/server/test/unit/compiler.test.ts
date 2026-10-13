@@ -1,6 +1,9 @@
 import {
   analyzeCanvas,
   bindingTarget,
+  buildContext,
+  CHECKERS,
+  type Checker,
   canConnect,
   compileCanvas,
   exampleCanvasSnapshot,
@@ -75,10 +78,11 @@ describe('canvas grammar: edges', () => {
 
   it('flags illegal, self and dangling edges as errors', () => {
     const nodes = [note('e1', 'event'), note('e2', 'event'), note('c', 'command')];
+    // Reported in checker (registry) order.
     expect(errors(nodes, [edge('e1', 'e2'), edge('c', 'c'), edge('c', 'ghost')])).toEqual([
-      'invalid-edge',
-      'invalid-edge',
       'dangling-edge',
+      'invalid-edge',
+      'invalid-edge',
     ]);
   });
 
@@ -228,6 +232,37 @@ describe('canvas analysis: completeness', () => {
       'command-without-issuer',
       'event-without-source',
     ]);
+  });
+});
+
+describe('checkers', () => {
+  it('maps every diagnostic code to exactly one checker', () => {
+    const codes = CHECKERS.map((c) => c.code);
+    expect(new Set(codes).size).toBe(codes.length);
+  });
+
+  it('runs a single checker in isolation over the shared facts', () => {
+    const policyWithoutAction = CHECKERS.find((c) => c.code === 'policy-without-action')!;
+    const ctx = buildContext({ nodes: [note('e', 'event'), note('p', 'policy')], edges: [edge('e', 'p')] });
+    expect([...policyWithoutAction.check(ctx)]).toEqual([{ nodeIds: ['p'] }]);
+  });
+
+  it('accepts a custom rule set', () => {
+    const noShouting: Checker = {
+      code: 'empty-label',
+      severity: 'warning',
+      *check({ nodes }) {
+        for (const n of nodes) if (n.data.label === String(n.data.label).toUpperCase()) yield { nodeIds: [n.id] };
+      },
+    };
+    const { diagnostics, hasErrors } = analyzeCanvas({ nodes: [note('x', 'event', { label: 'LOUD' })], edges: [] }, [noShouting]);
+    expect(hasErrors).toBe(false);
+    expect(diagnostics).toEqual([{ code: 'empty-label', severity: 'warning', nodeIds: ['x'], edgeIds: [] }]);
+  });
+
+  it('only resolves relations from legal edges and bindings', () => {
+    const ctx = buildContext({ nodes: [note('e1', 'event'), note('e2', 'event'), note('c', 'command')], edges: [edge('e1', 'e2'), edge('c', 'e1')] });
+    expect(ctx.relations.map((r) => r.relation)).toEqual(['produces']);
   });
 });
 
