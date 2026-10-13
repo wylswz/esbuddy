@@ -26,7 +26,7 @@ interface ToolbarProps {
   touchMode: boolean;
 }
 
-const ELEMENT_ORDER: ElementType[] = ['event', 'command', 'actor', 'policy', 'external', 'hotspot', 'readmodel'];
+const ELEMENT_ORDER: ElementType[] = ['event', 'command', 'actor', 'policy', 'external', 'hotspot', 'readmodel', 'note'];
 
 const btn =
   'flex items-center gap-2 h-8 px-2.5 rounded-sm text-sm font-medium text-ink hover:bg-ink hover:text-paper transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-ink';

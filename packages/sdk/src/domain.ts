@@ -6,7 +6,9 @@ export type ElementType =
   | 'policy'
   | 'external'
   | 'hotspot'
-  | 'readmodel';
+  | 'readmodel'
+  /** A plain note for comments; not part of Event Storming, ignored by the compiler. */
+  | 'note';
 
 export type Role = 'owner' | 'editor' | 'viewer';
 

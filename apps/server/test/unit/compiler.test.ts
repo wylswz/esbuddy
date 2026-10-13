@@ -235,6 +235,28 @@ describe('canvas analysis: completeness', () => {
   });
 });
 
+describe('free-form notes', () => {
+  it('sit outside the grammar: no edges, no bindings', () => {
+    expect(canConnect('note', 'event') || canConnect('event', 'note')).toBe(false);
+    expect(hasOutgoingEdges('note') || hasIncomingEdges('note')).toBe(false);
+    const nodes = [note('c', 'command', at(0, 0)), note('n', 'note', at(50, 50))];
+    expect(bindingTarget(note('a', 'actor', at(60, 60)), nodes)).toBe('c');
+  });
+
+  it('may overlap anything, may be unnamed, and never reach the compiled text', () => {
+    const nodes = [
+      note('c', 'command', at(0, 0)),
+      note('a', 'actor', { ...at(50, 50), boundTo: 'c' }),
+      note('e', 'event'),
+      note('n', 'note', { ...at(30, 30), label: '' }),
+      note('n2', 'note', { label: 'Ask legal about retention' }),
+    ];
+    const result = compileCanvas({ nodes, edges: [edge('c', 'e')] });
+    expect(result.diagnostics.filter((d) => d.nodeIds.includes('n') || d.nodeIds.includes('n2'))).toEqual([]);
+    expect(result.ok && result.text).not.toContain('retention');
+  });
+});
+
 describe('checkers', () => {
   it('maps every diagnostic code to exactly one checker', () => {
     const codes = CHECKERS.map((c) => c.code);

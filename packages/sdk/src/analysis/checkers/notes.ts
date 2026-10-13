@@ -1,4 +1,4 @@
-import { isElementType } from '../../grammar.js';
+import { isElementType, isOutsideGrammar } from '../../grammar.js';
 import { aggregateIdOf, labelOf } from '../context.js';
 import type { Checker } from '../types.js';
 
@@ -13,12 +13,12 @@ export const unknownType: Checker = {
   },
 };
 
-/** A note the compiler can't name can't be put into a sentence. */
+/** A note the compiler can't name can't be put into a sentence (free-form notes are never compiled). */
 export const emptyLabel: Checker = {
   code: 'empty-label',
   severity: 'error',
   *check({ nodes }) {
-    for (const n of nodes) if (isElementType(n.type) && !labelOf(n)) yield { nodeIds: [n.id] };
+    for (const n of nodes) if (isElementType(n.type) && !isOutsideGrammar(n.type) && !labelOf(n)) yield { nodeIds: [n.id] };
   },
 };
 

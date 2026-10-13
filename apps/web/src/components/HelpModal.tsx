@@ -10,7 +10,7 @@ interface HelpModalProps {
   onClose: () => void;
 }
 
-const ELEMENT_ORDER: ElementType[] = ['event', 'command', 'aggregate', 'actor', 'policy', 'external', 'hotspot', 'readmodel'];
+const ELEMENT_ORDER: ElementType[] = ['event', 'command', 'aggregate', 'actor', 'policy', 'external', 'hotspot', 'readmodel', 'note'];
 
 const ADVANCED_CONCEPTS = ['pivotalEvent', 'swimlane', 'branch', 'boundedContext', 'levels', 'walkthrough'] as const;
 

@@ -1,4 +1,4 @@
-import { nodeRect, type Relation } from './grammar.js';
+import { isOutsideGrammar, nodeRect, type Relation } from './grammar.js';
 import { analyzeCanvas, type CanvasInput, type Diagnostic } from './analysis/index.js';
 import { aggregateIdOf, labelOf as label } from './analysis/context.js';
 
@@ -153,7 +153,7 @@ export function compileCanvas(input: CanvasInput, options: CompileOptions = {}):
   sections.push([
     'Glossary',
     input.nodes
-      .filter((n) => n.type !== 'hotspot' && (describe(n.id) || !mentioned.has(n.id)))
+      .filter((n) => n.type !== 'hotspot' && !isOutsideGrammar(n.type) && (describe(n.id) || !mentioned.has(n.id)))
       .map((n) => n.id)
       .sort(timeline)
       .map((id) => {

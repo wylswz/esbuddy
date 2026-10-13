@@ -62,4 +62,5 @@ export const ELEMENT_STYLES: Record<ElementType, ElementStyle> = {
   external: elementStyle('external', 'X'),
   hotspot: elementStyle('hotspot', 'H'),
   readmodel: elementStyle('readmodel', 'R'),
+  note: elementStyle('note', 'N'),
 };

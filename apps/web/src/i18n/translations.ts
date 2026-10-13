@@ -281,6 +281,11 @@ export const en = {
       newLabel: 'New Read Model',
       description: 'The information an actor needs to know before making a decision',
     },
+    note: {
+      label: 'Note',
+      newLabel: 'New Note',
+      description: 'A free-form note for comments; not part of Event Storming and ignored when compiling',
+    },
   },
 };
 
@@ -568,6 +573,11 @@ export const zh: Translation = {
       label: '读模型',
       newLabel: '新读模型',
       description: '参与者在做决策前需要了解的信息',
+    },
+    note: {
+      label: '笔记',
+      newLabel: '新笔记',
+      description: '自由记录的笔记，不属于事件风暴，编译时忽略',
     },
   },
 };

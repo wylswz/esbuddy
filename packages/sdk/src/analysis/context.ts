@@ -5,6 +5,7 @@ import {
   boundToOf,
   edgeRelation,
   isElementType,
+  isOutsideGrammar,
   nodeRect,
   rectsOverlap,
   type Relation,
@@ -49,10 +50,11 @@ export function resolveRelations({ nodes, edges }: CanvasInput): ResolvedRelatio
 
 /**
  * Pairs of intersecting notes from different binding groups. Aggregates are
- * containers, never overlap partners; notes of one group may overlap freely.
+ * containers and free-form notes sit outside the grammar, so neither is ever an
+ * overlap partner; notes of one group may overlap freely.
  */
 function findOverlaps(nodes: readonly CanvasNode[], byId: ReadonlyMap<string, CanvasNode>): Overlap[] {
-  const notes = nodes.filter((n) => isElementType(n.type) && n.type !== 'aggregate');
+  const notes = nodes.filter((n) => isElementType(n.type) && n.type !== 'aggregate' && !isOutsideGrammar(n.type));
   const rects = new Map(notes.map((n) => [n.id, nodeRect(n)]));
   const roots = new Map(notes.map((n) => [n.id, bindingRoot(n.id, byId)]));
   const out: Overlap[] = [];

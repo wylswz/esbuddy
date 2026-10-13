@@ -45,7 +45,18 @@ export const ELEMENT_TYPES: readonly ElementType[] = [
   'external',
   'hotspot',
   'readmodel',
+  'note',
 ];
+
+/**
+ * Element types the grammar ignores entirely: free-form notes. They take no
+ * edges or bindings, may overlap anything, and never reach the compiled text.
+ */
+export const OUTSIDE_GRAMMAR: readonly ElementType[] = ['note'];
+
+export function isOutsideGrammar(type: string): boolean {
+  return (OUTSIDE_GRAMMAR as readonly string[]).includes(type);
+}
 
 export function isElementType(type: string): type is ElementType {
   return (ELEMENT_TYPES as readonly string[]).includes(type);

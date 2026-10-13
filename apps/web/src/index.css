@@ -30,6 +30,9 @@
   --color-readmodel: #10b981;
   --color-readmodel-bg: #ecfdf5;
   --color-readmodel-border: #34d399;
+  --color-note: #6b7280;
+  --color-note-bg: #f3f4f6;
+  --color-note-border: #9ca3af;
 
   /* --- UI chrome: surfaces --- */
   --color-page: #f9fafb;
