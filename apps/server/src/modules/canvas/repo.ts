@@ -1,9 +1,17 @@
 import { eq, and, desc, sql } from 'drizzle-orm';
 import * as Y from 'yjs';
 import { docToSnapshot, snapshotToDoc } from '@esbuddy/sdk';
-import type { CanvasMeta, CanvasOwner, CanvasRecord, CanvasSnapshot } from '@esbuddy/sdk';
+import type {
+  CanvasMeta,
+  CanvasOwner,
+  CanvasRecord,
+  CanvasSnapshot,
+  CanvasVersion,
+  CanvasVersionMeta,
+  PublishedCanvasVersion,
+} from '@esbuddy/sdk';
 import type { Db } from '../../db/types.js';
-import { canvases, canvasEvents } from '../../db/schema.js';
+import { canvases, canvasEvents, canvasVersions } from '../../db/schema.js';
 import { base64ToBytes, bytesToBase64 } from './codec.js';
 
 const now = () => Date.now();
@@ -129,7 +137,101 @@ export async function renameCanvas(db: Db, id: string, name: string): Promise<Ca
 
 export async function deleteCanvas(db: Db, id: string): Promise<void> {
   await db.delete(canvasEvents).where(eq(canvasEvents.canvasId, id)).run();
+  await db.delete(canvasVersions).where(eq(canvasVersions.canvasId, id)).run();
   await db.delete(canvases).where(eq(canvases.id, id)).run();
+}
+
+// ---------- published versions ----------
+
+function rowToVersionMeta(r: typeof canvasVersions.$inferSelect): CanvasVersionMeta {
+  return {
+    id: r.id,
+    canvasId: r.canvasId,
+    canvasName: r.canvasName,
+    description: r.description,
+    isPublic: r.isPublic,
+    createdById: r.createdById,
+    createdAt: r.createdAt,
+  };
+}
+
+/** Name of a canvas, or null if it doesn't exist. */
+export async function getCanvasName(db: Db, id: string): Promise<string | null> {
+  const r = await db.select({ name: canvases.name }).from(canvases).where(eq(canvases.id, id)).get();
+  return r?.name ?? null;
+}
+
+export async function insertVersion(
+  db: Db,
+  input: {
+    id: string;
+    canvasId: string;
+    canvasName: string;
+    description: string;
+    isPublic: boolean;
+    snapshot: string;
+    createdById: string;
+  },
+): Promise<CanvasVersionMeta> {
+  const row = { ...input, createdAt: now() };
+  await db.insert(canvasVersions).values(row).run();
+  return rowToVersionMeta(row);
+}
+
+/** Versions of a canvas, newest first. */
+export async function listVersions(db: Db, canvasId: string): Promise<CanvasVersionMeta[]> {
+  const rows = await db
+    .select()
+    .from(canvasVersions)
+    .where(eq(canvasVersions.canvasId, canvasId))
+    .orderBy(desc(canvasVersions.createdAt))
+    .all();
+  return rows.map(rowToVersionMeta);
+}
+
+export async function getVersion(db: Db, canvasId: string, id: string): Promise<CanvasVersion | null> {
+  const r = await db
+    .select()
+    .from(canvasVersions)
+    .where(and(eq(canvasVersions.id, id), eq(canvasVersions.canvasId, canvasId)))
+    .get();
+  return r ? { ...rowToVersionMeta(r), snapshot: JSON.parse(r.snapshot) as CanvasSnapshot } : null;
+}
+
+/** Resolve a permalink; private versions resolve to null, same as missing ones. */
+export async function getPublishedVersion(db: Db, id: string): Promise<PublishedCanvasVersion | null> {
+  const r = await db
+    .select()
+    .from(canvasVersions)
+    .where(and(eq(canvasVersions.id, id), eq(canvasVersions.isPublic, true)))
+    .get();
+  if (!r) return null;
+  return {
+    id: r.id,
+    canvasName: r.canvasName,
+    description: r.description,
+    createdAt: r.createdAt,
+    snapshot: JSON.parse(r.snapshot) as CanvasSnapshot,
+  };
+}
+
+export async function updateVersion(
+  db: Db,
+  canvasId: string,
+  id: string,
+  patch: { description?: string; isPublic?: boolean },
+): Promise<CanvasVersionMeta | null> {
+  const where = and(eq(canvasVersions.id, id), eq(canvasVersions.canvasId, canvasId));
+  await db.update(canvasVersions).set(patch).where(where).run();
+  const r = await db.select().from(canvasVersions).where(where).get();
+  return r ? rowToVersionMeta(r) : null;
+}
+
+export async function deleteVersion(db: Db, canvasId: string, id: string): Promise<void> {
+  await db
+    .delete(canvasVersions)
+    .where(and(eq(canvasVersions.id, id), eq(canvasVersions.canvasId, canvasId)))
+    .run();
 }
 
 export async function listEvents(db: Db, canvasId: string, afterSeq?: number): Promise<{ seq: number; type: string; payload: unknown; actorId: string | null; createdAt: number }[]> {

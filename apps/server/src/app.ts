@@ -6,7 +6,7 @@ import { isDevMode } from './env.js';
 import type { Db } from './db/types.js';
 import type { AppVariables } from './context.js';
 import { authRoutes } from './modules/auth/api.js';
-import { canvasRoutes } from './modules/canvas/api.js';
+import { canvasRoutes, versionRoutes } from './modules/canvas/api.js';
 import { invitationRoutes, workspaceRoutes } from './modules/workspace/api.js';
 
 export interface AppDeps {
@@ -36,6 +36,7 @@ export function buildApp({ db, env, staticHandler }: AppDeps) {
   const api = new Hono<{ Variables: AppVariables }>();
   api.route('/auth', authRoutes);
   api.route('/canvases', canvasRoutes);
+  api.route('/versions', versionRoutes);
   api.route('/workspaces', workspaceRoutes);
   api.route('/invitations', invitationRoutes);
 

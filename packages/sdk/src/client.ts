@@ -2,14 +2,17 @@ import type {
   CanvasMeta,
   CanvasOwner,
   CanvasRecord,
+  CanvasVersion,
+  CanvasVersionMeta,
   Invitation,
   InvitationPreview,
+  PublishedCanvasVersion,
   Role,
   User,
   Workspace,
   WorkspaceMember,
 } from './domain.js';
-import type { Store } from './store.js';
+import type { PublishVersionInput, Store, UpdateVersionInput } from './store.js';
 
 export interface HttpStoreOptions {
   baseUrl: string;
@@ -115,5 +118,34 @@ export class HttpStore implements Store {
 
   deleteCanvas(id: string): Promise<void> {
     return this.request<void>('DELETE', `/canvases/${id}`);
+  }
+
+  listVersions(canvasId: string): Promise<CanvasVersionMeta[]> {
+    return this.request<CanvasVersionMeta[]>('GET', `/canvases/${canvasId}/versions`);
+  }
+
+  getVersion(canvasId: string, versionId: string): Promise<CanvasVersion> {
+    return this.request<CanvasVersion>('GET', `/canvases/${canvasId}/versions/${versionId}`);
+  }
+
+  publishVersion(canvasId: string, input: PublishVersionInput): Promise<CanvasVersionMeta> {
+    return this.request<CanvasVersionMeta>('POST', `/canvases/${canvasId}/versions`, input);
+  }
+
+  updateVersion(canvasId: string, versionId: string, patch: UpdateVersionInput): Promise<CanvasVersionMeta> {
+    return this.request<CanvasVersionMeta>('PATCH', `/canvases/${canvasId}/versions/${versionId}`, patch);
+  }
+
+  deleteVersion(canvasId: string, versionId: string): Promise<void> {
+    return this.request<void>('DELETE', `/canvases/${canvasId}/versions/${versionId}`);
+  }
+
+  async getPublishedVersion(versionId: string): Promise<PublishedCanvasVersion | null> {
+    try {
+      return await this.request<PublishedCanvasVersion>('GET', `/versions/${encodeURIComponent(versionId)}`);
+    } catch (err) {
+      if (err instanceof Error && err.message.startsWith('HTTP 404')) return null;
+      throw err;
+    }
   }
 }

@@ -111,3 +111,36 @@ export interface CanvasEvent {
 export interface CanvasRecord extends CanvasMeta {
   snapshot: CanvasSnapshot;
 }
+
+/**
+ * A published, immutable snapshot of a canvas. `id` is a random hex signature
+ * (like a commit id) and is also the token in the version's permalink.
+ */
+export interface CanvasVersionMeta {
+  id: string;
+  canvasId: string;
+  /** Canvas name at the time of publishing. */
+  canvasName: string;
+  description: string;
+  /** Public access switch: the permalink only resolves while this is on. */
+  isPublic: boolean;
+  createdById: string;
+  createdAt: number;
+}
+
+/** Full version (with content) for authenticated callers, e.g. restore. */
+export interface CanvasVersion extends CanvasVersionMeta {
+  snapshot: CanvasSnapshot;
+}
+
+/**
+ * Public, unauthenticated view of a version served at its permalink. Omits the
+ * canvas id and author so the link never exposes a handle to the live canvas.
+ */
+export interface PublishedCanvasVersion {
+  id: string;
+  canvasName: string;
+  description: string;
+  createdAt: number;
+  snapshot: CanvasSnapshot;
+}

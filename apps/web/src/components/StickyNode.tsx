@@ -18,7 +18,7 @@ const CORNERS = ['top-left', 'top-right', 'bottom-left', 'bottom-right'] as cons
 
 function StickyNodeComponent({ id, data, selected, dragging }: NodeProps<StickyNodeData>) {
   const style = ELEMENT_STYLES[data.type];
-  const { updateNodeLabel, updateNodeDescription } = useCanvasActions();
+  const { updateNodeLabel, updateNodeDescription, readOnly } = useCanvasActions();
   const { t } = useI18n();
   const [editing, setEditing] = useState<EditField | null>(null);
   const lifted = selected || dragging;
@@ -116,9 +116,9 @@ function StickyNodeComponent({ id, data, selected, dragging }: NodeProps<StickyN
           />
         ) : (
           <div
-            className="sticky-title text-sm font-semibold text-fg leading-snug break-words whitespace-pre-wrap cursor-text"
-            title={t('node.doubleClickEdit')}
-            onDoubleClick={() => setEditing('title')}
+            className={`sticky-title text-sm font-semibold text-fg leading-snug break-words whitespace-pre-wrap${readOnly ? '' : ' cursor-text'}`}
+            title={readOnly ? undefined : t('node.doubleClickEdit')}
+            onDoubleClick={readOnly ? undefined : () => setEditing('title')}
           >
             {data.label}
           </div>
@@ -141,11 +141,11 @@ function StickyNodeComponent({ id, data, selected, dragging }: NodeProps<StickyN
           />
         ) : (
           <div
-            className="sticky-memo text-xs text-fg-muted leading-snug break-words whitespace-pre-wrap cursor-text mt-1.5"
-            title={t('node.doubleClickEditMemo')}
-            onDoubleClick={() => setEditing('memo')}
+            className={`sticky-memo text-xs text-fg-muted leading-snug break-words whitespace-pre-wrap mt-1.5${readOnly ? '' : ' cursor-text'}`}
+            title={readOnly ? undefined : t('node.doubleClickEditMemo')}
+            onDoubleClick={readOnly ? undefined : () => setEditing('memo')}
           >
-            {data.description || <span className="text-fg-subtle">{t('node.memoPlaceholder')}</span>}
+            {data.description || (!readOnly && <span className="text-fg-subtle">{t('node.memoPlaceholder')}</span>)}
           </div>
         )}
       </div>
