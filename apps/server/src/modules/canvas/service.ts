@@ -138,7 +138,12 @@ export async function publishVersion(
   if (!s || typeof s !== 'object' || !Array.isArray(s.nodes) || !Array.isArray(s.edges)) {
     throw new VersionInputError('snapshot with nodes and edges required', 400);
   }
-  const snapshot = JSON.stringify({ nodes: s.nodes, edges: s.edges, viewport: null });
+  const st = s.structure;
+  const structure =
+    st && typeof st === 'object' && Array.isArray(st.lanes) && Array.isArray(st.milestones)
+      ? { lanes: st.lanes, milestones: st.milestones }
+      : undefined;
+  const snapshot = JSON.stringify({ nodes: s.nodes, edges: s.edges, viewport: null, structure });
   if (new TextEncoder().encode(snapshot).length > MAX_VERSION_SNAPSHOT_BYTES) {
     throw new VersionInputError('snapshot too large', 413);
   }

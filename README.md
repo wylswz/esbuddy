@@ -26,6 +26,13 @@ docker compose --env-file apps/server/.env.example up --build
 | **Read Model** | green `#10b981` | The information an actor needs before making a decision |
 | **Note** | gray `#6b7280` | A free-form note for comments — not part of Event Storming, ignored when compiling |
 
+## Structure: Pivotal Events, Swimlanes, Temporal Milestones
+
+Structuring tools have no toolbar button or shortcut; find them with **Search** (`⌘`/`Ctrl` + `K`), which also finds notes on the board by title or memo and jumps to them.
+
+- **Pivotal event** — a strip of yellow tape stuck across an event (drop it onto exactly one event, or select events and run *Mark pivotal event*). It moves with the event, and **Compile** lists the event under *Pivotal events*. Tape stuck on nothing is an error.
+- **Swimlanes** and **temporal milestones** belong to the whole board and work like a word processor's rulers: a left ruler for swimlanes, a top ruler for temporal milestones. Drag along the left ruler to add a swimlane, click the top ruler to add a temporal milestone; drag a marker to move it (or a lane's edges to resize it), double-click to rename, and drag it off the ruler to remove it. Swimlanes never overlap — a lane stops at its neighbours. They are visual only — notes don't belong to a lane, and the compiler ignores them.
+
 ## Notes & Aggregates
 
 - Each element is a square sticky note with a **title** and optional **memo** (double-click to edit), resizable via corner handles, with adjustable z-order.
@@ -43,12 +50,15 @@ docker compose --env-file apps/server/.env.example up --build
 | `⌘`/`Ctrl` + `Z`, `⌘`/`Ctrl` + `⇧Z` (or `Ctrl`+`Y`) | Undo / Redo |
 | `⌘`/`Ctrl` + click | Multi-select |
 | double-click | Edit a note's title or memo |
+| `⌘`/`Ctrl` + `K` | Search tools and notes |
 
 One concern per modifier: **Shift** removes from an aggregate · **⌥/Alt** connects nodes · **⌘/Ctrl** multi-selects.
 
 ## Canvas
 
-Infinite canvas with zoom, pan, and MiniMap. Pan with two-finger scroll, middle/right drag, or `Space` + drag; box-select by dragging empty canvas; connect by dragging a handle or `⌥`-clicking. Nodes, edges, and viewport auto-save and restore on refresh.
+The first time you open a board, a **guide** walks through an Event Storming workshop in the order of Brandolini's *Introducing EventStorming* — domain events, people and systems, hot spots, structuring the timeline (pivotal events, swimlanes, temporal milestones), process modelling, aggregates, and finally compiling to natural language. Each step shows a small read-only example board and how to do it in Esbuddy; reference pages (elements, grammar, shortcuts, advanced concepts) follow. Press **Help** (or search *Help*) to reopen it.
+
+Infinite canvas (warm white with a sparse dot grid) with zoom, pan, and MiniMap. Pan with two-finger scroll, middle/right drag, or `Space` + drag; box-select by dragging empty canvas; connect by dragging a handle or `⌥`-clicking. Nodes, edges, and viewport auto-save and restore on refresh.
 
 ## Grammar & Compile to Text
 
@@ -69,6 +79,7 @@ Only relations Event Storming gives a meaning to are accepted, so a board can be
 | Actor on a Command | the actor issues it |
 | Read Model on a Command | it supports that decision (an arrow *into* a read model is what updates it) |
 | Hot Spot on any note (or bare aggregate space) | a question about it |
+| Pivotal tape on an Event | the event is pivotal |
 
 Sticking is a **binding**, like aggregate membership: drop an Actor / Read Model / Hot Spot onto exactly one note it can attach to (it lights up while dragging) and they are bound — moving the note moves what is stuck on it. Drag the stuck note off to unbind it (or onto another note to rebind). Dropped over several candidates, nothing is bound — the editor never guesses.
 

@@ -8,7 +8,9 @@ export type ElementType =
   | 'hotspot'
   | 'readmodel'
   /** A plain note for comments; not part of Event Storming, ignored by the compiler. */
-  | 'note';
+  | 'note'
+  /** A strip of tape stuck onto an event to mark it as pivotal. */
+  | 'pivotal';
 
 export type Role = 'owner' | 'editor' | 'viewer';
 
@@ -94,10 +96,33 @@ export interface CanvasViewport {
   zoom: number;
 }
 
+/** A horizontal band across the whole board, given to one role. Visual only. */
+export interface CanvasLane {
+  id: string;
+  label: string;
+  y: number;
+  height: number;
+}
+
+/** A temporal milestone: a vertical line across the whole board marking a point in time. Visual only. */
+export interface CanvasMilestone {
+  id: string;
+  label: string;
+  x: number;
+}
+
+/** Board-level structure (swimlanes, temporal milestones): not notes, never compiled. */
+export interface CanvasStructure {
+  lanes: CanvasLane[];
+  milestones: CanvasMilestone[];
+}
+
 export interface CanvasSnapshot {
   nodes: CanvasNode[];
   edges: CanvasEdge[];
   viewport: CanvasViewport | null;
+  /** Absent on snapshots without any structure (and on legacy ones). */
+  structure?: CanvasStructure;
 }
 
 /** Append-only canvas event, the unit of future realtime sync (ADR-0001.7). */

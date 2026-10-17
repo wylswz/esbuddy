@@ -16,6 +16,7 @@ export type DiagnosticCode =
   | 'invalid-membership'
   | 'policy-without-trigger'
   | 'policy-without-action'
+  | 'pivotal-without-event'
   // warnings
   | 'duplicate-edge'
   | 'redundant-relation'

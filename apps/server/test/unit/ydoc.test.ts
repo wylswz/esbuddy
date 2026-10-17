@@ -19,6 +19,25 @@ const snap = (nodes: CanvasSnapshot['nodes'], edges: CanvasSnapshot['edges'] = [
 });
 
 describe('canvas Y.Doc schema', () => {
+  it('round-trips board structure (lanes top to bottom, milestones left to right)', () => {
+    const structure = {
+      lanes: [
+        { id: 'l2', label: 'Warehouse', y: 300, height: 200 },
+        { id: 'l1', label: 'Customer', y: 0, height: 240 },
+      ],
+      milestones: [{ id: 'm1', label: 'Day 1', x: 500 }],
+    };
+    const doc = docFromSnapshot({ ...snap([]), structure });
+    expect(isDocEmpty(doc)).toBe(false);
+    const out = docToSnapshot(doc);
+    expect(out.structure).toEqual({ lanes: [structure.lanes[1], structure.lanes[0]], milestones: structure.milestones });
+    // Boards without structure keep the snapshot shape unchanged.
+    expect(docToSnapshot(docFromSnapshot(snap([])))).toEqual(snap([]));
+    // Restoring a snapshot without structure clears it.
+    snapshotToDoc(snap([]), doc);
+    expect(docToSnapshot(doc).structure).toBeUndefined();
+  });
+
   it('round-trips the example board (nodes, edges, sizes, order)', () => {
     const input = exampleCanvasSnapshot();
     const out = docToSnapshot(docFromSnapshot(input));

@@ -8,8 +8,9 @@ import {
   SendToBack,
   CircleHelp,
   FileDown,
+  Search,
 } from 'lucide-react';
-import { ELEMENT_STYLES, type ElementType } from '../types';
+import { ELEMENT_ORDER, ELEMENT_STYLES, type ElementType } from '../types';
 import { useI18n } from '../i18n/context';
 
 interface ToolbarProps {
@@ -18,6 +19,8 @@ interface ToolbarProps {
   onBringToFront: () => void;
   onSendToBack: () => void;
   onHelp: () => void;
+  /** Open global search (⌘K): tools without a button of their own, and notes. */
+  onSearch: () => void;
   onExportYaml: () => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -28,7 +31,6 @@ interface ToolbarProps {
   touchMode: boolean;
 }
 
-const ELEMENT_ORDER: ElementType[] = ['event', 'command', 'actor', 'policy', 'external', 'hotspot', 'readmodel', 'note'];
 
 const btn =
   'flex items-center gap-2 h-8 px-2.5 rounded-sm text-sm font-medium text-ink hover:bg-ink hover:text-paper transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-ink';
@@ -56,6 +58,7 @@ export function Toolbar({
   onBringToFront,
   onSendToBack,
   onHelp,
+  onSearch,
   onExportYaml,
   onUndo,
   onRedo,
@@ -74,13 +77,30 @@ export function Toolbar({
   };
 
   const actions: Action[] = [
+    {
+      key: 'search',
+      icon: <Search size={20} />,
+      label: t('palette.open'),
+      onClick: () => {
+        setOpen(false);
+        onSearch();
+      },
+    },
     { key: 'undo', icon: <Undo2 size={20} />, label: t('toolbar.undo'), onClick: onUndo, disabled: !canUndo, title: `${t('toolbar.undo')} (⌘Z)` },
     { key: 'redo', icon: <Redo2 size={20} />, label: t('toolbar.redo'), onClick: onRedo, disabled: !canRedo, title: `${t('toolbar.redo')} (⌘⇧Z)` },
     { key: 'group', icon: <Group size={20} />, label: t('toolbar.groupAsAggregate'), onClick: onGroupAggregate, disabled: !canGroup },
     { key: 'front', icon: <BringToFront size={20} />, label: t('toolbar.bringToFront'), onClick: onBringToFront },
     { key: 'back', icon: <SendToBack size={20} />, label: t('toolbar.sendToBack'), onClick: onSendToBack },
     { key: 'yaml', icon: <FileDown size={20} />, label: t('toolbar.exportYaml'), onClick: onExportYaml },
-    { key: 'help', icon: <CircleHelp size={20} />, label: t('toolbar.help'), onClick: onHelp },
+    {
+      key: 'help',
+      icon: <CircleHelp size={20} />,
+      label: t('toolbar.help'),
+      onClick: () => {
+        setOpen(false);
+        onHelp();
+      },
+    },
   ];
 
   const languageToggle = (
@@ -96,6 +116,7 @@ export function Toolbar({
     return (
       <>
         <button
+          data-tour="elements"
           onClick={() => setOpen((o) => !o)}
           className="safe-bottom absolute right-4 z-30 w-14 h-14 rounded-full bg-accent text-ink shadow-xl flex items-center justify-center active:scale-95 transition-transform"
           title={open ? t('toolbar.closeMenu') : t('toolbar.openMenu')}
@@ -163,7 +184,13 @@ export function Toolbar({
         {languageToggle}
       </div>
 
-      <div className="flex flex-col gap-0.5">
+      <button data-tour="search" onClick={onSearch} className={`${btn} border border-ink/15 text-fg-muted`}>
+        <Search size={16} />
+        <span>{t('palette.open')}</span>
+        <span className="ml-auto text-[10px] font-mono text-fg-subtle">⌘K</span>
+      </button>
+
+      <div data-tour="elements" className="flex flex-col gap-0.5">
         {ELEMENT_ORDER.map((type) => {
           const s = ELEMENT_STYLES[type];
           return (
@@ -187,7 +214,7 @@ export function Toolbar({
         </button>
       </div>
 
-      <button onClick={onGroupAggregate} disabled={!canGroup} className={`${btn} border border-ink/15`}>
+      <button data-tour="group" onClick={onGroupAggregate} disabled={!canGroup} className={`${btn} border border-ink/15`}>
         <Group size={16} />
         <span>{t('toolbar.groupAsAggregate')}</span>
       </button>
@@ -208,7 +235,7 @@ export function Toolbar({
         <span>{t('toolbar.exportYaml')}</span>
       </button>
 
-      <button onClick={onHelp} className={btn}>
+      <button data-tour="help" onClick={onHelp} className={btn}>
         <CircleHelp size={16} />
         <span>{t('toolbar.help')}</span>
       </button>
