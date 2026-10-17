@@ -143,6 +143,12 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm build
   draws Word-style rulers (outside the board, under one `ReactFlowProvider`) and
   the bands/lines beneath the notes. Structuring tools have no toolbar entry —
   they are reached via the ⌘K `CommandPalette`, which also searches notes.
+- **Votes** (dot voting on hot spots, `isVotable`) are visual only and never
+  compiled. They live in their own Y.Map (`votes`, one key per note + voter so
+  concurrent votes merge; `ydoc.ts`) and in `CanvasSnapshot.votes` (omitted when
+  empty; only votes on existing hot spots). A vote outlives its note's deletion
+  so undo restores both. Web: `collab/votes.ts` reads them back, `VoteBadge.tsx`
+  renders/toggles them; the UndoManager tracks the map too.
 - **Guide** (`GuidedTour.tsx`, opened on first visit and by Help) walks a
   workshop step by step. Its example boards are read-only canvas definitions in
   `packages/sdk/src/guideBoards.ts` (labels localised via `tour.sample.*`),

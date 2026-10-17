@@ -33,6 +33,10 @@ Structuring tools have no toolbar button or shortcut; find them with **Search** 
 - **Pivotal event** — a strip of yellow tape stuck across an event (drop it onto exactly one event, or select events and run *Mark pivotal event*). It moves with the event, and **Compile** lists the event under *Pivotal events*. Tape stuck on nothing is an error.
 - **Swimlanes** and **temporal milestones** belong to the whole board and work like a word processor's rulers: a left ruler for swimlanes, a top ruler for temporal milestones. Drag along the left ruler to add a swimlane, click the top ruler to add a temporal milestone; drag a marker to move it (or a lane's edges to resize it), double-click to rename, and drag it off the ruler to remove it. Swimlanes never overlap — a lane stops at its neighbours. They are visual only — notes don't belong to a lane, and the compiler ignores them.
 
+## Voting on Hot Spots
+
+A big picture ends with more hot spots than time, so the team votes on which problem to tackle next. Every hot spot has a badge in its corner: click it to vote, click again to take your vote back — one vote per person per hot spot, on as many hot spots as you like. Each voter shows as a coloured dot; hover the badge to see who voted. Votes sync live, are undoable, survive publishing, and never reach **Compile**. Start a new round with **Search** → *Clear all votes*.
+
 ## Notes & Aggregates
 
 - Each element is a square sticky note with a **title** and optional **memo** (double-click to edit), resizable via corner handles, with adjustable z-order.

@@ -1,6 +1,6 @@
 import { memo, useCallback, useState } from 'react';
 import { Handle, Position, NodeResizeControl, type NodeProps } from 'reactflow';
-import { hasIncomingEdges, hasOutgoingEdges } from '@esbuddy/sdk';
+import { hasIncomingEdges, hasOutgoingEdges, isVotable } from '@esbuddy/sdk';
 import { ELEMENT_STYLES, NOTE_MIN_SIZE, type ElementType } from '../types';
 import {
   diagnosticColor,
@@ -11,6 +11,7 @@ import {
 } from '../CanvasContext';
 import { useI18n } from '../i18n/context';
 import { ColorDot } from './ColorDot';
+import { VoteBadge } from './VoteBadge';
 
 interface StickyNodeData {
   label: string;
@@ -30,6 +31,7 @@ function StickyNodeComponent({ id, type, data, selected, dragging }: NodeProps<S
   const { t } = useI18n();
   const [editing, setEditing] = useState<EditField | null>(null);
   const lifted = selected || dragging;
+  const votable = isVotable(type);
   // Peers who have this note selected: outline it in their colour.
   const remotePeers = useRemoteSelection(id);
   const remoteRing = remotePeers.length > 0 ? `0 0 0 2.5px ${remotePeers[0].color}` : null;
@@ -92,7 +94,8 @@ function StickyNodeComponent({ id, type, data, selected, dragging }: NodeProps<S
         className="sticky-note relative overflow-hidden w-full h-full"
         data-lifted={lifted ? 'true' : 'false'}
         style={{
-          padding: '12px 14px 16px',
+          // Hot spots keep room at the bottom for the vote badge.
+          padding: votable ? '12px 14px 28px' : '12px 14px 16px',
           backgroundColor: style.bgColor,
           borderRadius: '2px',
           boxShadow: [
@@ -178,6 +181,8 @@ function StickyNodeComponent({ id, type, data, selected, dragging }: NodeProps<S
             {data.description || (!readOnly && <span className="text-fg-subtle">{t('node.memoPlaceholder')}</span>)}
           </div>
         )}
+
+        {votable && <VoteBadge nodeId={id} />}
       </div>
     </div>
   );

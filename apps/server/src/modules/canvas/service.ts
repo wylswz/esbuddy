@@ -148,7 +148,8 @@ export async function publishVersion(
     st && typeof st === 'object' && Array.isArray(st.lanes) && Array.isArray(st.milestones)
       ? { lanes: st.lanes, milestones: st.milestones }
       : undefined;
-  const snapshot = JSON.stringify({ nodes: s.nodes, edges: s.edges, viewport: null, structure });
+  const votes = Array.isArray(s.votes) && s.votes.length > 0 ? s.votes : undefined;
+  const snapshot = JSON.stringify({ nodes: s.nodes, edges: s.edges, viewport: null, structure, votes });
   if (new TextEncoder().encode(snapshot).length > MAX_VERSION_SNAPSHOT_BYTES) {
     throw new VersionInputError('snapshot too large', 413);
   }

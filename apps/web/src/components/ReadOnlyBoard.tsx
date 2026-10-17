@@ -2,8 +2,9 @@ import { useMemo, type ReactNode } from 'react';
 import ReactFlow, { Controls, MarkerType, MiniMap, ReactFlowProvider } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { isStructureEmpty, type CanvasSnapshot } from '@esbuddy/sdk';
-import { CanvasActionsContext, type CanvasActions } from '../CanvasContext';
+import { CanvasActionsContext, VotesContext, type CanvasActions } from '../CanvasContext';
 import { toFlowEdge, toFlowNode } from '../collab/binding';
+import { groupVotes } from '../collab/votes';
 import { ELEMENT_STYLES, type ElementType } from '../types';
 import { BoardBackground } from './BoardBackground';
 import { nodeTypes } from './nodeTypes';
@@ -36,6 +37,7 @@ interface ReadOnlyBoardProps {
 export function ReadOnlyBoard({ snapshot, variant = 'full', minimap = false, overlay }: ReadOnlyBoardProps) {
   const nodes = useMemo(() => snapshot.nodes.map(toFlowNode), [snapshot]);
   const edges = useMemo(() => snapshot.edges.map(toFlowEdge), [snapshot]);
+  const votes = useMemo(() => groupVotes(snapshot.votes ?? []), [snapshot]);
   const structure = snapshot.structure ?? NO_STRUCTURE;
   const inset = isStructureEmpty(structure) ? 0 : RULER_SIZE;
   const full = variant === 'full';
@@ -47,6 +49,7 @@ export function ReadOnlyBoard({ snapshot, variant = 'full', minimap = false, ove
         <div className="absolute right-0 bottom-0" style={{ top: inset, left: inset }}>
           {overlay}
           <CanvasActionsContext.Provider value={READ_ONLY_ACTIONS}>
+          <VotesContext.Provider value={votes}>
             <ReactFlow
               nodes={nodes}
               edges={edges}
@@ -77,6 +80,7 @@ export function ReadOnlyBoard({ snapshot, variant = 'full', minimap = false, ove
                 />
               )}
             </ReactFlow>
+          </VotesContext.Provider>
           </CanvasActionsContext.Provider>
         </div>
       </div>

@@ -6,6 +6,7 @@ import type {
   CanvasNode,
   CanvasSnapshot,
   CanvasStructure,
+  CanvasVote,
 } from './domain.js';
 
 /*
@@ -31,6 +32,14 @@ import type {
  *   doc.getMap('lanes'):      Y.Map<laneId, Y.Map{label, y, height}>
  *   doc.getMap('milestones'): Y.Map<milestoneId, Y.Map{label, x}>
  *
+ * Dot votes on hot spots (visual only, never compiled), one entry per voter
+ * per note so concurrent votes never overwrite each other:
+ *
+ *   doc.getMap('votes'): Y.Map<`${nodeId} ${userId}`, {nodeId, userId, name}>
+ *
+ * A vote outlives its note's deletion (undoing the delete brings both back);
+ * snapshots only carry votes on hot spots that exist.
+ *
  * The viewport is deliberately NOT part of the shared doc: pan/zoom is per
  * user, so it lives in each client's local storage.
  */
@@ -39,6 +48,7 @@ export const Y_NODES = 'nodes';
 export const Y_EDGES = 'edges';
 export const Y_LANES = 'lanes';
 export const Y_MILESTONES = 'milestones';
+export const Y_VOTES = 'votes';
 
 export type YElement = Y.Map<unknown>;
 export type YElements = Y.Map<YElement>;
@@ -57,6 +67,10 @@ export function getLanesMap(doc: Y.Doc): YElements {
 
 export function getMilestonesMap(doc: Y.Doc): YElements {
   return doc.getMap<YElement>(Y_MILESTONES);
+}
+
+export function getVotesMap(doc: Y.Doc): Y.Map<CanvasVote> {
+  return doc.getMap<CanvasVote>(Y_VOTES);
 }
 
 /** Every shared type holding canvas content (for undo tracking and observers). */
@@ -149,6 +163,50 @@ export function isStructureEmpty(s: CanvasStructure | undefined | null): boolean
   return !s || (s.lanes.length === 0 && s.milestones.length === 0);
 }
 
+/** Only hot spots take votes: the workshop votes on which problem to tackle next. */
+export function isVotable(type: string | undefined): boolean {
+  return type === 'hotspot';
+}
+
+const voteKey = (nodeId: string, userId: string) => `${nodeId} ${userId}`;
+
+function parseVote(v: unknown): CanvasVote | null {
+  if (!v || typeof v !== 'object') return null;
+  const { nodeId, userId, name } = v as Record<string, unknown>;
+  return typeof nodeId === 'string' && typeof userId === 'string'
+    ? { nodeId, userId, name: typeof name === 'string' ? name : '' }
+    : null;
+}
+
+function writeVote(votes: Y.Map<CanvasVote>, vote: CanvasVote): void {
+  votes.set(voteKey(vote.nodeId, vote.userId), { nodeId: vote.nodeId, userId: vote.userId, name: vote.name });
+}
+
+/** Every vote in the doc, including ones on deleted notes, in a stable order. */
+export function readVotes(doc: Y.Doc): CanvasVote[] {
+  const out: CanvasVote[] = [];
+  getVotesMap(doc).forEach((v) => {
+    const vote = parseVote(v);
+    if (vote) out.push(vote);
+  });
+  const cmp = (x: string, y: string) => (x < y ? -1 : x > y ? 1 : 0);
+  return out.sort((a, b) => cmp(a.nodeId, b.nodeId) || cmp(a.name, b.name) || cmp(a.userId, b.userId));
+}
+
+/** Cast `voter`'s vote on a note, or take it back if already cast. */
+export function toggleVote(doc: Y.Doc, nodeId: string, voter: { id: string; name: string }, origin?: unknown): void {
+  const votes = getVotesMap(doc);
+  const key = voteKey(nodeId, voter.id);
+  doc.transact(() => {
+    if (votes.has(key)) votes.delete(key);
+    else writeVote(votes, { nodeId, userId: voter.id, name: voter.name });
+  }, origin);
+}
+
+export function clearVotes(doc: Y.Doc, origin?: unknown): void {
+  doc.transact(() => getVotesMap(doc).clear(), origin);
+}
+
 export function readNodeZ(y: YElement): number {
   return numOrNull(y.get('z')) ?? 0;
 }
@@ -212,18 +270,25 @@ export function maxNodeZ(nodes: YElements): number {
  */
 export function snapshotToDoc(snapshot: CanvasSnapshot, doc: Y.Doc, origin?: unknown): void {
   const [nodes, edges, lanes, milestones] = contentTypes(doc);
+  const votes = getVotesMap(doc);
   doc.transact(() => {
     for (const m of [nodes, edges, lanes, milestones]) m.clear();
+    votes.clear();
     snapshot.nodes.forEach((n, i) => writeNode(nodes, n, i));
     snapshot.edges.forEach((e) => writeEdge(edges, e));
     snapshot.structure?.lanes?.forEach((l) => writeLane(lanes, l));
     snapshot.structure?.milestones?.forEach((m) => writeMilestone(milestones, m));
+    for (const v of snapshot.votes ?? []) {
+      const vote = parseVote(v);
+      if (vote) writeVote(votes, vote);
+    }
   }, origin);
 }
 
 /**
  * Materialise the doc as a plain snapshot (viewport is per-user, so null).
- * `structure` is only present when the board has lanes or milestones.
+ * `structure` is only present when the board has lanes or milestones, `votes`
+ * only when a hot spot on the board has any.
  */
 export function docToSnapshot(doc: Y.Doc): CanvasSnapshot {
   const nodes = getNodesMap(doc);
@@ -233,7 +298,14 @@ export function docToSnapshot(doc: Y.Doc): CanvasSnapshot {
   edges.forEach((y, id) => edgeList.push(readEdge(id, y)));
   edgeList.sort(byIdOrder);
   const structure = readStructure(doc);
-  return { nodes: nodeList, edges: edgeList, viewport: null, ...(isStructureEmpty(structure) ? {} : { structure }) };
+  const votes = readVotes(doc).filter((v) => isVotable(nodes.get(v.nodeId)?.get('type') as string | undefined));
+  return {
+    nodes: nodeList,
+    edges: edgeList,
+    viewport: null,
+    ...(isStructureEmpty(structure) ? {} : { structure }),
+    ...(votes.length > 0 ? { votes } : {}),
+  };
 }
 
 /** Build a new doc from a snapshot. */

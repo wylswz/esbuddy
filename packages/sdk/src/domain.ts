@@ -117,12 +117,22 @@ export interface CanvasStructure {
   milestones: CanvasMilestone[];
 }
 
+/** One participant's vote on a hot spot (dot voting). Visual only, never compiled. */
+export interface CanvasVote {
+  nodeId: string;
+  userId: string;
+  /** Voter's display name at the time of voting, shown on hover. */
+  name: string;
+}
+
 export interface CanvasSnapshot {
   nodes: CanvasNode[];
   edges: CanvasEdge[];
   viewport: CanvasViewport | null;
   /** Absent on snapshots without any structure (and on legacy ones). */
   structure?: CanvasStructure;
+  /** Absent on snapshots without any votes (and on legacy ones). */
+  votes?: CanvasVote[];
 }
 
 export interface CanvasRecord extends CanvasMeta {

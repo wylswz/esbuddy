@@ -6,7 +6,7 @@ import { markTourDone } from '../tour';
 
 /*
  * Guided tour — also the editor's help. It follows a workshop in the book's
- * order (events → people → hot spots → structure → process → design →
+ * order (events → people → hot spots → structure → vote → process → design →
  * compile), then reference pages. One card that never moves or resizes
  * (so Back / Next stay under the pointer), with a labelled table of contents
  * on the left to jump to any step. While a step is shown, the part of the

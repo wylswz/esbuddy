@@ -33,6 +33,7 @@ import {
   Ruler,
   ScrollText,
   Upload,
+  Vote,
 } from 'lucide-react';
 
 import { nodeTypes } from './nodeTypes';
@@ -68,6 +69,7 @@ import {
   DiagnosticsContext,
   DropTargetContext,
   RemoteSelectionContext,
+  VotesContext,
   diagnosticColor,
 } from '../CanvasContext';
 import { useI18n } from '../i18n/context';
@@ -85,6 +87,7 @@ import {
 import type { ConnectionStatus } from '../collab/provider';
 import { useCollabSession, type CollabSession } from '../collab/useCollabSession';
 import { structureEditor, useStructure } from '../collab/structure';
+import { useVotes } from '../collab/votes';
 import { loadViewport, saveViewport } from '../collab/viewport';
 import { isRemoteMode } from '../stores/mode';
 import * as storage from '../storage';
@@ -92,6 +95,7 @@ import {
   boundToOf,
   canConnect,
   canvasToYaml,
+  clearVotes,
   compileCanvas,
   nextBinding,
   docToSnapshot,
@@ -103,6 +107,7 @@ import {
   DEFAULT_LANE_HEIGHT,
   MIN_LANE_HEIGHT,
   snapshotToDoc,
+  toggleVote,
   type Diagnostic,
   type Severity,
   type CanvasRecord,
@@ -620,9 +625,23 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
     [commit, updateNodes],
   );
 
+  // ---- Dot votes on hot spots: written straight to the doc, each one its own undo step.
+  const votes = useVotes(doc);
+  const vote = useCallback(
+    (id: string) => {
+      commit();
+      toggleVote(doc, id, me, LOCAL_ORIGIN);
+    },
+    [commit, doc, me],
+  );
+  const resetVotes = useCallback(() => {
+    commit();
+    clearVotes(doc, LOCAL_ORIGIN);
+  }, [commit, doc]);
+
   const actions = useMemo(
-    () => ({ updateNodeLabel, updateNodeDescription }),
-    [updateNodeLabel, updateNodeDescription],
+    () => ({ updateNodeLabel, updateNodeDescription, toggleVote: vote, voterId: me.id }),
+    [updateNodeLabel, updateNodeDescription, vote, me.id],
   );
 
   const addNodeAtMouse = useCallback(
@@ -1176,6 +1195,17 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
             },
           ]
         : []),
+      ...(votes.size > 0
+        ? [
+            {
+              id: 'clear-votes',
+              label: t('palette.clearVotes'),
+              keywords: 'vote dot voting clear reset 投票 清空',
+              icon: <Vote size={15} />,
+              run: resetVotes,
+            },
+          ]
+        : []),
       { id: 'compile', label: t('compile.title'), keywords: 'compile 编译', icon: <ScrollText size={15} />, run: () => setShowCompile(true) },
       { id: 'yaml', label: t('toolbar.exportYaml'), keywords: 'export yaml 导出', icon: <FileDown size={15} />, run: exportYaml },
       {
@@ -1186,7 +1216,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
         run: () => setShowTour(true),
       },
     ];
-  }, [t, addPivotal, addLane, addMilestone, rulersVisible, addElement, canGroup, groupAsAggregate, exportYaml]);
+  }, [t, addPivotal, addLane, addMilestone, rulersVisible, addElement, canGroup, groupAsAggregate, votes, resetVotes, exportYaml]);
 
   const tourSteps = useMemo<TourStep[]>(
     () =>
@@ -1198,6 +1228,8 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
           ['people', 'elements'],
           ['hotspots', 'elements'],
           ['structure', 'search'],
+          // Votes sit on the notes themselves: nothing in the chrome to spotlight.
+          ['vote', undefined],
           ['process', 'elements'],
           ['aggregates', 'group'],
           ['compile', 'compile'],
@@ -1317,6 +1349,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
           <DropTargetContext.Provider value={dropTargetId}>
           <RemoteSelectionContext.Provider value={remoteSelection}>
           <DiagnosticsContext.Provider value={nodeDiagnostics}>
+          <VotesContext.Provider value={votes}>
             <Toolbar
               onAddElement={addElement}
               onGroupAggregate={groupAsAggregate}
@@ -1371,6 +1404,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
               )}
               <RemoteCursors peers={peers} />
             </ReactFlow>
+          </VotesContext.Provider>
           </DiagnosticsContext.Provider>
           </RemoteSelectionContext.Provider>
           </DropTargetContext.Provider>

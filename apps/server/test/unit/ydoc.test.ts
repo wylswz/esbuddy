@@ -1,5 +1,6 @@
 import * as Y from 'yjs';
 import {
+  clearVotes,
   docFromSnapshot,
   docToSnapshot,
   exampleCanvasSnapshot,
@@ -7,7 +8,9 @@ import {
   isDocEmpty,
   orderedNodeIds,
   readNode,
+  readVotes,
   snapshotToDoc,
+  toggleVote,
   type CanvasSnapshot,
 } from '@esbuddy/sdk';
 import { describe, expect, it } from 'vitest';
@@ -81,6 +84,55 @@ describe('canvas Y.Doc schema', () => {
       expect(n.position.x).toBe(100);
       expect(n.data.label).toBe('new');
     }
+  });
+
+  describe('votes', () => {
+    const board = () =>
+      snap([
+        { id: 'hs', type: 'hotspot', position: { x: 0, y: 0 }, data: {} },
+        { id: 'ev', type: 'event', position: { x: 0, y: 0 }, data: {} },
+      ]);
+    const ana = { id: 'u1', name: 'Ana' };
+    const ben = { id: 'u2', name: 'Ben' };
+
+    it('toggles one vote per user per note', () => {
+      const doc = docFromSnapshot(board());
+      toggleVote(doc, 'hs', ana);
+      toggleVote(doc, 'hs', ben);
+      expect(readVotes(doc)).toEqual([
+        { nodeId: 'hs', userId: 'u1', name: 'Ana' },
+        { nodeId: 'hs', userId: 'u2', name: 'Ben' },
+      ]);
+      toggleVote(doc, 'hs', ana);
+      expect(readVotes(doc).map((v) => v.userId)).toEqual(['u2']);
+      clearVotes(doc);
+      expect(readVotes(doc)).toEqual([]);
+    });
+
+    it('merges concurrent votes on the same note', () => {
+      const a = docFromSnapshot(board());
+      const b = new Y.Doc();
+      Y.applyUpdate(b, Y.encodeStateAsUpdate(a));
+      toggleVote(a, 'hs', ana);
+      toggleVote(b, 'hs', ben);
+      Y.applyUpdate(a, Y.encodeStateAsUpdate(b));
+      Y.applyUpdate(b, Y.encodeStateAsUpdate(a));
+      for (const doc of [a, b]) expect(readVotes(doc)).toHaveLength(2);
+    });
+
+    it('round-trips through snapshots, keeping only votes on existing hot spots', () => {
+      const doc = docFromSnapshot(board());
+      toggleVote(doc, 'hs', ana);
+      toggleVote(doc, 'ev', ana); // not votable
+      toggleVote(doc, 'gone', ana); // note deleted
+      const out = docToSnapshot(doc);
+      expect(out.votes).toEqual([{ nodeId: 'hs', userId: 'u1', name: 'Ana' }]);
+      expect(docToSnapshot(docFromSnapshot(out)).votes).toEqual(out.votes);
+      // Boards without votes keep the snapshot shape unchanged; restoring one clears them.
+      snapshotToDoc(board(), doc);
+      expect(readVotes(doc)).toEqual([]);
+      expect(docToSnapshot(doc)).toEqual(board());
+    });
   });
 
   it('snapshotToDoc replaces existing content', () => {
