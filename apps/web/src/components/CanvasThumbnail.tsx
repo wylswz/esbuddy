@@ -73,7 +73,8 @@ export function CanvasThumbnail({ store, canvasId }: CanvasThumbnailProps) {
       {snapshot.nodes.map((n, i) => {
         const b = boxes[i];
         const isAgg = n.type === 'aggregate';
-        const color = ELEMENT_STYLES[n.type as ElementType]?.color ?? 'var(--color-board-line)';
+        const style = ELEMENT_STYLES[n.type as ElementType];
+        const color = style?.color ?? 'var(--color-board-line)';
         return (
           <rect
             key={n.id}
@@ -81,8 +82,8 @@ export function CanvasThumbnail({ store, canvasId }: CanvasThumbnailProps) {
             y={b.y}
             width={b.w}
             height={b.h}
-            rx={12}
-            fill={isAgg ? 'none' : color}
+            rx={isAgg ? 12 : 2}
+            fill={isAgg ? 'none' : (style?.paperColor ?? color)}
             fillOpacity={isAgg ? 0 : 0.9}
             stroke={isAgg ? color : 'none'}
             strokeWidth={isAgg ? 4 : 0}

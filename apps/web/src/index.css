@@ -37,6 +37,16 @@
   --color-pivotal-bg: #fde047;
   --color-pivotal-border: #facc15;
 
+  /* Dyed paper, separate from the pale UI tints above. */
+  --color-event-paper: #f6bf83;
+  --color-command-paper: #b4d2ef;
+  --color-actor-paper: #f3df8a;
+  --color-policy-paper: #d5c2e9;
+  --color-external-paper: #edbfd3;
+  --color-hotspot-paper: #eeafa6;
+  --color-readmodel-paper: #bcdcc5;
+  --color-note-paper: #ede5d5;
+
   /* --- UI chrome: surfaces --- */
   --color-page: #f9fafb;
   --color-surface: #ffffff;
@@ -106,18 +116,88 @@ html, body, #root {
 }
 
 /*
- * Sticky note paper.
- * At rest the note is slightly tilted. On hover (or while lifted/dragged) it
- * straightens — a little "pick up the note" interaction.
+ * A glued top edge and a loose lower edge: keep the contact shadow close, then
+ * cast a separate, uneven shadow beneath the paper rather than around a card.
+ * Selection / peer / diagnostic rings compose with --sticky-shadow in the node.
  */
+.sticky-node > .react-flow__handle {
+  opacity: 0;
+}
+
+.sticky-node:not([data-readonly='true']):is(:hover, :focus-within) > .react-flow__handle,
+.react-flow__node.selected .sticky-node > .react-flow__handle,
+.react-flow:has(.react-flow__connection) .sticky-node:not([data-readonly='true']) > .react-flow__handle {
+  opacity: 1;
+}
+
 .sticky-note {
-  transform: rotate(-0.9deg);
+  --sticky-ink: #3d352e;
+  --sticky-shadow: 0 1px 1px rgba(65, 46, 25, 0.10), 0 3px 5px -3px rgba(65, 46, 25, 0.13);
+  isolation: isolate;
+  border-radius: 1px 1px 3px 2px;
+  transform: rotate(-0.5deg);
+  transform-origin: 50% 12%;
   transition: transform 180ms ease, box-shadow 180ms ease;
 }
 
-.sticky-note[data-lifted='true'],
-.sticky-note:hover {
+.sticky-note::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  inset: auto 7px -5px 12px;
+  height: 18%;
+  border-radius: 50%;
+  background: rgba(65, 46, 25, 0.18);
+  filter: blur(5px);
+  transform: rotate(-3deg) skewX(-5deg);
+  transform-origin: right bottom;
+  transition: transform 180ms ease, opacity 180ms ease;
+}
+
+.sticky-note-paper {
+  border-radius: inherit;
+  color: var(--sticky-ink);
+  background-image:
+    linear-gradient(180deg, rgba(99, 69, 30, 0.045), transparent 16%, rgba(255, 255, 255, 0.10) 74%, rgba(255, 255, 255, 0.22) 100%),
+    linear-gradient(105deg, rgba(255, 255, 255, 0.12), transparent 55%, rgba(99, 69, 30, 0.025));
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.28), inset 0 -1px rgba(99, 69, 30, 0.07);
+}
+
+/* A barely visible fibre texture; it never intercepts editing or voting. */
+.sticky-note-paper::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Cpath fill='%23000' filter='url(%23p)' d='M0 0h160v160H0z'/%3E%3C/svg%3E");
+}
+
+.sticky-type,
+.sticky-memo {
+  color: color-mix(in srgb, var(--sticky-ink) 88%, transparent);
+}
+
+.sticky-placeholder {
+  color: color-mix(in srgb, var(--sticky-ink) 86%, transparent);
+}
+
+.sticky-note[data-lifted='true'] {
+  --sticky-shadow: 0 1px 2px rgba(65, 46, 25, 0.08), 0 8px 16px -6px rgba(65, 46, 25, 0.20);
   transform: rotate(0deg);
+}
+
+.sticky-note[data-lifted='true']::before {
+  opacity: 0.7;
+  transform: translateY(3px) rotate(-2deg);
+}
+
+@media (hover: hover) {
+  .sticky-note:not([data-readonly='true']):hover {
+    --sticky-shadow: 0 1px 2px rgba(65, 46, 25, 0.08), 0 8px 16px -6px rgba(65, 46, 25, 0.20);
+    transform: rotate(0deg);
+  }
 }
 
 /*
@@ -190,6 +270,11 @@ html, body, #root {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .sticky-note,
+  .sticky-note::before {
+    transition: none;
+  }
+
   .card-enter,
   .thumb-enter {
     animation: none;

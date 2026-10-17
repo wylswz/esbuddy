@@ -9,6 +9,7 @@ export const NOTE_MIN_SIZE = 120;
 export interface ElementStyle {
   color: string;
   bgColor: string;
+  paperColor: string;
   borderColor: string;
   shortcut?: string;
 }
@@ -21,6 +22,7 @@ export interface ElementStyle {
 const elementStyle = (type: ElementType, shortcut?: string): ElementStyle => ({
   color: `var(--color-${type})`,
   bgColor: `var(--color-${type}-bg)`,
+  paperColor: `var(--color-${type}-paper, var(--color-${type}-bg))`,
   borderColor: `var(--color-${type}-border)`,
   ...(shortcut ? { shortcut } : {}),
 });
