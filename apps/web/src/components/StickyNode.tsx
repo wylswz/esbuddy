@@ -155,7 +155,7 @@ function StickyNodeComponent({ id, type, data, selected, dragging }: NodeProps<S
             />
           ) : (
             <div
-              className={`sticky-title text-sm font-semibold leading-snug break-words whitespace-pre-wrap${readOnly ? '' : ' cursor-text'}`}
+              className={`sticky-title text-sm font-semibold leading-snug wrap-break-word whitespace-pre-wrap${readOnly ? '' : ' cursor-text'}`}
               title={readOnly ? undefined : t('node.doubleClickEdit')}
               onDoubleClick={readOnly ? undefined : () => setEditing('title')}
             >
@@ -181,7 +181,7 @@ function StickyNodeComponent({ id, type, data, selected, dragging }: NodeProps<S
             />
           ) : (
             <div
-              className={`sticky-memo text-xs leading-relaxed break-words whitespace-pre-wrap mt-2${readOnly ? '' : ' cursor-text'}`}
+              className={`sticky-memo text-xs leading-relaxed wrap-break-word whitespace-pre-wrap mt-2${readOnly ? '' : ' cursor-text'}`}
               data-empty={!data.description ? 'true' : 'false'}
               title={readOnly ? undefined : t('node.doubleClickEditMemo')}
               onDoubleClick={readOnly ? undefined : () => setEditing('memo')}

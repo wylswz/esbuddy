@@ -4,6 +4,7 @@ import type {
   CanvasRecord,
   CanvasVersion,
   CanvasVersionMeta,
+  CreatedWorkspaceToken,
   Invitation,
   InvitationPreview,
   PublishedCanvasVersion,
@@ -11,6 +12,7 @@ import type {
   User,
   Workspace,
   WorkspaceMember,
+  WorkspaceToken,
 } from '@esbuddy/sdk';
 import { deleteLocalCanvasDoc } from '../collab/provider';
 import * as storage from '../storage';
@@ -79,6 +81,18 @@ export class LocalStore implements Store {
   }
 
   acceptInvitation(): Promise<Workspace> {
+    return Promise.reject(new Error(LOCAL_NOT_SUPPORTED));
+  }
+
+  listWorkspaceTokens(): Promise<WorkspaceToken[]> {
+    return Promise.reject(new Error(LOCAL_NOT_SUPPORTED));
+  }
+
+  createWorkspaceToken(): Promise<CreatedWorkspaceToken> {
+    return Promise.reject(new Error(LOCAL_NOT_SUPPORTED));
+  }
+
+  revokeWorkspaceToken(): Promise<void> {
     return Promise.reject(new Error(LOCAL_NOT_SUPPORTED));
   }
 

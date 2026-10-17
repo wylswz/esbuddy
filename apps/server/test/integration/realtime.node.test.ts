@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { serve } from '@hono/node-server';
-import type { CanvasMeta, CanvasRecord, Workspace } from '@esbuddy/sdk';
+import type { CanvasMeta, CanvasRecord, CreatedWorkspaceToken, Workspace } from '@esbuddy/sdk';
 import { getNodesMap, writeNode } from '@esbuddy/sdk';
 import { WebsocketProvider } from 'y-websocket';
 import * as Y from 'yjs';
@@ -63,6 +63,15 @@ describe('realtime rooms (Node host)', () => {
       await fetch(`${base}/api/canvases?workspace=${ws[0].id}`, { headers: authHeaders(token) })
     ).json()) as CanvasMeta[];
     return list[0];
+  }
+
+  async function agentToken(name: string, role = 'editor'): Promise<CreatedWorkspaceToken> {
+    const [workspace] = await (await app.request('/api/workspaces', { headers: authHeaders(token) })).json() as Workspace[];
+    const res = await app.request(`/api/workspaces/${workspace.id}/tokens`, {
+      method: 'POST', headers: authHeaders(token), body: JSON.stringify({ name, role }),
+    });
+    expect(res.status).toBe(201);
+    return await res.json() as CreatedWorkspaceToken;
   }
 
   it('hydrates a legacy (snapshot-only) canvas and syncs edits to peers and to SQLite', async () => {
@@ -133,5 +142,72 @@ describe('realtime rooms (Node host)', () => {
     writeNode(getNodesMap(editor.doc), { id: 'legit', type: 'event', position: { x: 0, y: 0 }, data: {} }, 99);
     await until(() => getNodesMap(reader.doc).has('legit'));
     expect(getNodesMap(editor.doc).has('sneaky')).toBe(false);
+  });
+
+  it('collaborates as distinct agents with server-authoritative names, cursors and selections', async () => {
+    const canvas = await seededCanvas();
+    const expert = await agentToken('Domain expert');
+    const critic = await agentToken('Challenger');
+    const observer = connect(canvas.id);
+    const a = connect(canvas.id, expert.token);
+    const b = connect(canvas.id, critic.token);
+    a.provider.awareness.setLocalState({});
+    b.provider.awareness.setLocalState({});
+    await until(() => observer.provider.synced && a.provider.synced && b.provider.synced);
+    await until(() => observer.provider.awareness.getStates().get(a.doc.clientID)?.user?.id === expert.identity.id
+      && observer.provider.awareness.getStates().get(b.doc.clientID)?.user?.id === critic.identity.id);
+    a.provider.awareness.setLocalState({
+      user: { id: 'fake-owner', name: 'Owner', color: '#000000' },
+      cursor: { x: 10, y: 20 }, selection: ['new-a'],
+    });
+    b.provider.awareness.setLocalState({ user: { name: 'Fake' } });
+    await until(() => observer.provider.awareness.getStates().get(a.doc.clientID)?.cursor?.x === 10
+      && observer.provider.awareness.getStates().get(b.doc.clientID)?.user?.id === critic.identity.id);
+    expect(observer.provider.awareness.getStates().get(a.doc.clientID)).toEqual({
+      user: expert.identity, cursor: { x: 10, y: 20 }, selection: ['new-a'],
+    });
+    writeNode(getNodesMap(a.doc), { id: 'new-a', type: 'event', position: { x: 1, y: 2 }, data: { label: 'Expert idea' } }, 99);
+    writeNode(getNodesMap(b.doc), { id: 'new-b', type: 'hotspot', position: { x: 5, y: 6 }, data: { label: 'Challenge' } }, 100);
+    await until(() => getNodesMap(observer.doc).has('new-a') && getNodesMap(observer.doc).has('new-b'));
+    await host.flushAll();
+    a.provider.destroy();
+    await until(() => !observer.provider.awareness.getStates().has(a.doc.clientID));
+  });
+
+  it('enforces workspace scope, read-only tokens and revocation on already connected sockets', async () => {
+    const canvas = await seededCanvas();
+    const viewer = await agentToken('Observer', 'viewer');
+    const writer = await agentToken('Writer');
+    const human = connect(canvas.id);
+    const reader = connect(canvas.id, viewer.token);
+    const agent = connect(canvas.id, writer.token);
+    await until(() => human.provider.synced && reader.provider.synced && agent.provider.synced);
+    writeNode(getNodesMap(reader.doc), { id: 'viewer-edit', type: 'note', position: { x: 0, y: 0 }, data: {} }, 99);
+    writeNode(getNodesMap(agent.doc), { id: 'agent-edit', type: 'note', position: { x: 0, y: 0 }, data: {} }, 99);
+    await until(() => getNodesMap(human.doc).has('agent-edit'));
+    expect(getNodesMap(human.doc).has('viewer-edit')).toBe(false);
+
+    const foreign = await (await app.request('/api/canvases', {
+      method: 'POST', headers: authHeaders(token), body: JSON.stringify({ name: 'Private canvas' }),
+    })).json() as CanvasMeta;
+    const forbidden = connect(foreign.id, writer.token);
+    let rejected = false;
+    forbidden.provider.on('connection-error', () => { rejected = true; });
+    await until(() => rejected);
+    forbidden.provider.destroy();
+
+    reader.provider.shouldConnect = false;
+    agent.provider.shouldConnect = false;
+    for (const credential of [viewer, writer]) {
+      expect((await app.request(`/api/workspaces/${credential.workspaceId}/tokens/${credential.id}`, {
+        method: 'DELETE', headers: authHeaders(token),
+      })).status).toBe(204);
+    }
+    writeNode(getNodesMap(agent.doc), { id: 'revoked-edit', type: 'note', position: { x: 0, y: 0 }, data: {} }, 99);
+    // Silent revoked readers are disconnected before any subsequent broadcast reaches them.
+    writeNode(getNodesMap(human.doc), { id: 'after-revoke', type: 'note', position: { x: 0, y: 0 }, data: {} }, 99);
+    await until(() => !reader.provider.wsconnected && !agent.provider.wsconnected);
+    expect(getNodesMap(human.doc).has('revoked-edit')).toBe(false);
+    expect(getNodesMap(reader.doc).has('after-revoke')).toBe(false);
   });
 });

@@ -13,6 +13,10 @@ export function listWorkspacesForUser(db: Db, userId: string): Promise<Workspace
   return repo.listWorkspacesForUser(db, userId);
 }
 
+export function getWorkspace(db: Db, workspaceId: string): Promise<Workspace | null> {
+  return repo.getWorkspace(db, workspaceId);
+}
+
 export function listMembers(db: Db, workspaceId: string): Promise<WorkspaceMember[]> {
   return repo.listMembers(db, workspaceId);
 }

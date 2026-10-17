@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./agent": {
+      "types": "./dist/agent.d.ts",
+      "import": "./dist/agent.js"
     }
   },
   "scripts": {
@@ -20,6 +24,7 @@
     "typescript": "~6.0.2"
   },
   "dependencies": {
-    "yjs": "13.6.32"
+    "yjs": "13.6.32",
+    "zod": "4.4.3"
   }
 }

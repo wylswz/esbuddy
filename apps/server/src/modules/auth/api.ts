@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
+import { identityColor } from '@esbuddy/sdk';
 import { verifyState } from './jwt.js';
 import { googleAuthUrl } from './google.js';
-import { authMiddleware } from './middleware.js';
+import { authMiddleware, requireAuth } from './middleware.js';
 import type { AppVariables } from '../../context.js';
 import { isDevMode } from '../../env.js';
 import * as service from './service.js';
@@ -40,6 +41,16 @@ authRoutes.get('/me', authMiddleware, async (c) => {
   if (!userId) return c.json(null);
   const user = await service.getUser(c.var.db, userId);
   return c.json(user);
+});
+
+// Agent clients resolve their authenticated presence without impersonating a user.
+authRoutes.get('/identity', authMiddleware, requireAuth, async (c) => {
+  c.header('Cache-Control', 'no-store');
+  if (c.var.workspaceToken) return c.json(c.var.workspaceToken.identity);
+  const user = await service.getUser(c.var.db, c.var.userId!);
+  return user
+    ? c.json({ id: user.id, name: user.name, color: identityColor(user.id), kind: 'user' as const })
+    : c.json({ error: 'not found' }, 404);
 });
 
 // Dev-only login: returns a signed token for a local user (no Google required).

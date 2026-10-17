@@ -1,7 +1,7 @@
 import { eq, and, inArray, sql } from 'drizzle-orm';
 import type { Invitation, Role, Workspace, WorkspaceMember } from '@esbuddy/sdk';
 import type { Db } from '../../db/types.js';
-import { invitations, workspaceMembers, workspaces } from '../../db/schema.js';
+import { invitations, workspaceMembers, workspaceTokens, workspaces } from '../../db/schema.js';
 
 const now = () => Date.now();
 
@@ -111,6 +111,7 @@ export async function countMembers(db: Db, workspaceId: string): Promise<number>
 
 /** Delete the workspace row with its invitations and memberships (canvases are the canvas module's). */
 export async function deleteWorkspace(db: Db, workspaceId: string): Promise<void> {
+  await db.delete(workspaceTokens).where(eq(workspaceTokens.workspaceId, workspaceId)).run();
   await db.delete(invitations).where(eq(invitations.workspaceId, workspaceId)).run();
   await db.delete(workspaceMembers).where(eq(workspaceMembers.workspaceId, workspaceId)).run();
   await db.delete(workspaces).where(eq(workspaces.id, workspaceId)).run();

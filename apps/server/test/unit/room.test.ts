@@ -3,7 +3,7 @@ import * as syncProtocol from 'y-protocols/sync';
 import * as awarenessProtocol from 'y-protocols/awareness';
 import * as encoding from 'lib0/encoding';
 import * as decoding from 'lib0/decoding';
-import { docFromSnapshot, exampleCanvasSnapshot, getNodesMap } from '@esbuddy/sdk';
+import { docFromSnapshot, exampleCanvasSnapshot, getNodesMap, type CollaborationIdentity } from '@esbuddy/sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { CanvasRoom, MSG_AWARENESS, MSG_SYNC, type RoomSocket } from '../../src/modules/canvas/room.js';
 
@@ -12,7 +12,7 @@ import { CanvasRoom, MSG_AWARENESS, MSG_SYNC, type RoomSocket } from '../../src/
  * room through a fake socket, speaking the same wire protocol the browser
  * provider does. Lets us test the room without any network.
  */
-function connectClient(room: CanvasRoom, opts: { readOnly?: boolean } = {}) {
+function connectClient(room: CanvasRoom, opts: { readOnly?: boolean; identity?: CollaborationIdentity } = {}) {
   const doc = new Y.Doc();
   const awareness = new awarenessProtocol.Awareness(doc);
   const SERVER = Symbol('server');
@@ -133,5 +133,81 @@ describe('CanvasRoom', () => {
     woken.connect(sock, { handshake: false, controlledIds: ids });
     expect(sent).toHaveLength(0);
     expect(woken.controlledIds(sock)).toEqual(ids);
+  });
+
+  it('binds agent presence to the authenticated identity and rejects other peers awareness ids', () => {
+    const room = new CanvasRoom();
+    const identity: CollaborationIdentity = { id: 'agent:expert', name: 'Expert', color: '#2563eb', kind: 'agent' };
+    const human = connectClient(room);
+    human.awareness.setLocalState({ user: { id: 'owner', name: 'Owner' } });
+    const agent = connectClient(room, { identity });
+    agent.awareness.setLocalState({
+      user: { id: 'owner', name: 'Impersonation', color: '#000000' },
+      cursor: { x: 20, y: 30 }, selection: ['n1'],
+    });
+    expect(human.awareness.getStates().get(agent.doc.clientID)).toEqual({
+      user: identity, cursor: { x: 20, y: 30 }, selection: ['n1'],
+    });
+    // A malicious agent attempts to remove a human's presence and invent a second identity.
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, MSG_AWARENESS);
+    const update = encoding.createEncoder();
+    encoding.writeVarUint(update, 2);
+    for (const id of [human.doc.clientID, 12345]) {
+      encoding.writeVarUint(update, id);
+      encoding.writeVarUint(update, 10000);
+      encoding.writeVarString(update, 'null');
+    }
+    encoding.writeVarUint8Array(encoder, encoding.toUint8Array(update));
+    room.message(agent.sock, encoding.toUint8Array(encoder));
+    expect(room.awareness.getStates().get(human.doc.clientID)?.user).toMatchObject({ id: 'owner' });
+    expect(room.controlledIds(agent.sock)).toEqual([agent.doc.clientID]);
+    agent.disconnect();
+    expect(human.awareness.getStates().has(agent.doc.clientID)).toBe(false);
+    human.disconnect();
+    room.destroy();
+    agent.awareness.destroy();
+    human.awareness.destroy();
+  });
+
+  it('preserves authoritative agent identities when a room wakes from hibernation', () => {
+    const room = new CanvasRoom();
+    const identity: CollaborationIdentity = { id: 'agent:critic', name: 'Critic', color: '#e11d48', kind: 'agent' };
+    const sock: RoomSocket = { send: () => {} };
+    room.connect(sock, { handshake: false, controlledIds: [1234], identity });
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, MSG_AWARENESS);
+    const update = encoding.createEncoder();
+    encoding.writeVarUint(update, 1);
+    encoding.writeVarUint(update, 1234);
+    encoding.writeVarUint(update, 2);
+    encoding.writeVarString(update, JSON.stringify({ user: { id: 'owner', name: 'Owner' } }));
+    encoding.writeVarUint8Array(encoder, encoding.toUint8Array(update));
+    room.message(sock, encoding.toUint8Array(encoder));
+    expect(room.awareness.getStates().get(1234)?.user).toEqual(identity);
+    room.destroy();
+  });
+
+  it('protects hibernated peer ids before their first awareness heartbeat arrives', () => {
+    const room = new CanvasRoom();
+    const human: RoomSocket = { send: () => {} };
+    room.connect(human, { handshake: false, controlledIds: [4321] });
+    const agent: RoomSocket = { send: () => {} };
+    room.connect(agent, {
+      handshake: false, identity: { id: 'agent:expert', name: 'Expert', color: '#2563eb', kind: 'agent' },
+    });
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, MSG_AWARENESS);
+    const update = encoding.createEncoder();
+    encoding.writeVarUint(update, 1);
+    encoding.writeVarUint(update, 4321);
+    encoding.writeVarUint(update, 100);
+    encoding.writeVarString(update, '{}');
+    encoding.writeVarUint8Array(encoder, encoding.toUint8Array(update));
+    room.message(agent, encoding.toUint8Array(encoder));
+    expect(room.controlledIds(agent)).toEqual([]);
+    expect(room.controlledIds(human)).toEqual([4321]);
+    expect(room.awareness.getStates().has(4321)).toBe(false);
+    room.destroy();
   });
 });

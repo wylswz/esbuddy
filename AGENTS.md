@@ -79,6 +79,15 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm build
 - **Auth secrets**: the built-in dev JWT secret only works in dev mode
   (`isDevMode`); otherwise `JWT_SECRET` is required. The OAuth callback hands
   the token to the SPA in the URL fragment (`#token=`), never the query string.
+- **Workspace agent tokens** (`modules/workspace/tokens.*`, usage in
+  `doc/workspace-tokens.md`): owner-managed, hashed opaque credentials scoped to
+  one workspace with editor/viewer access. Each has a stable agent identity,
+  separate from its creator's user account. Access checks take either a user ID
+  or token metadata; don't pass a token's synthetic actor ID as a user subject.
+  Room hosts check token validity on incoming and outgoing messages; the room
+  fixes token clients' awareness identities server-side. Worker forwarding
+  headers are overwritten at the entrypoint, and socket identity survives DO
+  hibernation. Tokens cannot manage credentials, workspaces or invitations.
 - **DB** (`apps/server/src/db/`): `types.ts` exposes a driver-agnostic `Db`;
   `index.node.ts` builds a better-sqlite3 handle (migrations applied on
   startup); `d1.worker.ts` wraps a D1 binding. Schema in `schema.ts`, Drizzle
@@ -205,6 +214,12 @@ The suite creates and disposes an isolated browser context, so it never rewrites
 your own local canvases. It exercises composition/cancellation, IME-safe input,
 single-step undo/redo, attachment and detachment, grouping, read-only boards,
 tool search, and touch placement.
+
+The backend-mode token/browser smoke test is `test:browser:tokens` in the web
+package. It checks token creation, one-time secret display, authenticated live
+presence, mobile layout and revocation. It needs an isolated dev backend, a
+remote-mode Vite server (default port 5175), and the same Chrome debugger; see
+`doc/workspace-tokens.md`.
 
 ## Conventions
 

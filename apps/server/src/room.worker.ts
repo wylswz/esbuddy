@@ -1,11 +1,14 @@
 /// <reference types="@cloudflare/workers-types" />
 import { DurableObject } from 'cloudflare:workers';
 import * as Y from 'yjs';
+import type { CollaborationIdentity } from '@esbuddy/sdk';
 import { createD1Db } from './db/d1.worker.js';
 import type { WorkerBindings } from './env.worker.js';
 import { CanvasRoom, type RoomSocket } from './modules/canvas/room.js';
 import * as canvasService from './modules/canvas/service.js';
-import { FLUSH_DEBOUNCE_MS, ROOM_READONLY_HEADER, isWebSocketUpgrade, parseRoomPath } from './realtime.js';
+import { FLUSH_DEBOUNCE_MS, ROOM_READONLY_HEADER, ROOM_TOKEN_HEADER, isWebSocketUpgrade, parseRoomPath } from './realtime.js';
+import { getActiveWorkspaceToken } from './modules/workspace/tokens.service.js';
+import { AGENT_ROOM_PREFIX, runRoomCommand, type RoomCommand } from './modules/canvas/agent-room.js';
 
 /*
  * Cloudflare host for collaboration rooms (the counterpart of `realtime.node.ts`).
@@ -32,17 +35,31 @@ interface Attachment {
   ids?: number[];
   /** Viewer socket: may read the doc, never write it. */
   readOnly?: boolean;
+  tokenId?: string;
+  identity?: CollaborationIdentity;
 }
 
 export class CanvasRoomObject extends DurableObject<WorkerBindings> {
   private room: CanvasRoom | null = null;
+  private loading: Promise<CanvasRoom | null> | null = null;
   private canvasId: string | null = null;
   private readonly socks = new Map<WebSocket, RoomSocket>();
+  private readonly sends = new Map<WebSocket, Promise<void>>();
   private dirty = false;
   private hotTimer: ReturnType<typeof setTimeout> | null = null;
 
   async fetch(request: Request): Promise<Response> {
-    const canvasId = parseRoomPath(new URL(request.url).pathname);
+    const url = new URL(request.url);
+    if (url.pathname.startsWith(AGENT_ROOM_PREFIX) && request.method === 'POST') {
+      const canvasId = decodeURIComponent(url.pathname.slice(AGENT_ROOM_PREFIX.length));
+      const room = await this.ensureRoom(canvasId);
+      if (!room) return Response.json({ status: 404, body: { error: 'not found' } });
+      const command = await request.json() as RoomCommand;
+      const reply = runRoomCommand(room, command);
+      if (command.type === 'edit' && reply.status === 200) await this.persistHot();
+      return Response.json(reply);
+    }
+    const canvasId = parseRoomPath(url.pathname);
     if (!canvasId || !isWebSocketUpgrade(request.headers)) {
       return new Response('expected websocket upgrade', { status: 426 });
     }
@@ -51,16 +68,25 @@ export class CanvasRoomObject extends DurableObject<WorkerBindings> {
 
     // Set by the Worker entry after authorizing; requests only reach the DO through it.
     const readOnly = request.headers.get(ROOM_READONLY_HEADER) !== '0';
+    const tokenId = request.headers.get(ROOM_TOKEN_HEADER) || undefined;
+    const token = tokenId ? await getActiveWorkspaceToken(createD1Db(this.env.DB), tokenId) : null;
+    if (tokenId && !token) return new Response('unauthorized', { status: 401 });
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({ ids: [], readOnly } satisfies Attachment);
-    room.connect(this.wrap(server), { readOnly });
+    server.serializeAttachment({ ids: [], readOnly, tokenId, identity: token?.identity } satisfies Attachment);
+    room.connect(this.wrap(server), { readOnly, identity: token?.identity });
     return new Response(null, { status: 101, webSocket: client });
   }
 
   async webSocketMessage(ws: WebSocket, message: ArrayBuffer | string): Promise<void> {
     if (typeof message === 'string') return;
+    const att = ws.deserializeAttachment() as Attachment | null;
+    if (att?.tokenId && !(await getActiveWorkspaceToken(createD1Db(this.env.DB), att.tokenId))) {
+      ws.close(4401, 'token expired or revoked');
+      await this.leave(ws);
+      return;
+    }
     const room = await this.ensureRoom();
     if (!room) {
       ws.close(4404, 'canvas not found');
@@ -68,8 +94,7 @@ export class CanvasRoomObject extends DurableObject<WorkerBindings> {
     }
     const sock = this.wrap(ws);
     room.message(sock, new Uint8Array(message));
-    const att = ws.deserializeAttachment() as Attachment | null;
-    ws.serializeAttachment({ ids: room.controlledIds(sock), readOnly: att?.readOnly } satisfies Attachment);
+    ws.serializeAttachment({ ...att, ids: room.controlledIds(sock) } satisfies Attachment);
   }
 
   async webSocketClose(ws: WebSocket): Promise<void> {
@@ -88,6 +113,7 @@ export class CanvasRoomObject extends DurableObject<WorkerBindings> {
     const room = await this.ensureRoom();
     const sock = this.socks.get(ws);
     this.socks.delete(ws);
+    this.sends.delete(ws);
     if (!room) return;
     if (sock) room.disconnect(sock);
     else room.removeAwareness((ws.deserializeAttachment() as Attachment | null)?.ids ?? []);
@@ -99,7 +125,22 @@ export class CanvasRoomObject extends DurableObject<WorkerBindings> {
     if (!sock) {
       sock = {
         send: (data) => {
-          ws.send(data);
+          const att = ws.deserializeAttachment() as Attachment | null;
+          if (!att?.tokenId) {
+            ws.send(data);
+            return;
+          }
+          const pending = (this.sends.get(ws) ?? Promise.resolve()).then(async () => {
+            if (ws.readyState !== WebSocket.OPEN) return;
+            if (!(await getActiveWorkspaceToken(createD1Db(this.env.DB), att.tokenId!))) {
+              ws.close(4401, 'token expired or revoked');
+              await this.leave(ws);
+              return;
+            }
+            ws.send(data);
+          }).catch(() => { ws.close(1011, 'room send failed'); });
+          this.sends.set(ws, pending);
+          this.ctx.waitUntil(pending);
         },
       };
       this.socks.set(ws, sock);
@@ -112,8 +153,13 @@ export class CanvasRoomObject extends DurableObject<WorkerBindings> {
    * `canvasId` is only needed on the very first request; afterwards it is
    * remembered in DO storage.
    */
-  private async ensureRoom(canvasId?: string): Promise<CanvasRoom | null> {
-    if (this.room) return this.room;
+  private ensureRoom(canvasId?: string): Promise<CanvasRoom | null> {
+    if (this.room) return Promise.resolve(this.room);
+    this.loading ??= this.hydrateRoom(canvasId).finally(() => { this.loading = null; });
+    return this.loading;
+  }
+
+  private async hydrateRoom(canvasId?: string): Promise<CanvasRoom | null> {
     canvasId ??= this.canvasId ?? (await this.ctx.storage.get<string>('canvasId'));
     if (!canvasId) return null;
 
@@ -140,7 +186,9 @@ export class CanvasRoomObject extends DurableObject<WorkerBindings> {
     for (const ws of this.ctx.getWebSockets()) {
       const att = ws.deserializeAttachment() as Attachment | null;
       // Anything without an explicit grant stays read-only.
-      this.room.connect(this.wrap(ws), { handshake: false, controlledIds: att?.ids, readOnly: att?.readOnly !== false });
+      this.room.connect(this.wrap(ws), {
+        handshake: false, controlledIds: att?.ids, readOnly: att?.readOnly !== false, identity: att?.identity,
+      });
     }
     return this.room;
   }

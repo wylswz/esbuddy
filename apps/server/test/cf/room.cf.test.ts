@@ -1,12 +1,13 @@
-import type { CanvasMeta, CanvasRecord, User, Workspace } from '@esbuddy/sdk';
+import type { CanvasMeta, CanvasRecord, CreatedWorkspaceToken, User, Workspace } from '@esbuddy/sdk';
 import { getNodesMap, writeNode } from '@esbuddy/sdk';
 import { SELF } from 'cloudflare:test';
 import * as decoding from 'lib0/decoding';
 import * as encoding from 'lib0/encoding';
 import * as syncProtocol from 'y-protocols/sync';
+import * as awarenessProtocol from 'y-protocols/awareness';
 import * as Y from 'yjs';
 import { describe, expect, it } from 'vitest';
-import { MSG_SYNC } from '../../src/modules/canvas/room.js';
+import { MSG_AWARENESS, MSG_SYNC } from '../../src/modules/canvas/room.js';
 
 // Exercises the whole Cloudflare path inside workerd: Worker routing + JWT check
 // → Durable Object (Hibernation WebSockets) → CanvasRoom → D1 flush.
@@ -41,9 +42,9 @@ async function seededCanvas(token: string): Promise<CanvasMeta> {
 }
 
 /** Open a room socket and drive the y-websocket sync handshake against `doc`. */
-async function joinRoom(canvasId: string, token: string, doc: Y.Doc): Promise<WebSocket> {
+async function joinRoom(canvasId: string, token: string, doc: Y.Doc, extraHeaders: Record<string, string> = {}): Promise<WebSocket> {
   const res = await SELF.fetch(`${BASE}/api/rooms/${canvasId}?token=${token}`, {
-    headers: { Upgrade: 'websocket' },
+    headers: { Upgrade: 'websocket', ...extraHeaders },
   });
   expect(res.status).toBe(101);
   const ws = res.webSocket!;
@@ -123,5 +124,71 @@ describe('Cloudflare Durable Object rooms', () => {
     const wsC = await joinRoom(canvas.id, token, c);
     await until(() => getNodesMap(c).has('cf-new'));
     wsC.close();
+  });
+
+  it('enforces agent identities, viewer access and live token revocation through the real Worker', async () => {
+    const session = await login('agents@example.com');
+    const canvas = await seededCanvas(session);
+    const workspaceId = canvas.owner.type === 'workspace' ? canvas.owner.workspaceId : '';
+    const headers = { ...json, authorization: `Bearer ${session}` };
+    const createToken = async (name: string, role: string) => {
+      const res = await SELF.fetch(`${BASE}/api/workspaces/${workspaceId}/tokens`, {
+        method: 'POST', headers, body: JSON.stringify({ name, role }),
+      });
+      expect(res.status).toBe(201);
+      return await res.json() as CreatedWorkspaceToken;
+    };
+    const writer = await createToken('Expert', 'editor');
+    const reader = await createToken('Observer', 'viewer');
+    const humanDoc = new Y.Doc();
+    const agentDoc = new Y.Doc();
+    const readerDoc = new Y.Doc();
+    const wsHuman = await joinRoom(canvas.id, session, humanDoc);
+    const wsAgent = await joinRoom(canvas.id, 'unused-query', agentDoc, { authorization: `Bearer ${writer.token}` });
+    // External clients cannot override the internal access/identity headers.
+    const wsReader = await joinRoom(canvas.id, reader.token, readerDoc, {
+      'x-esbuddy-room-readonly': '0', 'x-esbuddy-room-token': writer.id,
+    });
+    const presence = new awarenessProtocol.Awareness(humanDoc);
+    presence.setLocalState(null);
+    wsHuman.addEventListener('message', (event: { data: unknown }) => {
+      const decoder = decoding.createDecoder(new Uint8Array(event.data as ArrayBuffer));
+      if (decoding.readVarUint(decoder) === MSG_AWARENESS) {
+        awarenessProtocol.applyAwarenessUpdate(presence, decoding.readVarUint8Array(decoder), 'server');
+      }
+    });
+    await until(() => getNodesMap(humanDoc).size > 0 && getNodesMap(agentDoc).size > 0 && getNodesMap(readerDoc).size > 0);
+    const agentAwareness = new awarenessProtocol.Awareness(agentDoc);
+    agentAwareness.setLocalState({ user: { id: 'owner', name: 'Spoofed' }, cursor: { x: 10, y: 20 } });
+    const announce = encoding.createEncoder();
+    encoding.writeVarUint(announce, MSG_AWARENESS);
+    encoding.writeVarUint8Array(announce, awarenessProtocol.encodeAwarenessUpdate(agentAwareness, [agentDoc.clientID]));
+    wsAgent.send(encoding.toUint8Array(announce));
+    await until(() => presence.getStates().get(agentDoc.clientID)?.user?.id === writer.identity.id);
+    expect(presence.getStates().get(agentDoc.clientID)?.user).toEqual(writer.identity);
+    writeNode(getNodesMap(readerDoc), { id: 'forbidden', type: 'note', position: { x: 0, y: 0 }, data: {} }, 99);
+    writeNode(getNodesMap(agentDoc), { id: 'allowed', type: 'note', position: { x: 0, y: 0 }, data: {} }, 99);
+    await until(() => getNodesMap(humanDoc).has('allowed'));
+    expect(getNodesMap(humanDoc).has('forbidden')).toBe(false);
+
+    const closed = new Set<string>();
+    wsAgent.addEventListener('close', () => closed.add('writer'));
+    wsReader.addEventListener('close', () => closed.add('reader'));
+    for (const credential of [writer, reader]) {
+      expect((await SELF.fetch(`${BASE}/api/workspaces/${workspaceId}/tokens/${credential.id}`, {
+        method: 'DELETE', headers,
+      })).status).toBe(204);
+    }
+    writeNode(getNodesMap(agentDoc), { id: 'revoked-edit', type: 'note', position: { x: 0, y: 0 }, data: {} }, 100);
+    writeNode(getNodesMap(humanDoc), { id: 'after-revoke', type: 'note', position: { x: 0, y: 0 }, data: {} }, 100);
+    await until(() => closed.size === 2);
+    expect(getNodesMap(humanDoc).has('revoked-edit')).toBe(false);
+    expect(getNodesMap(readerDoc).has('after-revoke')).toBe(false);
+    expect((await SELF.fetch(`${BASE}/api/rooms/${canvas.id}?token=${writer.token}`, {
+      headers: { Upgrade: 'websocket' },
+    })).status).toBe(401);
+    wsHuman.close();
+    presence.destroy();
+    agentAwareness.destroy();
   });
 });

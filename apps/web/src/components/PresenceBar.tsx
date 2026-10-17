@@ -1,3 +1,4 @@
+import { Bot } from 'lucide-react';
 import type { PeerState, PeerUser } from '../collab/awareness';
 import type { ConnectionStatus } from '../collab/provider';
 import { useI18n, type TranslationKey } from '../i18n/context';
@@ -22,7 +23,7 @@ function Avatar({ user, title }: { user: PeerUser; title: string }) {
       style={{ backgroundColor: user.color }}
       title={title}
     >
-      {user.name.trim().charAt(0).toUpperCase() || '?'}
+      {user.kind === 'agent' ? <Bot size={14} /> : user.name.trim().charAt(0).toUpperCase() || '?'}
     </span>
   );
 }
@@ -41,7 +42,7 @@ export function PresenceBar({ me, peers, status }: PresenceBarProps) {
       <div className="flex -space-x-1.5">
         <Avatar user={me} title={t('presence.you', { name: me.name })} />
         {Array.from(others.values()).map((u) => (
-          <Avatar key={u.id} user={u} title={u.name} />
+          <Avatar key={u.id} user={u} title={u.kind === 'agent' ? t('presence.agent', { name: u.name }) : u.name} />
         ))}
       </div>
     </div>

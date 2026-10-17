@@ -6,7 +6,7 @@ import { serve } from '@hono/node-server';
 import { buildApp } from './app.js';
 import { createDb } from './db/index.node.js';
 import { getEnv } from './env.node.js';
-import { attachRealtime } from './realtime.node.js';
+import { attachRealtime, RoomHost } from './realtime.node.js';
 import { staticMiddleware } from './static.node.js';
 
 const env = getEnv();
@@ -18,7 +18,8 @@ const webDist = env.WEB_DIST_PATH
   : resolve(packageRoot, '../web/dist');
 const staticRoot = existsSync(webDist) ? webDist : undefined;
 
-const app = buildApp({ db, env, staticHandler: staticMiddleware(staticRoot) });
+const rooms = new RoomHost(db);
+const app = buildApp({ db, env, rooms: rooms.execute.bind(rooms), staticHandler: staticMiddleware(staticRoot) });
 
 const port = Number(env.PORT ?? 8787);
 
@@ -28,7 +29,7 @@ const server = serve({ fetch: app.fetch, port }, (info) => {
 });
 
 // Realtime collaboration rooms ride the same port as WebSocket upgrades.
-const rooms = attachRealtime(server as Server, { db, env });
+attachRealtime(server as Server, { db, env, host: rooms });
 
 // Flush any unsaved room state before the process exits (docker stop → SIGTERM).
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
