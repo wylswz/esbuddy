@@ -116,9 +116,20 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm build
   `apps/server/test/unit/compiler.test.ts` (the example board must compile with
   zero diagnostics). Aggregate membership stays explicit (`aggregateId`, events
   and commands only), never geometric.
+  - Pivotal events are tape (`pivotal`), an attacher bound to one event
+    (`marks`). Tape is long and thin, so it only overlaps what it could mark
+    (`overlapCounts`); its label is optional.
   - DB: `canvases.ydoc` (base64 Yjs state) is the source of truth;
     `canvases.snapshot` is a materialised view rewritten on flush. Canvases that
     only have a snapshot are converted on first room open.
+- **Board structure** (swimlanes, temporal milestones) is visual only and never
+  compiled. It lives in its own Y.Maps (`lanes`, `milestones`; `ydoc.ts`) and
+  in `CanvasSnapshot.structure` (omitted when empty). Lanes never overlap: every
+  create/move/resize is clamped to the free gap (`packages/sdk/src/structure.ts`). Web: `collab/structure.ts`
+  writes straight to the doc and reads every change back; `StructureRulers.tsx`
+  draws Word-style rulers (outside the board, under one `ReactFlowProvider`) and
+  the bands/lines beneath the notes. Structuring tools have no toolbar entry —
+  they are reached via the ⌘K `CommandPalette`, which also searches notes.
 
 ## Testing
 

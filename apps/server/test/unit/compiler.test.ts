@@ -288,6 +288,48 @@ describe('free-form notes', () => {
   });
 });
 
+describe('pivotal events', () => {
+  const tape = (id: string, extra: Parameters<typeof note>[2] = {}) =>
+    note(id, 'pivotal', { width: 36, height: 300, label: '', ...extra });
+
+  it('tape binds onto exactly one event and takes no edges', () => {
+    expect(hasOutgoingEdges('pivotal') || hasIncomingEdges('pivotal')).toBe(false);
+    const nodes = [note('e', 'event', at(0, 0)), note('c', 'command', at(0, 150))];
+    // Long strip crossing both the event and the command below it: only the event is a candidate.
+    expect(bindingTarget(tape('t', at(30, -50)), nodes)).toBe('e');
+    expect(bindingTarget(tape('t', at(30, -50)), [...nodes, note('e2', 'event', at(40, 150))])).toBeNull();
+  });
+
+  it('compiles the marked event as pivotal, once, keeping tape labels', () => {
+    const nodes = [
+      note('c', 'command', at(-200, 0)),
+      note('a', 'actor', { ...at(-180, 20), boundTo: 'c' }),
+      note('e', 'event', { ...at(0, 0), label: 'Order Shipped' }),
+      tape('t1', { ...at(30, -50), boundTo: 'e', label: 'Fulfilment begins' }),
+      tape('t2', { ...at(50, -50), boundTo: 'e' }),
+      // Crosses the command too: tape only overlaps what it can mark.
+      note('c2', 'command', { ...at(0, 160), label: 'Notify' }),
+      note('a2', 'actor', { ...at(10, 170), boundTo: 'c2' }),
+    ];
+    const result = compileCanvas({ nodes, edges: [edge('c', 'e')] });
+    expect(result.diagnostics.filter((d) => d.severity === 'error')).toEqual([]);
+    expect(result.ok && result.text).toContain('## Pivotal events');
+    expect(result.ok && result.text).toContain('- "Order Shipped" is a pivotal event: Fulfilment begins.');
+    expect(result.ok && result.text.match(/is a pivotal event/g)).toHaveLength(1);
+    expect(result.ok && result.text).not.toContain('pivotal tape');
+  });
+
+  it('rejects tape stuck on nothing, or merely laid over an event', () => {
+    expect(errors([tape('t')])).toEqual(['pivotal-without-event']);
+    expect(errors([note('e', 'event', at(0, 0)), tape('t', at(30, -50))])).toEqual(
+      expect.arrayContaining(['unbound-overlap', 'pivotal-without-event']),
+    );
+    expect(errors([note('c', 'command', at(0, 0)), tape('t', { ...at(30, -50), boundTo: 'c' })])).toContain(
+      'invalid-binding',
+    );
+  });
+});
+
 describe('checkers', () => {
   it('maps every diagnostic code to exactly one checker', () => {
     const codes = CHECKERS.map((c) => c.code);

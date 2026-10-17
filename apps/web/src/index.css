@@ -33,6 +33,9 @@
   --color-note: #6b7280;
   --color-note-bg: #f3f4f6;
   --color-note-border: #9ca3af;
+  --color-pivotal: #ca8a04;
+  --color-pivotal-bg: #fde047;
+  --color-pivotal-border: #facc15;
 
   /* --- UI chrome: surfaces --- */
   --color-page: #f9fafb;
@@ -60,7 +63,6 @@
 
   /* --- Whiteboard --- */
   --color-board: #eef0f2;
-  --color-board-grid: #cbd5e1;
   --color-board-line: #94a3b8;
 
   /*

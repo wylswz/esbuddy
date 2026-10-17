@@ -1,4 +1,5 @@
 import type { CanvasSnapshot } from './domain.js';
+import { isStructureEmpty } from './ydoc.js';
 
 /*
  * Canvas → YAML: the raw board (nodes and edges, as stored), for backups,
@@ -61,8 +62,8 @@ export interface CanvasYamlOptions {
   name?: string;
 }
 
-/** Serialise a canvas (nodes + edges) as YAML. The per-user viewport is left out. */
-export function canvasToYaml(snapshot: Pick<CanvasSnapshot, 'nodes' | 'edges'>, options: CanvasYamlOptions = {}): string {
+/** Serialise a canvas (nodes + edges + structure) as YAML. The per-user viewport is left out. */
+export function canvasToYaml(snapshot: Pick<CanvasSnapshot, 'nodes' | 'edges' | 'structure'>, options: CanvasYamlOptions = {}): string {
   const doc = {
     ...(options.name?.trim() ? { name: options.name.trim() } : {}),
     nodes: snapshot.nodes.map((n) => {
@@ -86,6 +87,10 @@ export function canvasToYaml(snapshot: Pick<CanvasSnapshot, 'nodes' | 'edges'>, 
       sourceHandle: e.sourceHandle ?? undefined,
       targetHandle: e.targetHandle ?? undefined,
     })),
+    // Swimlanes and milestones, only written when the board has any.
+    structure: isStructureEmpty(snapshot.structure)
+      ? undefined
+      : { lanes: snapshot.structure!.lanes as unknown as Json[], milestones: snapshot.structure!.milestones as unknown as Json[] },
   };
   return `# Esbuddy canvas\n${toYaml(doc)}`;
 }

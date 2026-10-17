@@ -53,6 +53,9 @@ const elementStyle = (type: ElementType, shortcut?: string): ElementStyle => ({
   ...(shortcut ? { shortcut } : {}),
 });
 
+/** First-class notes, in palette order. Structure (pivotal tape) is reached through search instead. */
+export const ELEMENT_ORDER: ElementType[] = ['event', 'command', 'actor', 'policy', 'external', 'hotspot', 'readmodel', 'note'];
+
 export const ELEMENT_STYLES: Record<ElementType, ElementStyle> = {
   event: elementStyle('event', 'E'),
   command: elementStyle('command', 'C'),
@@ -63,4 +66,6 @@ export const ELEMENT_STYLES: Record<ElementType, ElementStyle> = {
   hotspot: elementStyle('hotspot', 'H'),
   readmodel: elementStyle('readmodel', 'R'),
   note: elementStyle('note', 'N'),
+  // Structure, not a first-class note: no shortcut, reached through search (⌘K).
+  pivotal: elementStyle('pivotal'),
 };

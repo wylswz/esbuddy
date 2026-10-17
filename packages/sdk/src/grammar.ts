@@ -35,7 +35,9 @@ export type Relation =
   /** external → event */
   | 'emits'
   /** hotspot → any note (overlap only) */
-  | 'annotates';
+  | 'annotates'
+  /** pivotal tape → event (overlap only): the event is pivotal */
+  | 'marks';
 
 export const ELEMENT_TYPES: readonly ElementType[] = [
   'event',
@@ -47,6 +49,7 @@ export const ELEMENT_TYPES: readonly ElementType[] = [
   'hotspot',
   'readmodel',
   'note',
+  'pivotal',
 ];
 
 /**
@@ -112,7 +115,18 @@ export const OVERLAP_RULES: Readonly<Partial<Record<ElementType, OverlapRule>>> 
   // *into* a read model (event → read model) are what update it.
   readmodel: { relation: 'supports', targets: ['command'], direction: 'from-attacher' },
   hotspot: { relation: 'annotates', targets: ANNOTATABLE, direction: 'from-attacher' },
+  // A strip of tape across an event marks it as pivotal: the timeline splits there.
+  pivotal: { relation: 'marks', targets: ['event'], direction: 'from-attacher' },
 };
+
+/**
+ * Tape is a long, thin strip laid across the board: crossing notes other than
+ * the ones it can mark means nothing and is not an overlap.
+ */
+export function overlapCounts(a: { type: string }, b: { type: string }): boolean {
+  const [tape, other] = a.type === 'pivotal' ? [a, b] : b.type === 'pivotal' ? [b, a] : [null, null];
+  return !tape || canBind(tape.type, other.type);
+}
 
 /** Whether an attacher of this type may be bound to a note (or, for hot spots, an aggregate) of that type. */
 export function canBind(attacherType: string, targetType: string): boolean {
@@ -155,6 +169,8 @@ export const NOTE_DEFAULT_SIZE = 180;
 
 export const ELEMENT_DEFAULT_SIZE: Partial<Record<ElementType, { width: number; height: number }>> = {
   actor: { width: 140, height: 100 },
+  // A vertical strip of tape, longer than the event it is stuck across.
+  pivotal: { width: 36, height: 300 },
 };
 
 export interface Rect {

@@ -81,6 +81,13 @@ describe('canvas versions API', () => {
     expect(version.canvasId).toBeUndefined();
   });
 
+  it('keeps the board structure (swimlanes, milestones) in the published snapshot', async () => {
+    const structure = { lanes: [{ id: 'l1', label: 'Customer', y: 0, height: 240 }], milestones: [{ id: 'm1', label: 'Day 1', x: 400 }] };
+    const meta = await publishOk({ snapshot: { ...SNAPSHOT, structure }, isPublic: true });
+    const version = (await (await app.request(`/api/versions/${meta.id}`)).json()) as PublishedCanvasVersion;
+    expect(version.snapshot.structure).toEqual(structure);
+  });
+
   it('toggles public access on and off', async () => {
     const meta = await publishOk();
     const on = await patch(meta.id, { isPublic: true });

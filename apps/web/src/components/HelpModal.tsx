@@ -10,9 +10,9 @@ interface HelpModalProps {
   onClose: () => void;
 }
 
-const ELEMENT_ORDER: ElementType[] = ['event', 'command', 'aggregate', 'actor', 'policy', 'external', 'hotspot', 'readmodel', 'note'];
+const ELEMENT_ORDER: ElementType[] = ['event', 'command', 'aggregate', 'actor', 'policy', 'external', 'hotspot', 'readmodel', 'note', 'pivotal'];
 
-const ADVANCED_CONCEPTS = ['pivotalEvent', 'swimlane', 'branch', 'boundedContext', 'levels', 'walkthrough'] as const;
+const ADVANCED_CONCEPTS = ['pivotalEvent', 'swimlane', 'temporalMilestone', 'branch', 'boundedContext', 'levels', 'walkthrough'] as const;
 
 function Kbd({ children }: { children: ReactNode }) {
   return (
@@ -87,6 +87,12 @@ export function HelpModal({ open, onClose }: HelpModalProps) {
             </div>
           </section>
 
+          {/* Structure: pivotal events, swimlanes, milestones */}
+          <section>
+            <SectionLabel className="mb-1">{t('help.structureTitle')}</SectionLabel>
+            <p className="text-sm text-fg-muted">{t('help.structureIntro')}</p>
+          </section>
+
           {/* Shortcuts */}
           <section>
             <SectionLabel className="mb-3">{t('help.shortcuts')}</SectionLabel>
@@ -102,6 +108,7 @@ export function HelpModal({ open, onClose }: HelpModalProps) {
               <div>{t('help.zOrder')}</div>
               <div>{t('help.multiSelectShortcut')}</div>
               <div>{t('help.doubleClick')}</div>
+              <div>{t('help.search')}</div>
             </div>
           </section>
 

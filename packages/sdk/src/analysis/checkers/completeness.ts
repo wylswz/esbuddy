@@ -29,6 +29,9 @@ export const policyWithoutTrigger = requires('policy-without-trigger', 'error', 
 /** "… then C" — a policy needs a command to issue. */
 export const policyWithoutAction = requires('policy-without-action', 'error', 'policy', ['issues'], 'source');
 
+/** Tape marks the event it is stuck on; tape stuck on nothing marks nothing. */
+export const pivotalWithoutEvent = requires('pivotal-without-event', 'error', 'pivotal', ['marks'], 'source');
+
 export const commandWithoutEvent = requires('command-without-event', 'warning', 'command', ['produces'], 'source');
 
 export const commandWithoutIssuer = requires('command-without-issuer', 'warning', 'command', ['issues'], 'target');

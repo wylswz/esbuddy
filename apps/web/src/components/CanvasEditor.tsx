@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, {
-  Background,
-  BackgroundVariant,
   Controls,
   MiniMap,
   addEdge,
@@ -20,13 +18,16 @@ import ReactFlow, {
   type OnMove,
   type OnMoveEnd,
   type ReactFlowInstance,
+  ReactFlowProvider,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-import { ArrowLeft, ScrollText, Upload } from 'lucide-react';
+import { ArrowLeft, CircleHelp, FileDown, Flag, Group, Milestone, Rows3, Ruler, ScrollText, Upload } from 'lucide-react';
 
 import { nodeTypes } from './nodeTypes';
 import { Toolbar } from './Toolbar';
+import { CommandPalette, type PaletteCommand } from './CommandPalette';
+import { BoardStructure, RULER_SIZE, Rulers, type RulerActions, type StructureRef } from './StructureRulers';
 import { HelpModal } from './HelpModal';
 import { VersionsDialog } from './VersionsDialog';
 import { CompilePanel } from './CompilePanel';
@@ -54,6 +55,7 @@ import {
 } from '../collab/binding';
 import type { ConnectionStatus } from '../collab/provider';
 import { useCollabSession, type CollabSession } from '../collab/useCollabSession';
+import { structureEditor, useStructure } from '../collab/structure';
 import { loadViewport, saveViewport } from '../collab/viewport';
 import { isRemoteMode } from '../stores/mode';
 import * as storage from '../storage';
@@ -69,6 +71,11 @@ import {
   docToSnapshot,
   getEdgesMap,
   getNodesMap,
+  isStructureEmpty,
+  nodeRect,
+  placeLane,
+  DEFAULT_LANE_HEIGHT,
+  MIN_LANE_HEIGHT,
   snapshotToDoc,
   type Diagnostic,
   type Severity,
@@ -77,7 +84,7 @@ import {
   type Store,
   type User,
 } from '@esbuddy/sdk';
-import { NOTE_DEFAULT_SIZE, ELEMENT_STYLES, type ElementType } from '../types';
+import { NOTE_DEFAULT_SIZE, ELEMENT_DEFAULT_SIZE, ELEMENT_ORDER, ELEMENT_STYLES, type ElementType } from '../types';
 
 const AGGREGATE_PADDING = 40;
 
@@ -453,15 +460,11 @@ export function CanvasEditor({ canvasId, store, user, onBack }: CanvasEditorProp
     );
   }
 
+  // The provider lets the rulers, which sit outside the board, follow its viewport.
   return (
-    <CanvasEditorInner
-      key={canvasId}
-      session={session}
-      store={store}
-      record={record}
-      user={user}
-      onBack={onBack}
-    />
+    <ReactFlowProvider key={canvasId}>
+      <CanvasEditorInner session={session} store={store} record={record} user={user} onBack={onBack} />
+    </ReactFlowProvider>
   );
 }
 
@@ -484,6 +487,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
   const [showHelp, setShowHelp] = useState(false);
   const [showVersions, setShowVersions] = useState(false);
   const [showCompile, setShowCompile] = useState(false);
+  const [showPalette, setShowPalette] = useState(false);
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>(provider.status);
@@ -561,6 +565,14 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
   }, [doc]);
 
   useEffect(() => provider.onStatus(setStatus), [provider]);
+
+  // ---- Board structure (swimlanes, milestones): edited through the rulers.
+  const structure = useStructure(doc);
+  const structureEdits = useMemo(() => structureEditor(doc), [doc]);
+  // Rulers show while the board has structure, unless this user toggled them.
+  const [rulerPref, setRulerPref] = useState<boolean | null>(null);
+  const rulersVisible = rulerPref ?? !isStructureEmpty(structure);
+  const [structureEditRequest, setStructureEditRequest] = useState<StructureRef | null>(null);
 
   // ---- Presence.
   const me = useMemo<PeerUser>(() => {
@@ -659,6 +671,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
   }, [undoManager]);
   const undo = useCallback(() => undoManager.undo(), [undoManager]);
   const redo = useCallback(() => undoManager.redo(), [undoManager]);
+  const rulerActions = useMemo<RulerActions>(() => ({ ...structureEdits, commit }), [structureEdits, commit]);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
@@ -857,6 +870,59 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
     [commit, t, updateNodes],
   );
 
+  // Pivotal: tape across every selected event not yet marked; else one strip on the board.
+  const addPivotal = useCallback(() => {
+    const nds = nodesRef.current;
+    const marked = new Set(nds.filter((n) => n.type === 'pivotal').map(boundToOf));
+    const events = nds.filter((n) => n.selected && n.type === 'event' && !marked.has(n.id));
+    if (events.length === 0) {
+      addElement('pivotal');
+      return;
+    }
+    const size = ELEMENT_DEFAULT_SIZE.pivotal!;
+    commit();
+    updateNodes((prev) => [
+      ...prev,
+      ...events.map((ev) => {
+        const r = nodeRect(ev);
+        const pos = { x: r.x + r.w / 2 - size.width / 2, y: r.y + r.h / 2 - size.height / 2 };
+        const tape = createNode('pivotal', pos, t('elements.pivotal.newLabel')) as Node;
+        return { ...tape, data: { ...tape.data, boundTo: ev.id } };
+      }),
+    ]);
+  }, [addElement, commit, t, updateNodes]);
+
+  /** The board area currently on screen, in flow coordinates. */
+  const visibleFlowRect = useCallback(() => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    const vp = viewportRef.current ?? { x: 0, y: 0, zoom: 1 };
+    const w = rect?.width ?? 800;
+    const h = rect?.height ?? 600;
+    return { x: -vp.x / vp.zoom, y: -vp.y / vp.zoom, w: w / vp.zoom, h: h / vp.zoom };
+  }, []);
+
+  // New lane: under the last one if that is on screen, else near the top of the
+  // view — in the free gap there, or below every lane if that spot is taken.
+  const addLane = useCallback(() => {
+    const view = visibleFlowRect();
+    const lanes = structure.lanes;
+    const bottom = Math.max(...lanes.map((l) => l.y + l.height));
+    const y = bottom >= view.y && bottom <= view.y + view.h - 60 ? bottom : view.y + 40 / (viewportRef.current?.zoom ?? 1);
+    const spot = placeLane(lanes, y, DEFAULT_LANE_HEIGHT, MIN_LANE_HEIGHT) ?? { y: bottom, height: DEFAULT_LANE_HEIGHT };
+    commit();
+    const id = structureEdits.addLane({ label: t('structure.newLane'), ...spot });
+    setRulerPref(true);
+    setStructureEditRequest({ kind: 'lane', id });
+  }, [visibleFlowRect, structure.lanes, commit, structureEdits, t]);
+
+  const addMilestone = useCallback(() => {
+    const view = visibleFlowRect();
+    commit();
+    const id = structureEdits.addMilestone({ label: t('structure.newMilestone'), x: view.x + view.w / 2 });
+    setRulerPref(true);
+    setStructureEditRequest({ kind: 'milestone', id });
+  }, [visibleFlowRect, commit, structureEdits, t]);
+
   const bringToFront = useCallback(() => {
     const ids = new Set(selectedNodeIds);
     if (ids.size === 0) return;
@@ -897,6 +963,11 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
       // Undo / Redo
       if (e.metaKey || e.ctrlKey) {
         const key = e.key.toLowerCase();
+        if (key === 'k') {
+          e.preventDefault();
+          setShowPalette(true);
+          return;
+        }
         if (key === 'z' && !e.shiftKey) {
           e.preventDefault();
           undo();
@@ -1277,10 +1348,11 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
     });
   }, [edges, compiled]);
 
-  const focusDiagnostic = useCallback(
-    (d: Diagnostic) => {
-      const nodeIds = new Set(d.nodeIds);
-      const edgeIds = new Set(d.edgeIds);
+  // Select exactly these notes / edges and bring the notes into view.
+  const focusElements = useCallback(
+    (nodeList: readonly string[], edgeList: readonly string[] = []) => {
+      const nodeIds = new Set(nodeList);
+      const edgeIds = new Set(edgeList);
       onNodesChange(
         nodesRef.current
           .filter((n) => !!n.selected !== nodeIds.has(n.id))
@@ -1297,6 +1369,8 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
     },
     [onNodesChange, onEdgesChange],
   );
+  const focusDiagnostic = useCallback((d: Diagnostic) => focusElements(d.nodeIds, d.edgeIds), [focusElements]);
+  const focusNode = useCallback((id: string) => focusElements([id]), [focusElements]);
 
   const canGroup = useMemo(
     () =>
@@ -1308,153 +1382,221 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
     [selectedNodeIds, nodes],
   );
 
+  // ---- Global search (⌘K): structuring tools live here rather than in the toolbar.
+  const paletteCommands = useMemo<PaletteCommand[]>(() => {
+    const swatch = (type: ElementType) => (
+      <span className="block h-3 w-3 rounded-sm" style={{ backgroundColor: ELEMENT_STYLES[type].color }} />
+    );
+    return [
+      {
+        id: 'pivotal',
+        label: t('palette.pivotal'),
+        hint: t('palette.pivotalHint'),
+        keywords: 'pivotal event tape phase 关键事件 胶带 阶段',
+        icon: <Flag size={15} />,
+        run: addPivotal,
+      },
+      { id: 'lane', label: t('palette.lane'), keywords: 'swimlane lane role 泳道 角色', icon: <Rows3 size={15} />, run: addLane },
+      {
+        id: 'milestone',
+        label: t('palette.milestone'),
+        keywords: 'temporal time milestone timeline 时间 里程碑',
+        icon: <Milestone size={15} />,
+        run: addMilestone,
+      },
+      {
+        id: 'rulers',
+        label: t(rulersVisible ? 'palette.hideRulers' : 'palette.showRulers'),
+        keywords: 'ruler 标尺',
+        icon: <Ruler size={15} />,
+        run: () => setRulerPref(!rulersVisible),
+      },
+      ...ELEMENT_ORDER.map((type) => ({
+        id: `add-${type}`,
+        label: t('palette.add', { element: t(`elements.${type}.label`) }),
+        hint: ELEMENT_STYLES[type].shortcut,
+        keywords: type,
+        icon: swatch(type),
+        run: () => addElement(type),
+      })),
+      ...(canGroup
+        ? [
+            {
+              id: 'group',
+              label: t('toolbar.groupAsAggregate'),
+              keywords: 'aggregate 聚合',
+              icon: <Group size={15} />,
+              run: groupAsAggregate,
+            },
+          ]
+        : []),
+      { id: 'compile', label: t('compile.title'), keywords: 'compile 编译', icon: <ScrollText size={15} />, run: () => setShowCompile(true) },
+      { id: 'yaml', label: t('toolbar.exportYaml'), keywords: 'export yaml 导出', icon: <FileDown size={15} />, run: exportYaml },
+      { id: 'help', label: t('toolbar.help'), keywords: 'help 帮助', icon: <CircleHelp size={15} />, run: () => setShowHelp(true) },
+    ];
+  }, [t, addPivotal, addLane, addMilestone, rulersVisible, addElement, canGroup, groupAsAggregate, exportYaml]);
+
+  const inset = rulersVisible ? RULER_SIZE : 0;
+
   return (
-    <div
-      ref={canvasRef}
-      className="w-full h-full relative"
-      onMouseMove={touchMode ? undefined : onPointerMove}
-      onMouseLeave={onPointerLeave}
-    >
-      <div className="safe-top absolute right-4 z-20 flex items-center gap-2">
-        <PresenceBar me={me} peers={peers} status={status} />
-        <button
-          onClick={() => setShowCompile((v) => !v)}
-          aria-pressed={showCompile}
-          className={`editor-chip flex items-center gap-1.5 h-9 px-3 text-sm font-semibold hover:bg-ink hover:text-paper hover:border-ink${showCompile ? ' bg-ink text-paper border-ink' : ''}`}
-          title={t('compile.title')}
-        >
-          <ScrollText size={16} />
-          <span>{t('compile.open')}</span>
-        </button>
+    <div className="w-full h-full relative">
+      {rulersVisible && <Rulers structure={structure} actions={rulerActions} editRequest={structureEditRequest} />}
+      <div
+        ref={canvasRef}
+        className="absolute right-0 bottom-0"
+        style={{ top: inset, left: inset }}
+        onMouseMove={touchMode ? undefined : onPointerMove}
+        onMouseLeave={onPointerLeave}
+      >
+        <div className="safe-top absolute right-4 z-20 flex items-center gap-2">
+          <PresenceBar me={me} peers={peers} status={status} />
+          <button
+            onClick={() => setShowCompile((v) => !v)}
+            aria-pressed={showCompile}
+            className={`editor-chip flex items-center gap-1.5 h-9 px-3 text-sm font-semibold hover:bg-ink hover:text-paper hover:border-ink${showCompile ? ' bg-ink text-paper border-ink' : ''}`}
+            title={t('compile.title')}
+          >
+            <ScrollText size={16} />
+            <span>{t('compile.open')}</span>
+          </button>
+          {isRemoteMode() && (
+            <button
+              onClick={() => setShowVersions(true)}
+              className="editor-chip flex items-center gap-1.5 h-9 px-3 text-sm font-semibold bg-accent hover:bg-ink hover:text-paper hover:border-ink"
+              title={t('versions.title')}
+            >
+              <Upload size={16} />
+              <span>{t('versions.publish')}</span>
+            </button>
+          )}
+          <button
+            onClick={onBack}
+            className="editor-chip flex items-center gap-1.5 h-9 px-3 text-sm font-semibold hover:bg-ink hover:text-paper hover:border-ink"
+            title={t('editor.back')}
+          >
+            <ArrowLeft size={16} />
+            <span>{t('editor.back')}</span>
+          </button>
+        </div>
+        <div className="safe-top absolute left-1/2 -translate-x-1/2 z-20 max-w-[50vw]">
+          {editingName ? (
+            <input
+              ref={nameInputRef}
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  commitRename();
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setEditingName(false);
+                }
+              }}
+              placeholder={t('editor.untitled')}
+              className="editor-chip h-9 px-3 text-sm font-semibold text-center border-ink focus:outline-none"
+            />
+          ) : (
+            <button
+              onClick={startRename}
+              className="editor-chip h-9 px-3 text-sm font-semibold hover:border-ink truncate max-w-full"
+              title={t('editor.rename')}
+            >
+              {name || t('editor.untitled')}
+            </button>
+          )}
+        </div>
+        <CanvasActionsContext.Provider value={actions}>
+          <DropTargetContext.Provider value={dropTargetId}>
+          <RemoteSelectionContext.Provider value={remoteSelection}>
+          <DiagnosticsContext.Provider value={nodeDiagnostics}>
+            <Toolbar
+              onAddElement={addElement}
+              onGroupAggregate={groupAsAggregate}
+              onBringToFront={bringToFront}
+              onSendToBack={sendToBack}
+              onHelp={() => setShowHelp(true)}
+              onSearch={() => setShowPalette(true)}
+              onExportYaml={exportYaml}
+              onUndo={undo}
+              onRedo={redo}
+              canUndo={canUndo}
+              canRedo={canRedo}
+              canGroup={canGroup}
+              touchMode={touchMode}
+            />
+
+            <ReactFlow
+              nodes={nodes}
+              edges={renderedEdges}
+              nodeTypes={nodeTypes}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              isValidConnection={isValidConnection}
+              onNodeClick={onNodeClick}
+              onSelectionChange={onSelectionChange}
+              onNodeDrag={onNodeDrag}
+              onNodeDragStop={onNodeDragStop}
+              onMove={onMove}
+              onMoveEnd={onMoveEnd}
+              nodesDraggable={!touchMode}
+              selectionOnDrag={!touchMode}
+              panOnDrag={touchMode ? true : [1, 2]}
+              panOnScroll
+              zoomOnScroll={false}
+              zoomOnDoubleClick={!touchMode}
+              selectionMode={SelectionMode.Partial}
+              fitView={!initialViewport}
+              onInit={onInit}
+              elevateNodesOnSelect={false}
+              defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
+              className="esboard-surface"
+            >
+              <BoardStructure structure={structure} />
+              <Controls />
+              {!touchMode && (
+                <MiniMap
+                  nodeColor={(node) => ELEMENT_STYLES[node.type as ElementType]?.color ?? 'var(--color-board-line)'}
+                  className="bg-surface border border-border rounded"
+                />
+              )}
+              <RemoteCursors peers={peers} />
+            </ReactFlow>
+          </DiagnosticsContext.Provider>
+          </RemoteSelectionContext.Provider>
+          </DropTargetContext.Provider>
+        </CanvasActionsContext.Provider>
+
+        {compiled && (
+          <CompilePanel
+            result={compiled}
+            nodes={compileNodesById}
+            fileName={name}
+            onFocus={focusDiagnostic}
+            onClose={() => setShowCompile(false)}
+          />
+        )}
+        <HelpModal open={showHelp} onClose={() => setShowHelp(false)} />
+        <CommandPalette
+          open={showPalette}
+          onOpenChange={setShowPalette}
+          commands={paletteCommands}
+          nodes={nodes}
+          onFocusNode={focusNode}
+        />
         {isRemoteMode() && (
-          <button
-            onClick={() => setShowVersions(true)}
-            className="editor-chip flex items-center gap-1.5 h-9 px-3 text-sm font-semibold bg-accent hover:bg-ink hover:text-paper hover:border-ink"
-            title={t('versions.title')}
-          >
-            <Upload size={16} />
-            <span>{t('versions.publish')}</span>
-          </button>
-        )}
-        <button
-          onClick={onBack}
-          className="editor-chip flex items-center gap-1.5 h-9 px-3 text-sm font-semibold hover:bg-ink hover:text-paper hover:border-ink"
-          title={t('editor.back')}
-        >
-          <ArrowLeft size={16} />
-          <span>{t('editor.back')}</span>
-        </button>
-      </div>
-      <div className="safe-top absolute left-1/2 -translate-x-1/2 z-20 max-w-[50vw]">
-        {editingName ? (
-          <input
-            ref={nameInputRef}
-            value={nameDraft}
-            onChange={(e) => setNameDraft(e.target.value)}
-            onBlur={commitRename}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                commitRename();
-              } else if (e.key === 'Escape') {
-                e.preventDefault();
-                setEditingName(false);
-              }
-            }}
-            placeholder={t('editor.untitled')}
-            className="editor-chip h-9 px-3 text-sm font-semibold text-center border-ink focus:outline-none"
+          <VersionsDialog
+            open={showVersions}
+            onOpenChange={setShowVersions}
+            store={store}
+            canvasId={canvasId}
+            getSnapshot={getSnapshot}
+            onRestore={restoreSnapshot}
           />
-        ) : (
-          <button
-            onClick={startRename}
-            className="editor-chip h-9 px-3 text-sm font-semibold hover:border-ink truncate max-w-full"
-            title={t('editor.rename')}
-          >
-            {name || t('editor.untitled')}
-          </button>
         )}
       </div>
-      <CanvasActionsContext.Provider value={actions}>
-        <DropTargetContext.Provider value={dropTargetId}>
-        <RemoteSelectionContext.Provider value={remoteSelection}>
-        <DiagnosticsContext.Provider value={nodeDiagnostics}>
-          <Toolbar
-            onAddElement={addElement}
-            onGroupAggregate={groupAsAggregate}
-            onBringToFront={bringToFront}
-            onSendToBack={sendToBack}
-            onHelp={() => setShowHelp(true)}
-            onExportYaml={exportYaml}
-            onUndo={undo}
-            onRedo={redo}
-            canUndo={canUndo}
-            canRedo={canRedo}
-            canGroup={canGroup}
-            touchMode={touchMode}
-          />
-
-          <ReactFlow
-            nodes={nodes}
-            edges={renderedEdges}
-            nodeTypes={nodeTypes}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            isValidConnection={isValidConnection}
-            onNodeClick={onNodeClick}
-            onSelectionChange={onSelectionChange}
-            onNodeDrag={onNodeDrag}
-            onNodeDragStop={onNodeDragStop}
-            onMove={onMove}
-            onMoveEnd={onMoveEnd}
-            nodesDraggable={!touchMode}
-            selectionOnDrag={!touchMode}
-            panOnDrag={touchMode ? true : [1, 2]}
-            panOnScroll
-            zoomOnScroll={false}
-            zoomOnDoubleClick={!touchMode}
-            selectionMode={SelectionMode.Partial}
-            fitView={!initialViewport}
-            onInit={onInit}
-            elevateNodesOnSelect={false}
-            defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
-            className="esboard-surface"
-          >
-            <Background variant={BackgroundVariant.Lines} gap={24} size={1} color="var(--color-board-grid)" />
-            <Controls />
-            {!touchMode && (
-              <MiniMap
-                nodeColor={(node) => ELEMENT_STYLES[node.type as ElementType]?.color ?? 'var(--color-board-line)'}
-                className="bg-surface border border-border rounded"
-              />
-            )}
-            <RemoteCursors peers={peers} />
-          </ReactFlow>
-        </DiagnosticsContext.Provider>
-        </RemoteSelectionContext.Provider>
-        </DropTargetContext.Provider>
-      </CanvasActionsContext.Provider>
-
-      {compiled && (
-        <CompilePanel
-          result={compiled}
-          nodes={compileNodesById}
-          fileName={name}
-          onFocus={focusDiagnostic}
-          onClose={() => setShowCompile(false)}
-        />
-      )}
-      <HelpModal open={showHelp} onClose={() => setShowHelp(false)} />
-      {isRemoteMode() && (
-        <VersionsDialog
-          open={showVersions}
-          onOpenChange={setShowVersions}
-          store={store}
-          canvasId={canvasId}
-          getSnapshot={getSnapshot}
-          onRestore={restoreSnapshot}
-        />
-      )}
     </div>
   );
 }

@@ -1,5 +1,12 @@
 import * as Y from 'yjs';
-import type { CanvasEdge, CanvasNode, CanvasSnapshot } from './domain.js';
+import type {
+  CanvasEdge,
+  CanvasLane,
+  CanvasMilestone,
+  CanvasNode,
+  CanvasSnapshot,
+  CanvasStructure,
+} from './domain.js';
 
 /*
  * Canvas CRDT schema (shared by the web editor, the Node room host and the
@@ -19,12 +26,19 @@ import type { CanvasEdge, CanvasNode, CanvasSnapshot } from './domain.js';
  * editor sorts by (aggregates first, z, id). Aggregates always render behind
  * notes — the domain invariant the editor already enforced via array order.
  *
+ * Board structure (visual only, never compiled) lives beside the notes:
+ *
+ *   doc.getMap('lanes'):      Y.Map<laneId, Y.Map{label, y, height}>
+ *   doc.getMap('milestones'): Y.Map<milestoneId, Y.Map{label, x}>
+ *
  * The viewport is deliberately NOT part of the shared doc: pan/zoom is per
  * user, so it lives in each client's local storage.
  */
 
 export const Y_NODES = 'nodes';
 export const Y_EDGES = 'edges';
+export const Y_LANES = 'lanes';
+export const Y_MILESTONES = 'milestones';
 
 export type YElement = Y.Map<unknown>;
 export type YElements = Y.Map<YElement>;
@@ -37,8 +51,21 @@ export function getEdgesMap(doc: Y.Doc): YElements {
   return doc.getMap<YElement>(Y_EDGES);
 }
 
+export function getLanesMap(doc: Y.Doc): YElements {
+  return doc.getMap<YElement>(Y_LANES);
+}
+
+export function getMilestonesMap(doc: Y.Doc): YElements {
+  return doc.getMap<YElement>(Y_MILESTONES);
+}
+
+/** Every shared type holding canvas content (for undo tracking and observers). */
+export function contentTypes(doc: Y.Doc): YElements[] {
+  return [getNodesMap(doc), getEdgesMap(doc), getLanesMap(doc), getMilestonesMap(doc)];
+}
+
 export function isDocEmpty(doc: Y.Doc): boolean {
-  return getNodesMap(doc).size === 0 && getEdgesMap(doc).size === 0;
+  return contentTypes(doc).every((m) => m.size === 0);
 }
 
 /** Loosely-typed node as it may arrive from legacy snapshots (React Flow `style`). */
@@ -78,6 +105,48 @@ export function writeEdge(edges: YElements, edge: CanvasEdge): void {
   y.set('sourceHandle', edge.sourceHandle ?? null);
   y.set('targetHandle', edge.targetHandle ?? null);
   edges.set(edge.id, y);
+}
+
+/** Write (or fully overwrite) a lane. Edits patch fields of the existing Y.Map instead. */
+export function writeLane(lanes: YElements, lane: CanvasLane): void {
+  const y = new Y.Map<unknown>();
+  y.set('label', lane.label);
+  y.set('y', lane.y);
+  y.set('height', lane.height);
+  lanes.set(lane.id, y);
+}
+
+export function writeMilestone(milestones: YElements, m: CanvasMilestone): void {
+  const y = new Y.Map<unknown>();
+  y.set('label', m.label);
+  y.set('x', m.x);
+  milestones.set(m.id, y);
+}
+
+const byIdOrder = (a: { id: string }, b: { id: string }) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+/** Lanes top to bottom, milestones left to right. */
+export function readStructure(doc: Y.Doc): CanvasStructure {
+  const lanes: CanvasLane[] = [];
+  getLanesMap(doc).forEach((y, id) =>
+    lanes.push({
+      id,
+      label: String(y.get('label') ?? ''),
+      y: numOrNull(y.get('y')) ?? 0,
+      height: Math.max(numOrNull(y.get('height')) ?? 0, 0),
+    }),
+  );
+  const milestones: CanvasMilestone[] = [];
+  getMilestonesMap(doc).forEach((y, id) =>
+    milestones.push({ id, label: String(y.get('label') ?? ''), x: numOrNull(y.get('x')) ?? 0 }),
+  );
+  lanes.sort((a, b) => a.y - b.y || byIdOrder(a, b));
+  milestones.sort((a, b) => a.x - b.x || byIdOrder(a, b));
+  return { lanes, milestones };
+}
+
+export function isStructureEmpty(s: CanvasStructure | undefined | null): boolean {
+  return !s || (s.lanes.length === 0 && s.milestones.length === 0);
 }
 
 export function readNodeZ(y: YElement): number {
@@ -142,25 +211,29 @@ export function maxNodeZ(nodes: YElements): number {
  * example board or to migrate a legacy JSON canvas). Array order becomes `z`.
  */
 export function snapshotToDoc(snapshot: CanvasSnapshot, doc: Y.Doc, origin?: unknown): void {
-  const nodes = getNodesMap(doc);
-  const edges = getEdgesMap(doc);
+  const [nodes, edges, lanes, milestones] = contentTypes(doc);
   doc.transact(() => {
-    nodes.clear();
-    edges.clear();
+    for (const m of [nodes, edges, lanes, milestones]) m.clear();
     snapshot.nodes.forEach((n, i) => writeNode(nodes, n, i));
     snapshot.edges.forEach((e) => writeEdge(edges, e));
+    snapshot.structure?.lanes?.forEach((l) => writeLane(lanes, l));
+    snapshot.structure?.milestones?.forEach((m) => writeMilestone(milestones, m));
   }, origin);
 }
 
-/** Materialise the doc as a plain snapshot (viewport is per-user, so null). */
+/**
+ * Materialise the doc as a plain snapshot (viewport is per-user, so null).
+ * `structure` is only present when the board has lanes or milestones.
+ */
 export function docToSnapshot(doc: Y.Doc): CanvasSnapshot {
   const nodes = getNodesMap(doc);
   const edges = getEdgesMap(doc);
   const nodeList = orderedNodeIds(nodes).map((id) => readNode(id, nodes.get(id)!));
   const edgeList: CanvasEdge[] = [];
   edges.forEach((y, id) => edgeList.push(readEdge(id, y)));
-  edgeList.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  return { nodes: nodeList, edges: edgeList, viewport: null };
+  edgeList.sort(byIdOrder);
+  const structure = readStructure(doc);
+  return { nodes: nodeList, edges: edgeList, viewport: null, ...(isStructureEmpty(structure) ? {} : { structure }) };
 }
 
 /** Build a new doc from a snapshot. */

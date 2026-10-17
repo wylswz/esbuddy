@@ -8,8 +8,9 @@ import {
   SendToBack,
   CircleHelp,
   FileDown,
+  Search,
 } from 'lucide-react';
-import { ELEMENT_STYLES, type ElementType } from '../types';
+import { ELEMENT_ORDER, ELEMENT_STYLES, type ElementType } from '../types';
 import { useI18n } from '../i18n/context';
 
 interface ToolbarProps {
@@ -18,6 +19,8 @@ interface ToolbarProps {
   onBringToFront: () => void;
   onSendToBack: () => void;
   onHelp: () => void;
+  /** Open global search (⌘K): tools without a button of their own, and notes. */
+  onSearch: () => void;
   onExportYaml: () => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -28,7 +31,6 @@ interface ToolbarProps {
   touchMode: boolean;
 }
 
-const ELEMENT_ORDER: ElementType[] = ['event', 'command', 'actor', 'policy', 'external', 'hotspot', 'readmodel', 'note'];
 
 const btn =
   'flex items-center gap-2 h-8 px-2.5 rounded-sm text-sm font-medium text-ink hover:bg-ink hover:text-paper transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-ink';
@@ -56,6 +58,7 @@ export function Toolbar({
   onBringToFront,
   onSendToBack,
   onHelp,
+  onSearch,
   onExportYaml,
   onUndo,
   onRedo,
@@ -74,6 +77,15 @@ export function Toolbar({
   };
 
   const actions: Action[] = [
+    {
+      key: 'search',
+      icon: <Search size={20} />,
+      label: t('palette.open'),
+      onClick: () => {
+        setOpen(false);
+        onSearch();
+      },
+    },
     { key: 'undo', icon: <Undo2 size={20} />, label: t('toolbar.undo'), onClick: onUndo, disabled: !canUndo, title: `${t('toolbar.undo')} (⌘Z)` },
     { key: 'redo', icon: <Redo2 size={20} />, label: t('toolbar.redo'), onClick: onRedo, disabled: !canRedo, title: `${t('toolbar.redo')} (⌘⇧Z)` },
     { key: 'group', icon: <Group size={20} />, label: t('toolbar.groupAsAggregate'), onClick: onGroupAggregate, disabled: !canGroup },
@@ -162,6 +174,12 @@ export function Toolbar({
         <div className={eyebrow}>{t('toolbar.addElement')}</div>
         {languageToggle}
       </div>
+
+      <button onClick={onSearch} className={`${btn} border border-ink/15 text-fg-muted`}>
+        <Search size={16} />
+        <span>{t('palette.open')}</span>
+        <span className="ml-auto text-[10px] font-mono text-fg-subtle">⌘K</span>
+      </button>
 
       <div className="flex flex-col gap-0.5">
         {ELEMENT_ORDER.map((type) => {

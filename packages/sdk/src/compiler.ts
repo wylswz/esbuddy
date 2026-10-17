@@ -28,6 +28,7 @@ const TYPE_NOUN: Record<string, string> = {
   external: 'external system',
   hotspot: 'hot spot',
   readmodel: 'read model',
+  pivotal: 'pivotal tape',
 };
 
 function list(items: string[], conj: 'and' | 'or' = 'and'): string {
@@ -74,6 +75,18 @@ export function compileCanvas(input: CanvasInput, options: CompileOptions = {}):
   };
 
   const sections: [string, string[]][] = [];
+
+  // Pivotal events split the timeline into phases, so they come first. Several
+  // strips of tape on one event say it once; their labels (optional) are kept.
+  sections.push([
+    'Pivotal events',
+    ofType('event').flatMap((id) => {
+      const tapes = linked('marks', 'target', id);
+      if (tapes.length === 0) return [];
+      const notes = [...new Set(tapes.sort(timeline).map((t) => label(byId.get(t)!)).filter(Boolean))];
+      return [`${q(id)} is a pivotal event${notes.length ? `: ${notes.join('; ')}` : ''}.`];
+    }),
+  ]);
 
   sections.push([
     'Aggregates',
@@ -153,7 +166,13 @@ export function compileCanvas(input: CanvasInput, options: CompileOptions = {}):
   sections.push([
     'Glossary',
     input.nodes
-      .filter((n) => n.type !== 'hotspot' && !isOutsideGrammar(n.type) && (describe(n.id) || !mentioned.has(n.id)))
+      .filter(
+        (n) =>
+          n.type !== 'hotspot' &&
+          n.type !== 'pivotal' &&
+          !isOutsideGrammar(n.type) &&
+          (describe(n.id) || !mentioned.has(n.id)),
+      )
       .map((n) => n.id)
       .sort(timeline)
       .map((id) => {

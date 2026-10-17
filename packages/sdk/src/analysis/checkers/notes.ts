@@ -13,12 +13,22 @@ export const unknownType: Checker = {
   },
 };
 
-/** A note the compiler can't name can't be put into a sentence (free-form notes are never compiled). */
+/** Named by the note they are stuck on, so their own label is optional. */
+const LABEL_OPTIONAL = new Set(['pivotal']);
+
+/**
+ * A note the compiler can't name can't be put into a sentence (free-form notes
+ * are never compiled; pivotal tape is named by its event).
+ */
 export const emptyLabel: Checker = {
   code: 'empty-label',
   severity: 'error',
   *check({ nodes }) {
-    for (const n of nodes) if (isElementType(n.type) && !isOutsideGrammar(n.type) && !labelOf(n)) yield { nodeIds: [n.id] };
+    for (const n of nodes) {
+      if (isElementType(n.type) && !isOutsideGrammar(n.type) && !LABEL_OPTIONAL.has(n.type) && !labelOf(n)) {
+        yield { nodeIds: [n.id] };
+      }
+    }
   },
 };
 

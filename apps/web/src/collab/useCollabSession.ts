@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as Y from 'yjs';
-import { getEdgesMap, getNodesMap, isDocEmpty, snapshotToDoc, type CanvasSnapshot } from '@esbuddy/sdk';
+import { contentTypes, isDocEmpty, snapshotToDoc, type CanvasSnapshot } from '@esbuddy/sdk';
 import { LOCAL_ORIGIN } from './binding';
 import { createCanvasProvider, type CanvasProvider } from './provider';
 
@@ -33,7 +33,7 @@ export function useCollabSession(canvasId: string, options: CollabSessionOptions
   useEffect(() => {
     const doc = new Y.Doc();
     const provider = createCanvasProvider(canvasId, doc);
-    const undoManager = new Y.UndoManager([getNodesMap(doc), getEdgesMap(doc)], {
+    const undoManager = new Y.UndoManager(contentTypes(doc), {
       trackedOrigins: new Set([LOCAL_ORIGIN]),
       captureTimeout: 300,
     });

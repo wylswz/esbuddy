@@ -4,6 +4,7 @@ import {
   commandWithoutEvent,
   commandWithoutIssuer,
   eventWithoutSource,
+  pivotalWithoutEvent,
   policyWithoutAction,
   policyWithoutTrigger,
 } from './checkers/completeness.js';
@@ -34,6 +35,7 @@ export const CHECKERS: readonly Checker[] = [
   unboundOverlap,
   policyWithoutTrigger,
   policyWithoutAction,
+  pivotalWithoutEvent,
   duplicateEdge,
   redundantRelation,
   commandWithoutEvent,

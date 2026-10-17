@@ -49,6 +49,7 @@ export const en = {
       'invalid-membership': '{a} cannot be in this aggregate: only events and commands can. Shift + drag it out.',
       'policy-without-trigger': 'Policy {a} has no triggering event. Connect an event → this policy.',
       'policy-without-action': 'Policy {a} issues no command. Connect this policy → a command.',
+      'pivotal-without-event': 'A pivotal tape is not stuck on any event. Drop it onto exactly one event.',
       'duplicate-edge': '{a} → {b} is drawn more than once.',
       'redundant-relation': '{a} and {b} are both stuck together and connected; one is enough.',
       'command-without-event': 'Command {a} produces no event.',
@@ -67,6 +68,10 @@ export const en = {
     zOrder: '[ / ] → send to back / bring to front',
     multiSelectShortcut: '⌘ Cmd / Ctrl + click → multi-select',
     doubleClick: 'Double-click → edit title / memo',
+    search: '⌘ Cmd / Ctrl + K → search tools and notes',
+    structureTitle: 'Structure',
+    structureIntro:
+      'Pivotal events, swimlanes and temporal milestones are found through search (⌘K), not the toolbar. Mark a pivotal event by sticking a strip of tape across it. Swimlanes and temporal milestones belong to the whole board and work like the rulers in a word processor: click the top ruler to add a temporal milestone, drag along the left ruler to add a swimlane, drag a marker to move or resize it, double-click to rename, and drag it off the ruler to remove it.',
     breakContainment: 'Break containment (remove from an aggregate)',
     createRelation: 'Create a relation (connect nodes)',
     multiSelectRule: 'Multi-select',
@@ -86,6 +91,7 @@ export const en = {
       invokes: 'invokes',
       emits: 'emits',
       annotates: 'questions',
+      marks: 'marks as pivotal',
     },
     advancedTitle: 'Advanced Event Storming',
     advancedIntro: 'Techniques for structuring a bigger model beyond a single line of events.',
@@ -99,6 +105,11 @@ export const en = {
         term: 'Swimlane',
         description:
           'A horizontal band that groups the flow along one dimension — an actor, a bounded context, or a temporal phase — so parallel responsibilities read cleanly instead of piling onto one line.',
+      },
+      temporalMilestone: {
+        term: 'Temporal Milestone',
+        description:
+          'A time marker along the top of the board ("1 year before", "end of month") that splits it into rough time frames, so everyone can place events where they belong. Best when many processes run concurrently or nobody agrees on what comes first.',
       },
       branch: {
         term: 'Branch / Alternative Path',
@@ -286,6 +297,34 @@ export const en = {
       newLabel: 'New Note',
       description: 'A free-form note for comments; not part of Event Storming and ignored when compiling',
     },
+    pivotal: {
+      label: 'Pivotal Event',
+      newLabel: '',
+      description: 'A strip of tape stuck across an event to mark a major turning point that splits the timeline into phases',
+    },
+  },
+  structure: {
+    lane: 'Swimlane',
+    milestone: 'Temporal Milestone',
+    newLane: 'New swimlane',
+    newMilestone: 'New temporal milestone',
+    topRulerHint: 'Click to add a temporal milestone. Drag a marker to move it, or off the ruler to remove it.',
+    leftRulerHint: 'Drag to add a swimlane. Drag a lane to move or resize it (it stops at its neighbours), or off the ruler to remove it.',
+    markerHint: 'Drag to move · double-click to rename · drag off the ruler to remove',
+  },
+  palette: {
+    open: 'Search',
+    placeholder: 'Search tools and notes…',
+    tools: 'Tools',
+    notes: 'Notes on the board',
+    empty: 'Nothing found.',
+    pivotal: 'Mark pivotal event',
+    pivotalHint: 'Stick tape across the selected events, or drop a strip onto the board',
+    lane: 'Add swimlane',
+    milestone: 'Add temporal milestone',
+    showRulers: 'Show rulers',
+    hideRulers: 'Hide rulers',
+    add: 'Add {element}',
   },
 };
 
@@ -342,6 +381,7 @@ export const zh: Translation = {
       'invalid-membership': '{a} 不能属于这个聚合：只有事件和命令可以。按住 Shift 拖出。',
       'policy-without-trigger': '策略 {a} 没有触发事件，请连一条 事件 → 该策略。',
       'policy-without-action': '策略 {a} 没有发出命令，请连一条 该策略 → 命令。',
+      'pivotal-without-event': '有一条关键事件胶带没有贴在任何事件上，请把它单独拖到一个事件上。',
       'duplicate-edge': '{a} → {b} 重复连了多次。',
       'redundant-relation': '{a} 和 {b} 既贴在一起又有连线，保留一种即可。',
       'command-without-event': '命令 {a} 没有产生任何事件。',
@@ -360,6 +400,10 @@ export const zh: Translation = {
     zOrder: '[ / ] → 置底 / 置顶',
     multiSelectShortcut: '⌘ Cmd / Ctrl + 点击 → 多选',
     doubleClick: '双击 → 编辑标题 / 备注',
+    search: '⌘ Cmd / Ctrl + K → 搜索工具和便利贴',
+    structureTitle: '结构化',
+    structureIntro:
+      '关键事件、泳道和时间里程碑不在工具栏里，通过搜索（⌘K）找到。把一条胶带贴在事件上即可标记关键事件。泳道和时间里程碑属于整块画板，用法和文字处理软件的标尺一样：点击顶部标尺添加时间里程碑，沿左侧标尺拖动添加泳道；拖动标记可移动或调整大小，双击重命名，拖出标尺即删除。',
     breakContainment: '打破包含关系（从聚合中移除）',
     createRelation: '创建连接',
     multiSelectRule: '多选',
@@ -379,6 +423,7 @@ export const zh: Translation = {
       invokes: '调用',
       emits: '产生',
       annotates: '提出疑问',
+      marks: '标记为关键事件',
     },
     advancedTitle: '进阶事件风暴',
     advancedIntro: '当模型超出单条事件时间线时，用这些技巧来梳理结构。',
@@ -392,6 +437,11 @@ export const zh: Translation = {
         term: '泳道（Swimlane）',
         description:
           '沿某一维度（参与者、限界上下文或时间阶段）对流程进行水平分带，让并行的职责各自成行，而不是全部堆在一条线上。',
+      },
+      temporalMilestone: {
+        term: '时间里程碑（Temporal Milestone）',
+        description:
+          '标在画板顶部的时间标记（"一年前""月底"），把画板粗略切分成若干时间段，让大家把事件放到大致对应的位置。适合并发流程很多、或对先后顺序分歧很大的时候。',
       },
       branch: {
         term: '分支 / 替代路径（Branch）',
@@ -579,5 +629,33 @@ export const zh: Translation = {
       newLabel: '新笔记',
       description: '自由记录的笔记，不属于事件风暴，编译时忽略',
     },
+    pivotal: {
+      label: '关键事件',
+      newLabel: '',
+      description: '贴在事件上的一条胶带，标记把时间线切分成阶段的重大转折点',
+    },
+  },
+  structure: {
+    lane: '泳道',
+    milestone: '时间里程碑',
+    newLane: '新泳道',
+    newMilestone: '新时间里程碑',
+    topRulerHint: '点击添加时间里程碑；拖动标记可移动，拖出标尺即删除。',
+    leftRulerHint: '拖动添加泳道；拖动泳道可移动或调整大小（泳道之间不能重叠），拖出标尺即删除。',
+    markerHint: '拖动移动 · 双击重命名 · 拖出标尺删除',
+  },
+  palette: {
+    open: '搜索',
+    placeholder: '搜索工具和便利贴…',
+    tools: '工具',
+    notes: '画板上的便利贴',
+    empty: '没有找到。',
+    pivotal: '标记关键事件',
+    pivotalHint: '给选中的事件贴上胶带，或在画板上放一条胶带',
+    lane: '添加泳道',
+    milestone: '添加时间里程碑',
+    showRulers: '显示标尺',
+    hideRulers: '隐藏标尺',
+    add: '添加{element}',
   },
 };
