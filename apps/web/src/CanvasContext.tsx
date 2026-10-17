@@ -11,6 +11,11 @@ export interface CanvasActions {
   voterId?: string;
   /** Viewing a published version: nodes must not enter edit mode. */
   readOnly?: boolean;
+  selectionCount?: number;
+  bringToFront?: () => void;
+  sendToBack?: () => void;
+  detachNode?: (id: string) => void;
+  composing?: boolean;
 }
 
 export const CanvasActionsContext = createContext<CanvasActions>({

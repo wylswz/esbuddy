@@ -1,10 +1,19 @@
-import type { ElementType } from '@esbuddy/sdk';
+import { ELEMENT_DEFAULT_SIZE, type ElementType } from '@esbuddy/sdk';
 
 export type { ElementType } from '@esbuddy/sdk';
 // Shared with the compiler, which needs the same sizes to detect overlaps.
 export { NOTE_DEFAULT_SIZE, ELEMENT_DEFAULT_SIZE } from '@esbuddy/sdk';
 
 export const NOTE_MIN_SIZE = 120;
+
+/** Smaller materials (notably actors) must not render beyond their model bounds. */
+export function noteMinimumSize(type: ElementType) {
+  const size = ELEMENT_DEFAULT_SIZE[type];
+  return {
+    minWidth: Math.min(NOTE_MIN_SIZE, size?.width ?? NOTE_MIN_SIZE),
+    minHeight: Math.min(NOTE_MIN_SIZE, size?.height ?? NOTE_MIN_SIZE),
+  };
+}
 
 export interface ElementStyle {
   color: string;

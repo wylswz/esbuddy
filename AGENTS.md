@@ -154,6 +154,12 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm build
   `packages/sdk/src/guideBoards.ts` (labels localised via `tour.sample.*`),
   rendered by `ReadOnlyBoard.tsx` — the same component as published versions.
   The `compile` board must compile with zero diagnostics (`guideBoards.test.ts`).
+- **Note interaction**: `NoteComposer.tsx` keeps placement and writing local.
+  Confirming a non-empty draft inserts its final content and explicit bindings
+  into the doc in one undo step; Escape/empty blur creates nothing. Selection
+  actions live next to the note; exports and structure tools remain in search.
+  `collab/gestureHistory.ts` keeps a drag/resize and its drop changes in one undo
+  step even when the pointer pauses.
 
 ## Testing
 
@@ -182,6 +188,23 @@ Gotchas worth knowing before touching test config:
   `tsconfig.worker.json`; `test:typecheck` (`tsconfig.test.json`) covers only
   the Node side for the same reason. Don't merge these tsconfigs to silence IDE
   errors.
+
+The frontend also has a dependency-free Chrome interaction smoke suite at
+`apps/web/test/browser.mjs`. Start the local-mode Vite server, then a separate
+Chrome/Chromium profile with `--remote-debugging-port=9333` bound to loopback:
+
+```bash
+pnpm --filter @esbuddy/web dev --host 127.0.0.1 --port 5174
+# In another terminal, with Chrome already listening on 9333:
+pnpm --filter @esbuddy/web test:browser
+```
+
+`BROWSER_TEST_URL` and `BROWSER_DEBUG_URL` override those local endpoints.
+`BROWSER_SCREENSHOT_DIR` optionally writes captures to an existing directory.
+The suite creates and disposes an isolated browser context, so it never rewrites
+your own local canvases. It exercises composition/cancellation, IME-safe input,
+single-step undo/redo, attachment and detachment, grouping, read-only boards,
+tool search, and touch placement.
 
 ## Conventions
 

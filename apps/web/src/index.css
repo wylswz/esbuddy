@@ -193,10 +193,56 @@ html, body, #root {
   transform: translateY(3px) rotate(-2deg);
 }
 
-@media (hover: hover) {
-  .sticky-note:not([data-readonly='true']):hover {
-    --sticky-shadow: 0 1px 2px rgba(65, 46, 25, 0.08), 0 8px 16px -6px rgba(65, 46, 25, 0.20);
-    transform: rotate(0deg);
+.sticky-note[data-selected='true'] {
+  transform: rotate(0deg);
+}
+
+.sticky-memo[data-empty='true'] {
+  visibility: hidden;
+}
+
+.sticky-node[data-selected='true'] .sticky-memo[data-empty='true'],
+.sticky-node:hover .sticky-memo[data-empty='true'] {
+  visibility: visible;
+}
+
+.note-tools button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 7px;
+  border-radius: 3px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.note-tools button:hover {
+  color: var(--color-paper);
+  background: var(--color-ink);
+}
+
+.note-tools button:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 1px;
+}
+
+.editor-toolbar button[aria-pressed='true'] {
+  color: var(--color-ink);
+  box-shadow: inset 2px 0 var(--color-ink);
+}
+
+@media (pointer: coarse) {
+  [data-note-composer] textarea,
+  .sticky-node textarea {
+    font-size: 16px;
+  }
+
+  .note-tools button {
+    min-width: 44px;
+    height: 44px;
   }
 }
 
@@ -229,6 +275,16 @@ html, body, #root {
   border-radius: 0.375rem;
   color: var(--color-ink);
   transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.editor-chip-accent {
+  background-color: var(--color-accent);
+}
+
+button.editor-chip:hover,
+button.editor-chip[aria-pressed='true'] {
+  background-color: var(--color-ink);
+  color: var(--color-paper);
 }
 
 /* Keep floating chrome clear of the home indicator / notch on phones. */

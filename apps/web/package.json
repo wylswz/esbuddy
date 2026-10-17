@@ -9,6 +9,7 @@
     "build": "tsc -b && vite build",
     "build:fullstack": "tsc -b && vite build --mode fullstack",
     "typecheck": "tsc -b --noEmit",
+    "test:browser": "node test/browser.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
