@@ -124,13 +124,46 @@ try {
   await button('Manage workspace');
   await waitFor('!!document.querySelector("form input")');
   await evaluate('document.querySelector("form input").focus()');
-  await page.send('Input.insertText', { text: 'Token expert' });
-  await waitFor('!Array.from(document.querySelectorAll("button")).find((b) => b.textContent.includes("Create token"))?.disabled');
+  await page.send('Input.insertText', { text: 'First expert' });
+  await waitFor('!document.querySelector(\'button[type="submit"]\').disabled');
   await button('Create token');
   await waitFor('!!document.querySelector(\'input[aria-label="New access token"]\')');
+  const firstSecret = await evaluate('document.querySelector(\'input[aria-label="New access token"]\').value');
+  await waitFor('!document.querySelector("form input").disabled');
+  assert.equal(await evaluate('document.querySelector("form input").value'), '');
+  assert.equal(await evaluate('document.querySelector(\'button[type="submit"]\').disabled'), true);
+  await chooseClient('VS Code');
+  await evaluate(`Object.defineProperty(navigator, 'clipboard', {
+    configurable: true, value: { writeText: async () => {} },
+  })`);
+  await button('Copy configuration');
+  await waitFor('!!document.querySelector(\'section[aria-label="Connect via MCP"] [role="status"]\')');
+  await evaluate('document.querySelector("form input").focus()');
+  await page.send('Input.insertText', { text: 'Token expert' });
+  await waitFor('!Array.from(document.querySelectorAll("button")).find((b) => b.textContent.includes("Create token"))?.disabled');
+  // A failed consecutive creation must keep the previous one-time secret visible.
+  await page.send('Network.enable');
+  await page.send('Network.setBlockedURLs', { urls: ['*/api/workspaces/*/tokens'] });
+  await button('Create token');
+  await waitFor('!!document.querySelector(\'[role="alert"]\')');
+  await page.send('Network.setBlockedURLs', { urls: [] });
+  assert.equal(await evaluate('document.querySelector(\'input[aria-label="New access token"]\').value'), firstSecret);
+  assert.equal(await evaluate('document.querySelector("form input").value'), 'Token expert');
+  assert.equal(await evaluate('document.querySelector("form input").disabled'), false);
+  await button('Create token');
+  await waitFor(`document.querySelector('input[aria-label="New access token"]').value !== ${JSON.stringify(firstSecret)}`);
   const secret = await evaluate('document.querySelector(\'input[aria-label="New access token"]\').value');
   assert.ok(/^esb_[0-9a-f]{64}$/.test(secret));
   assert.equal(await evaluate('document.querySelector(\'input[aria-label="New access token"]\').readOnly'), true);
+  assert.equal(await evaluate('document.querySelector("form input").disabled'), false);
+  assert.equal(await evaluate('document.querySelector("form input").value'), '');
+  assert.equal(await evaluate('!!document.querySelector(\'[role="alert"]\')'), false);
+  assert.equal(await evaluate('!!document.querySelector(\'section[aria-label="Connect via MCP"] [role="status"]\')'), false);
+  assert.equal(await evaluate('document.querySelector(\'button[aria-label="MCP client"]\').textContent'), 'Cursor');
+  assert.equal(await evaluate('document.body.innerText.includes("First expert") && document.body.innerText.includes("Token expert")'), true);
+  assert.equal(await evaluate(`Object.values(localStorage).some((value) => value.includes(${JSON.stringify(firstSecret)}))`), false);
+  assert.equal(await evaluate(`Object.values(sessionStorage).some((value) => value.includes(${JSON.stringify(firstSecret)}))`), false);
+  console.log('PASS consecutive token creation, failed retry preserves secret and new guide resets copy state');
   await waitFor('!!document.querySelector(\'textarea[aria-label="MCP configuration"]\')');
   assert.equal(await evaluate('document.querySelector(\'input[aria-label="MCP server URL"]\').value'), new URL('/api/mcp', appUrl).href);
   assert.equal(await evaluate(`(() => {

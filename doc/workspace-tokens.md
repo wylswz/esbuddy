@@ -34,9 +34,11 @@ Creating a token also opens a one-time **Connect via MCP** guide. It includes:
 - Separate copy actions for the URL and the complete client configuration.
 - Selectable readonly fields as a fallback when clipboard permission is denied.
 
-The guide and its credential are held only in component memory. **I have saved
-the token** dismisses both; refreshing or leaving the page does not restore
-them. Treat the copied configuration as a secret, and never commit it to Git.
+The guide and its credential are held only in component memory. You can create
+another token immediately; copy the current secret first, as the next successful
+creation replaces the displayed secret and guide. **I have saved the token**
+dismisses both; refreshing or leaving the page does not restore them.
+Treat the copied configuration as a secret, and never commit it to Git.
 Merge the `esbuddy` entry with existing servers rather than replacing the
 client's whole configuration.
 

@@ -39,7 +39,7 @@ export function WorkspaceTokens({ store, workspaceId }: { store: Store; workspac
   }, []);
 
   const create = async () => {
-    if (creating || loading || secret) return;
+    if (creating || loading || !name.trim()) return;
     setCreating(true);
     setError(null);
     setCopied(false);
@@ -93,7 +93,7 @@ export function WorkspaceTokens({ store, workspaceId }: { store: Store; workspac
         <label className="flex flex-col gap-1.5 text-xs text-fg-muted sm:col-span-2">
           {t('tokens.name')}
           <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} required
-            placeholder={t('tokens.namePlaceholder')} autoComplete="off" disabled={creating || !!secret} />
+            placeholder={t('tokens.namePlaceholder')} autoComplete="off" disabled={creating} />
         </label>
         <label className="flex flex-col gap-1.5 text-xs text-fg-muted">
           {t('tokens.role')}
@@ -108,7 +108,7 @@ export function WorkspaceTokens({ store, workspaceId }: { store: Store; workspac
             ['7', '30', '90', '365'].map((value) => ({ value, label: t('tokens.days', { days: value }) }))
           } />
         </label>
-        <Button type="submit" className="justify-self-start sm:col-span-2" disabled={loading || creating || !name.trim() || !!secret}>
+        <Button type="submit" className="justify-self-start sm:col-span-2" disabled={loading || creating || !name.trim()}>
           <KeyRound size={15} />
           {creating ? t('tokens.creating') : t('tokens.create')}
         </Button>
@@ -125,7 +125,7 @@ export function WorkspaceTokens({ store, workspaceId }: { store: Store; workspac
               {copied ? t('workspacePage.copied') : t('workspacePage.copy')}
             </Button>
           </div>
-          <McpConnectionGuide token={secret} identityName={created!.identity.name} />
+          <McpConnectionGuide key={created!.id} token={secret} identityName={created!.identity.name} />
           <Button variant="ghost" size="sm" className="self-start" onClick={() => setCreated(null)}>
             {t('tokens.saved')}
           </Button>
