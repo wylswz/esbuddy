@@ -6,34 +6,6 @@ export { NOTE_DEFAULT_SIZE, ELEMENT_DEFAULT_SIZE } from '@esbuddy/sdk';
 
 export const NOTE_MIN_SIZE = 120;
 
-export interface ElementData {
-  label: string;
-  type: ElementType;
-  description?: string;
-  aggregateId?: string | null;
-}
-
-export interface EsNode {
-  id: string;
-  type: ElementType;
-  position: { x: number; y: number };
-  data: ElementData;
-  style?: { width: number; height: number };
-}
-
-export interface EsEdge {
-  id: string;
-  source: string;
-  target: string;
-  sourceHandle?: string | null;
-  targetHandle?: string | null;
-}
-
-export interface EsCanvasState {
-  nodes: EsNode[];
-  edges: EsEdge[];
-}
-
 export interface ElementStyle {
   color: string;
   bgColor: string;

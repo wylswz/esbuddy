@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Role } from '@esbuddy/sdk';
 import { authMiddleware, requireAuth } from '../auth/middleware.js';
 import { getUser } from '../auth/service.js';
+import { workspaceAccess } from '../access/service.js';
 import type { AppVariables } from '../../context.js';
 import { LimitError, parseLimits } from '../../limits.js';
 import * as service from './service.js';
@@ -34,14 +35,18 @@ workspaceRoutes.delete('/:id', async (c) => {
 });
 
 workspaceRoutes.get('/:id/members', async (c) => {
-  const members = await service.listMembers(c.var.db, c.req.param('id'));
-  return c.json(members);
+  const workspaceId = c.req.param('id');
+  if (!(await workspaceAccess(c.var.db, workspaceId, c.var.userId!))) return c.json({ error: 'not found' }, 404);
+  return c.json(await service.listMembers(c.var.db, workspaceId));
 });
 
 workspaceRoutes.post('/:id/invitations', async (c) => {
   const workspaceId = c.req.param('id');
-  const body = await c.req.json<{ role: Role }>();
-  const invitation = await service.inviteToWorkspace(c.var.db, workspaceId, c.var.userId!, body.role ?? 'editor');
+  const body = await c.req.json<{ role?: Role }>();
+  const role = body.role ?? 'editor';
+  // Ownership is never handed out through a link.
+  if (role !== 'editor' && role !== 'viewer') return c.json({ error: 'role must be editor or viewer' }, 400);
+  const invitation = await service.inviteToWorkspace(c.var.db, workspaceId, c.var.userId!, role);
   if (!invitation) return c.json({ error: 'only owners can invite' }, 403);
   return c.json(invitation, 201);
 });

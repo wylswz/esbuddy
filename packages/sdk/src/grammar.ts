@@ -169,6 +169,8 @@ export const NOTE_DEFAULT_SIZE = 180;
 
 export const ELEMENT_DEFAULT_SIZE: Partial<Record<ElementType, { width: number; height: number }>> = {
   actor: { width: 140, height: 100 },
+  // Groups get a real box from their members; this only covers one stored without a size.
+  aggregate: { width: 400, height: 260 },
   // A vertical strip of tape, longer than the event it is stuck across.
   pivotal: { width: 36, height: 300 },
 };

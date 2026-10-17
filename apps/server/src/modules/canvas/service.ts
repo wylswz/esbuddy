@@ -13,12 +13,16 @@ import type { Db } from '../../db/types.js';
 import { LimitError, type Limits } from '../../limits.js';
 import * as repo from './repo.js';
 
-export function listCanvases(db: Db, userId: string, workspaceId?: string): Promise<CanvasMeta[]> {
-  return repo.listCanvases(db, userId, workspaceId);
+export function listCanvases(db: Db, owner: CanvasOwner): Promise<CanvasMeta[]> {
+  return repo.listCanvases(db, owner);
 }
 
 export function getCanvas(db: Db, id: string): Promise<CanvasRecord | null> {
   return repo.getCanvas(db, id);
+}
+
+export function getCanvasOwner(db: Db, id: string): Promise<CanvasOwner | null> {
+  return repo.getCanvasOwner(db, id);
 }
 
 /**
@@ -34,7 +38,7 @@ export async function createCanvas(
   limits?: Limits,
 ): Promise<CanvasMeta> {
   if (limits?.maxCanvasesPerWorkspace !== undefined && owner.type === 'workspace') {
-    const count = await repo.countCanvasesByOwner(db, 'workspace', owner.workspaceId);
+    const count = await repo.countCanvasesByOwner(db, owner);
     if (count >= limits.maxCanvasesPerWorkspace) {
       throw new LimitError(
         `canvas limit reached (${limits.maxCanvasesPerWorkspace} per workspace)`,
@@ -63,11 +67,12 @@ export function renameCanvas(db: Db, id: string, name: string): Promise<CanvasMe
 }
 
 export function deleteCanvas(db: Db, id: string): Promise<void> {
-  return repo.deleteCanvas(db, id);
+  return repo.deleteCanvases(db, [id]);
 }
 
-export function listEvents(db: Db, canvasId: string, afterSeq?: number) {
-  return repo.listEvents(db, canvasId, afterSeq);
+/** Delete every canvas a workspace owns (part of the workspace cascade). */
+export async function deleteWorkspaceCanvases(db: Db, workspaceId: string): Promise<void> {
+  await repo.deleteCanvases(db, await repo.listCanvasIdsByOwner(db, { type: 'workspace', workspaceId }));
 }
 
 // ---------- published versions ----------

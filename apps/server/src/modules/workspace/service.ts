@@ -1,7 +1,7 @@
 import type { Invitation, InvitationPreview, Role, Workspace, WorkspaceMember } from '@esbuddy/sdk';
 import type { Db } from '../../db/types.js';
 import { LimitError, type Limits } from '../../limits.js';
-import { seedExampleCanvas } from '../canvas/service.js';
+import { deleteWorkspaceCanvases, seedExampleCanvas } from '../canvas/service.js';
 import * as repo from './repo.js';
 
 function defaultWorkspaceName(userName: string): string {
@@ -15,6 +15,11 @@ export function listWorkspacesForUser(db: Db, userId: string): Promise<Workspace
 
 export function listMembers(db: Db, workspaceId: string): Promise<WorkspaceMember[]> {
   return repo.listMembers(db, workspaceId);
+}
+
+/** The user's role in a workspace, or null if they aren't a member. */
+export function getMemberRole(db: Db, workspaceId: string, userId: string): Promise<Role | null> {
+  return repo.getMemberRole(db, workspaceId, userId);
 }
 
 /**
@@ -95,7 +100,7 @@ export async function acceptInvitation(
   const inv = await repo.getInvitationByToken(db, token);
   if (!inv || inv.revokedAt) return null;
   // Only count towards the limit if the user is not already a member.
-  const alreadyMember = await repo.isMember(db, inv.workspaceId, userId);
+  const alreadyMember = (await repo.getMemberRole(db, inv.workspaceId, userId)) !== null;
   if (!alreadyMember && limits?.maxMembersPerWorkspace !== undefined) {
     const count = await repo.countMembers(db, inv.workspaceId);
     if (count >= limits.maxMembersPerWorkspace) {
@@ -118,6 +123,7 @@ export async function deleteWorkspace(db: Db, workspaceId: string, actorId: stri
   const workspace = await repo.getWorkspace(db, workspaceId);
   if (!workspace) return false;
   if (workspace.ownerId !== actorId) return false;
+  await deleteWorkspaceCanvases(db, workspaceId);
   await repo.deleteWorkspace(db, workspaceId);
   return true;
 }

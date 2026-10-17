@@ -1,26 +1,10 @@
 import { useEffect, useState } from 'react';
-import type { CanvasNode, CanvasSnapshot, Store } from '@esbuddy/sdk';
+import { nodeRect as nodeBox, type CanvasSnapshot, type Store } from '@esbuddy/sdk';
 import { ELEMENT_STYLES, type ElementType } from '../types';
 
 interface CanvasThumbnailProps {
   store: Store;
   canvasId: string;
-}
-
-
-interface Box {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
-function nodeBox(n: CanvasNode): Box {
-  const style = (n as { style?: { width?: number; height?: number } }).style;
-  const isAgg = n.type === 'aggregate';
-  const w = n.width ?? style?.width ?? (isAgg ? 400 : 180);
-  const h = n.height ?? style?.height ?? (isAgg ? 260 : 84);
-  return { x: n.position.x, y: n.position.y, w, h };
 }
 
 export function CanvasThumbnail({ store, canvasId }: CanvasThumbnailProps) {

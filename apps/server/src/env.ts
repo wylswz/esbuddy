@@ -1,12 +1,12 @@
 // Platform-agnostic runtime configuration. This module has NO Node or Workers
 // specific imports so it can be bundled for either target. The Node bootstrap
-// (`env.node.ts`) and the Workers bootstrap (`worker.ts`) each resolve an `Env`
+// (`env.node.ts`) and the Workers bootstrap (`env.worker.ts`) each resolve an `Env`
 // from their own platform primitives and hand it to the shared `buildApp`.
 
 export interface Env {
-  DB_KIND?: string; // 'sqlite' (default, node) | 'd1' (cloudflare) | 'pg'
+  DB_KIND?: string; // 'sqlite' (default, node) | 'd1' (cloudflare)
   DB_PATH?: string; // sqlite file path (node only)
-  JWT_SECRET?: string;
+  JWT_SECRET?: string; // required outside dev mode (see auth/jwt.ts)
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
   GOOGLE_REDIRECT_URI?: string;
@@ -26,5 +26,5 @@ export function isDevMode(env: Env): boolean {
 }
 
 // The Node resolver lives in `env.node.ts` and the Cloudflare Workers resolver
-// (which references D1/Assets binding types) lives in `env.workers.ts`, keeping
+// (which references D1/Assets binding types) lives in `env.worker.ts`, keeping
 // this module free of any platform-specific globals.

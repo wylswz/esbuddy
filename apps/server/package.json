@@ -11,7 +11,7 @@
     "test:watch": "vitest",
     "test:node": "vitest run --project node",
     "test:cf": "vitest run --project workers",
-    "test:typecheck": "tsc -p tsconfig.test.json --noEmit",
+    "test:typecheck": "tsc -p tsconfig.test.json --noEmit && tsc -p test/cf/tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.worker.json",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.node.ts",

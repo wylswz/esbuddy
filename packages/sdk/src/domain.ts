@@ -125,16 +125,6 @@ export interface CanvasSnapshot {
   structure?: CanvasStructure;
 }
 
-/** Append-only canvas event, the unit of future realtime sync (ADR-0001.7). */
-export interface CanvasEvent {
-  canvasId: string;
-  seq: number;
-  type: string;
-  payload: unknown;
-  actorId: string;
-  createdAt: number;
-}
-
 export interface CanvasRecord extends CanvasMeta {
   snapshot: CanvasSnapshot;
 }

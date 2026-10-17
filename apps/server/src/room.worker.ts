@@ -5,7 +5,7 @@ import { createD1Db } from './db/d1.worker.js';
 import type { WorkerBindings } from './env.worker.js';
 import { CanvasRoom, type RoomSocket } from './modules/canvas/room.js';
 import * as canvasService from './modules/canvas/service.js';
-import { FLUSH_DEBOUNCE_MS, isWebSocketUpgrade, parseRoomPath } from './realtime.js';
+import { FLUSH_DEBOUNCE_MS, ROOM_READONLY_HEADER, isWebSocketUpgrade, parseRoomPath } from './realtime.js';
 
 /*
  * Cloudflare host for collaboration rooms (the counterpart of `realtime.node.ts`).
@@ -30,6 +30,8 @@ const COLD_FLUSH_MS = FLUSH_DEBOUNCE_MS * 10;
 interface Attachment {
   /** Awareness clientIDs owned by this socket (survives hibernation). */
   ids?: number[];
+  /** Viewer socket: may read the doc, never write it. */
+  readOnly?: boolean;
 }
 
 export class CanvasRoomObject extends DurableObject<WorkerBindings> {
@@ -47,11 +49,13 @@ export class CanvasRoomObject extends DurableObject<WorkerBindings> {
     const room = await this.ensureRoom(canvasId);
     if (!room) return new Response('canvas not found', { status: 404 });
 
+    // Set by the Worker entry after authorizing; requests only reach the DO through it.
+    const readOnly = request.headers.get(ROOM_READONLY_HEADER) !== '0';
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({ ids: [] } satisfies Attachment);
-    room.connect(this.wrap(server));
+    server.serializeAttachment({ ids: [], readOnly } satisfies Attachment);
+    room.connect(this.wrap(server), { readOnly });
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -64,7 +68,8 @@ export class CanvasRoomObject extends DurableObject<WorkerBindings> {
     }
     const sock = this.wrap(ws);
     room.message(sock, new Uint8Array(message));
-    ws.serializeAttachment({ ids: room.controlledIds(sock) } satisfies Attachment);
+    const att = ws.deserializeAttachment() as Attachment | null;
+    ws.serializeAttachment({ ids: room.controlledIds(sock), readOnly: att?.readOnly } satisfies Attachment);
   }
 
   async webSocketClose(ws: WebSocket): Promise<void> {
@@ -134,7 +139,8 @@ export class CanvasRoomObject extends DurableObject<WorkerBindings> {
     // Sockets that survived hibernation already completed the handshake.
     for (const ws of this.ctx.getWebSockets()) {
       const att = ws.deserializeAttachment() as Attachment | null;
-      this.room.connect(this.wrap(ws), { handshake: false, controlledIds: att?.ids });
+      // Anything without an explicit grant stays read-only.
+      this.room.connect(this.wrap(ws), { handshake: false, controlledIds: att?.ids, readOnly: att?.readOnly !== false });
     }
     return this.room;
   }

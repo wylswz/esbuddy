@@ -67,14 +67,14 @@ describe('canvas service', () => {
     const meta = await canvas.createCanvas(db, 'C', owner, 'u1');
     await canvas.deleteCanvas(db, meta.id);
     expect(await canvas.getCanvas(db, meta.id)).toBeNull();
-    expect(await canvas.listEvents(db, meta.id)).toHaveLength(0);
+    expect(await canvas.getCanvasOwner(db, meta.id)).toBeNull();
   });
 
   it('scopes listing by user vs workspace', async () => {
     await canvas.createCanvas(db, 'U', { type: 'user', userId: 'u1' }, 'u1');
     await canvas.createCanvas(db, 'W', { type: 'workspace', workspaceId: 'w1' }, 'u1');
-    expect((await canvas.listCanvases(db, 'u1')).map((c) => c.name)).toEqual(['U']);
-    expect((await canvas.listCanvases(db, 'u1', 'w1')).map((c) => c.name)).toEqual(['W']);
+    expect((await canvas.listCanvases(db, { type: 'user', userId: 'u1' })).map((c) => c.name)).toEqual(['U']);
+    expect((await canvas.listCanvases(db, { type: 'workspace', workspaceId: 'w1' })).map((c) => c.name)).toEqual(['W']);
   });
 
   it('seeds a worked example canvas into a workspace', async () => {
@@ -96,13 +96,13 @@ describe('canvas service', () => {
     const owner: CanvasOwner = { type: 'workspace', workspaceId: 'w1' };
     await canvas.createCanvas(db, 'C1', owner, 'u1');
     await canvas.createCanvas(db, 'C2', owner, 'u1');
-    expect((await canvas.listCanvases(db, 'u1', 'w1')).map((c) => c.name)).toEqual(['C1', 'C2']);
+    expect((await canvas.listCanvases(db, { type: 'workspace', workspaceId: 'w1' })).map((c) => c.name)).toEqual(['C1', 'C2']);
   });
 
   it('createCanvas does not enforce workspace cap for user-owned canvases', async () => {
     const owner: CanvasOwner = { type: 'user', userId: 'u1' };
     await canvas.createCanvas(db, 'C1', owner, 'u1', { maxCanvasesPerWorkspace: 0 });
     // Should succeed — the cap only applies to workspace-owned canvases.
-    expect((await canvas.listCanvases(db, 'u1')).map((c) => c.name)).toEqual(['C1']);
+    expect((await canvas.listCanvases(db, { type: 'user', userId: 'u1' })).map((c) => c.name)).toEqual(['C1']);
   });
 });

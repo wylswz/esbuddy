@@ -135,11 +135,9 @@ describe('workspace API', () => {
     ).json()) as Workspace[];
     expect(list.find((w) => w.id === ws.id)).toBeUndefined();
 
-    // Canvases for the deleted workspace are gone.
-    const canvasesAfter = (await (
-      await app.request(`/api/canvases?workspace=${ws.id}`, { headers: authHeaders(alice.token) })
-    ).json()) as CanvasMeta[];
-    expect(canvasesAfter).toHaveLength(0);
+    // The workspace's canvases went with it.
+    const seeded = await app.request(`/api/canvases/${canvasesBefore[0].id}`, { headers: authHeaders(alice.token) });
+    expect(seeded.status).toBe(404);
   });
 
   it('non-owners cannot delete a workspace', async () => {

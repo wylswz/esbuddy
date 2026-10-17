@@ -47,7 +47,22 @@ import { VersionsDialog } from './VersionsDialog';
 import { CompilePanel } from './CompilePanel';
 import { PresenceBar } from './PresenceBar';
 import { RemoteCursors } from './RemoteCursors';
-import { createNode } from '../cmlImporter';
+import {
+  addNoteBound,
+  aggregateUnder,
+  canJoinAggregate,
+  createNode,
+  fitAggregateToChildren,
+  followDependents,
+  growAggregatesForDraggedChildren,
+  handleNodeRemovals,
+  isAttacher,
+  isNodeCenterOutside,
+  paddedBox,
+  removeEmptyAggregates,
+  setBinding,
+} from '../editor/transforms';
+import { newId } from '../ids';
 import {
   CanvasActionsContext,
   DiagnosticsContext,
@@ -74,14 +89,11 @@ import { loadViewport, saveViewport } from '../collab/viewport';
 import { isRemoteMode } from '../stores/mode';
 import * as storage from '../storage';
 import {
-  bindingTarget,
   boundToOf,
   canConnect,
   canvasToYaml,
   compileCanvas,
-  isElementType,
   nextBinding,
-  OVERLAP_RULES,
   docToSnapshot,
   getEdgesMap,
   getNodesMap,
@@ -100,8 +112,6 @@ import {
 } from '@esbuddy/sdk';
 import { NOTE_DEFAULT_SIZE, ELEMENT_DEFAULT_SIZE, ELEMENT_ORDER, ELEMENT_STYLES, type ElementType } from '../types';
 
-const AGGREGATE_PADDING = 40;
-
 /*
  * Modifier key scheme (one concern per modifier, no overlap):
  *   Shift            — break containment: drag a child out of its aggregate to remove it.
@@ -110,17 +120,6 @@ const AGGREGATE_PADDING = 40;
  */
 type ModifierKey = 'Shift' | 'Alt' | 'Control' | 'Meta';
 const REMOVE_MODIFIER_KEY: ModifierKey = 'Shift';
-
-/*
- * Binding invariants (a note stuck onto another — see grammar.ts):
- *   - Dropping an attacher (actor, read model, hot spot) onto exactly one note it can
- *     attach to binds it (`data.boundTo`); several candidates bind nothing.
- *   - While dragging an attacher, the note it would be bound to on drop is highlighted.
- *   - Moving the target moves its attachers along (followDependents).
- *   - Dropping an attacher off its target unbinds it, or rebinds it to the single
- *     new note it lands on (nextBinding). No modifier key involved.
- *   - Deleting the target unbinds its attachers (handleNodeRemovals).
- */
 
 /*
  * Touch scheme (phones / tablets, detected via `pointer: coarse`):
@@ -170,113 +169,6 @@ function demoSnapshot(): CanvasSnapshot {
   return { nodes: initialNodes.map(fromFlowNode), edges: initialEdges.map(fromFlowEdge), viewport: null };
 }
 
-// Grow/shrink an aggregate so its box covers all of its children (with padding).
-function fitAggregateToChildren(nds: Node[], aggId: string): Node[] {
-  const children = nds.filter((n) => n.data?.aggregateId === aggId);
-  if (children.length === 0) return nds;
-
-  const minX = Math.min(...children.map((n) => n.position.x));
-  const minY = Math.min(...children.map((n) => n.position.y));
-  const maxX = Math.max(...children.map((n) => n.position.x + (n.width ?? 180)));
-  const maxY = Math.max(...children.map((n) => n.position.y + (n.height ?? 84)));
-
-  return nds.map((n) =>
-    n.id === aggId
-      ? {
-          ...n,
-          position: { x: minX - AGGREGATE_PADDING, y: minY - AGGREGATE_PADDING },
-          style: {
-            ...n.style,
-            width: maxX - minX + AGGREGATE_PADDING * 2,
-            height: maxY - minY + AGGREGATE_PADDING * 2,
-          },
-        }
-      : n,
-  );
-}
-
-function draggingIdsOf(changes: NodeChange[]): Set<string> {
-  const ids = new Set<string>();
-  for (const c of changes) if (c.type === 'position' && c.dragging) ids.add(c.id);
-  return ids;
-}
-
-// The node a note moves with: the note it is bound to, else its aggregate.
-function parentOf(n: Node | undefined): string | null {
-  if (!n) return null;
-  return boundToOf(n) ?? ((n.data?.aggregateId as string | undefined) || null);
-}
-
-// While a node is dragged, everything hanging from it moves by the same delta:
-// an aggregate's members, a note's bound attachers, and theirs in turn.
-function followDependents(prevNodes: Node[], nextNodes: Node[], changes: NodeChange[]): Node[] {
-  const movedIds = draggingIdsOf(changes);
-  if (movedIds.size === 0) return nextNodes;
-
-  const prevById = new Map(prevNodes.map((n) => [n.id, n]));
-  const nextById = new Map(nextNodes.map((n) => [n.id, n]));
-  const deltas = new Map<string, { dx: number; dy: number }>();
-  movedIds.forEach((id) => {
-    const p = prevById.get(id);
-    const n = nextById.get(id);
-    if (p && n) deltas.set(id, { dx: n.position.x - p.position.x, dy: n.position.y - p.position.y });
-  });
-
-  const deltaOf = (id: string, depth = 0): { dx: number; dy: number } | undefined => {
-    if (deltas.has(id)) return deltas.get(id);
-    const parent = depth < 8 ? parentOf(nextById.get(id)) : null;
-    const d = parent ? deltaOf(parent, depth + 1) : undefined;
-    if (d) deltas.set(id, d);
-    return d;
-  };
-
-  return nextNodes.map((n) => {
-    if (movedIds.has(n.id)) return n;
-    const d = deltaOf(n.id);
-    return d && (d.dx || d.dy) ? { ...n, position: { x: n.position.x + d.dx, y: n.position.y + d.dy } } : n;
-  });
-}
-
-// Add a note; one created right on top of a note it can attach to is bound to it.
-function addNoteBound(nds: Node[], node: Node): Node[] {
-  const target = bindingTarget(node, nds);
-  return [...nds, target ? { ...node, data: { ...node.data, boundTo: target } } : node];
-}
-
-function setBinding(nds: Node[], id: string, target: string | null): Node[] {
-  const node = nds.find((n) => n.id === id);
-  if (!node || boundToOf(node) === target) return nds;
-  const updated = { ...node, data: { ...node.data, boundTo: target } };
-  return target ? [...nds.filter((n) => n.id !== id), updated] : nds.map((n) => (n.id === id ? updated : n));
-}
-
-/*
- * Aggregate invariants (enforced across every add / remove / move / resize):
- *
- * 1. Containment — a child never leaves its aggregate's bounds. Enforced by:
- *    - growing the box while a child is dragged outward (growAggregatesForDraggedChildren)
- *    - blocking aggregate resizes that would uncover a child (AggregateNode#shouldResize)
- *    - re-fitting the box on add/remove/drop (fitAggregateToChildren)
- *    To break out, hold Shift while dragging (removes the child instead).
- *
- * 2. No nesting — an aggregate can never contain another aggregate. Enforced by
- *    only letting events/commands join (drop-to-join and grouping alike); the
- *    compiler rejects any other member (`invalid-membership`).
- *
- * 3. Single parent — an element belongs to at most one aggregate (single aggregateId).
- *
- * 4. No orphans — an aggregate left with zero children is removed (removeEmptyAggregates).
- */
-
-function canJoinAggregate(n: Node): boolean {
-  return n.type === 'event' || n.type === 'command';
-}
-
-// Notes that bind by being stuck onto another note (actor, read model, hot spot).
-function isAttacher(n: Node): boolean {
-  return !!n.type && isElementType(n.type) && !!OVERLAP_RULES[n.type];
-}
-
 function isModifierHeld(
   e: {
     shiftKey: boolean;
@@ -296,128 +188,6 @@ function isModifierHeld(
     default:
       return e.shiftKey;
   }
-}
-
-function aggregateBounds(n: Node): { x: number; y: number; w: number; h: number } {
-  return {
-    x: n.position.x,
-    y: n.position.y,
-    w: (n.width ?? (n.style?.width as number | undefined) ?? 0),
-    h: (n.height ?? (n.style?.height as number | undefined) ?? 0),
-  };
-}
-
-function isNodeCenterOutside(node: Node, agg: Node): boolean {
-  const cx = node.position.x + (node.width ?? 180) / 2;
-  const cy = node.position.y + (node.height ?? 84) / 2;
-  const b = aggregateBounds(agg);
-  return cx < b.x || cx > b.x + b.w || cy < b.y || cy > b.y + b.h;
-}
-
-function removeEmptyAggregates(nds: Node[]): Node[] {
-  const childCount = new Map<string, number>();
-  nds.forEach((n) => {
-    const aggId = n.data?.aggregateId as string | undefined;
-    if (aggId) childCount.set(aggId, (childCount.get(aggId) ?? 0) + 1);
-  });
-  return nds.filter((n) => n.type !== 'aggregate' || (childCount.get(n.id) ?? 0) > 0);
-}
-
-// Grow (never shrink) an aggregate so it covers all of its children.
-function growAggregateToContainChildren(nds: Node[], aggId: string): Node[] {
-  const agg = nds.find((n) => n.id === aggId);
-  if (!agg) return nds;
-
-  const children = nds.filter((n) => n.data?.aggregateId === aggId);
-  if (children.length === 0) return nds;
-
-  const b = aggregateBounds(agg);
-  const minX = Math.min(...children.map((n) => n.position.x)) - AGGREGATE_PADDING;
-  const minY = Math.min(...children.map((n) => n.position.y)) - AGGREGATE_PADDING;
-  const maxX = Math.max(...children.map((n) => n.position.x + (n.width ?? 180))) + AGGREGATE_PADDING;
-  const maxY = Math.max(...children.map((n) => n.position.y + (n.height ?? 84))) + AGGREGATE_PADDING;
-
-  const newLeft = Math.min(b.x, minX);
-  const newTop = Math.min(b.y, minY);
-  const newRight = Math.max(b.x + b.w, maxX);
-  const newBottom = Math.max(b.y + b.h, maxY);
-
-  if (newLeft === b.x && newTop === b.y && newRight === b.x + b.w && newBottom === b.y + b.h) {
-    return nds;
-  }
-
-  return nds.map((n) =>
-    n.id === aggId
-      ? {
-          ...n,
-          position: { x: newLeft, y: newTop },
-          style: { ...n.style, width: newRight - newLeft, height: newBottom - newTop },
-        }
-      : n,
-  );
-}
-
-// While a child is dragged outward, expand its aggregate to keep it inside (unless removing).
-function growAggregatesForDraggedChildren(nextNodes: Node[], changes: NodeChange[], constrain: boolean): Node[] {
-  if (!constrain) return nextNodes;
-
-  const draggingIds = new Set<string>();
-  for (const change of changes) {
-    if (change.type === 'position' && change.dragging) draggingIds.add(change.id);
-  }
-  if (draggingIds.size === 0) return nextNodes;
-
-  const affectedAggIds = new Set<string>();
-  nextNodes.forEach((n) => {
-    if (!draggingIds.has(n.id)) return;
-    const aggId = n.data?.aggregateId as string | undefined;
-    if (aggId) affectedAggIds.add(aggId);
-  });
-  if (affectedAggIds.size === 0) return nextNodes;
-
-  let result = nextNodes;
-  affectedAggIds.forEach((aggId) => {
-    result = growAggregateToContainChildren(result, aggId);
-  });
-  return result;
-}
-
-// When nodes are deleted, detach orphaned children, remove empty aggregates and re-fit the rest.
-function handleNodeRemovals(prevNodes: Node[], nextNodes: Node[], changes: NodeChange[]): Node[] {
-  const removedIds = new Set<string>();
-  for (const change of changes) {
-    if (change.type === 'remove') removedIds.add(change.id);
-  }
-  if (removedIds.size === 0) return nextNodes;
-
-  // Deleting a note unbinds whatever was stuck onto it.
-  let result = nextNodes.map((n) => {
-    const b = boundToOf(n);
-    return b && removedIds.has(b) ? { ...n, data: { ...n.data, boundTo: null } } : n;
-  });
-  const affectedAggIds = new Set<string>();
-
-  removedIds.forEach((id) => {
-    const removed = prevNodes.find((n) => n.id === id);
-    if (!removed) return;
-
-    if (removed.type === 'aggregate') {
-      // Deleting an aggregate detaches its children rather than deleting them.
-      result = result.map((n) =>
-        n.data?.aggregateId === removed.id ? { ...n, data: { ...n.data, aggregateId: null } } : n,
-      );
-      return;
-    }
-
-    const aggId = removed.data?.aggregateId as string | undefined;
-    if (aggId) affectedAggIds.add(aggId);
-  });
-
-  result = removeEmptyAggregates(result);
-  affectedAggIds.forEach((id) => {
-    result = fitAggregateToChildren(result, id);
-  });
-  return result;
 }
 
 export interface CanvasEditorProps {
@@ -458,9 +228,7 @@ export function CanvasEditor({ canvasId, store, user, onBack }: CanvasEditorProp
     // Local mode: a board saved by the pre-CRDT build lives in localStorage.
     if (!isRemoteMode()) {
       const legacy = storage.loadCanvas(canvasId);
-      if (legacy && legacy.nodes.length > 0) {
-        return { nodes: legacy.nodes.map(fromFlowNode), edges: legacy.edges.map(fromFlowEdge), viewport: null };
-      }
+      if (legacy && legacy.nodes.length > 0) return { ...legacy, viewport: null };
     }
     return demoSnapshot();
   }, [canvasId]);
@@ -806,7 +574,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
           if (exists) continue;
           next = addEdge(
             {
-              id: `e_${sourceId}_${node.id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+              id: newId(`e_${sourceId}_${node.id}`),
               source: sourceId,
               target: node.id,
               markerEnd: { type: MarkerType.ArrowClosed },
@@ -866,7 +634,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
         y: (mouseRef.current.y - (rect?.top ?? 0) - vp.y) / vp.zoom,
       };
       commit();
-      updateNodes((nds) => addNoteBound(nds, createNode(type, pos, t(`elements.${type}.newLabel`)) as Node));
+      updateNodes((nds) => addNoteBound(nds, createNode(type, pos, t(`elements.${type}.newLabel`))));
     },
     [commit, t, updateNodes],
   );
@@ -880,7 +648,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
         y: ((rect?.height ?? 600) / 2 - vp.y) / vp.zoom,
       };
       commit();
-      updateNodes((nds) => addNoteBound(nds, createNode(type, pos, t(`elements.${type}.newLabel`)) as Node));
+      updateNodes((nds) => addNoteBound(nds, createNode(type, pos, t(`elements.${type}.newLabel`))));
     },
     [commit, t, updateNodes],
   );
@@ -901,7 +669,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
       ...events.map((ev) => {
         const r = nodeRect(ev);
         const pos = { x: r.x + r.w / 2 - size.width / 2, y: r.y + r.h / 2 - size.height / 2 };
-        const tape = createNode('pivotal', pos, t('elements.pivotal.newLabel')) as Node;
+        const tape = createNode('pivotal', pos, t('elements.pivotal.newLabel'));
         return { ...tape, data: { ...tape.data, boundTo: ev.id } };
       }),
     ]);
@@ -1023,21 +791,14 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
 
     commit();
 
-    const minX = Math.min(...selectedNodes.map((n) => n.position.x));
-    const minY = Math.min(...selectedNodes.map((n) => n.position.y));
-    const maxX = Math.max(...selectedNodes.map((n) => n.position.x + (n.width ?? 220)));
-    const maxY = Math.max(...selectedNodes.map((n) => n.position.y + (n.height ?? 90)));
-
-    const aggId = `aggregate_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const box = paddedBox(selectedNodes);
+    const aggId = newId('aggregate');
     const aggNode: Node = {
       id: aggId,
       type: 'aggregate',
-      position: { x: minX - AGGREGATE_PADDING, y: minY - AGGREGATE_PADDING },
+      position: { x: box.x, y: box.y },
       data: { label: t('elements.aggregate.newLabel'), type: 'aggregate' },
-      style: {
-        width: maxX - minX + AGGREGATE_PADDING * 2,
-        height: maxY - minY + AGGREGATE_PADDING * 2,
-      },
+      style: { width: box.w, height: box.h },
       selectable: true,
       draggable: true,
     };
@@ -1077,23 +838,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
         return;
       }
 
-      const w = node.width ?? 180;
-      const h = node.height ?? 84;
-      const rect = { x: node.position.x, y: node.position.y, w, h };
-
-      const target = nodes.find((n) => {
-        if (n.type !== 'aggregate') return false;
-        const aw = (n.width ?? (n.style?.width as number | undefined) ?? 0);
-        const ah = (n.height ?? (n.style?.height as number | undefined) ?? 0);
-        return (
-          rect.x < n.position.x + aw &&
-          rect.x + rect.w > n.position.x &&
-          rect.y < n.position.y + ah &&
-          rect.y + rect.h > n.position.y
-        );
-      });
-
-      setDropTargetId(target?.id ?? null);
+      setDropTargetId(aggregateUnder(node, nodes)?.id ?? null);
     },
     [nodes],
   );
@@ -1132,21 +877,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
       }
 
       // Drop-to-join (never nest aggregates; only events/commands are members).
-      const w = dragged.width ?? 180;
-      const h = dragged.height ?? 84;
-      const rect = { x: dragged.position.x, y: dragged.position.y, w, h };
-
-      const target = canJoinAggregate(dragged) && nodes.find((n) => {
-        if (n.type !== 'aggregate' || n.id === oldAggId) return false;
-        const aw = (n.width ?? (n.style?.width as number | undefined) ?? 0);
-        const ah = (n.height ?? (n.style?.height as number | undefined) ?? 0);
-        return (
-          rect.x < n.position.x + aw &&
-          rect.x + rect.w > n.position.x &&
-          rect.y < n.position.y + ah &&
-          rect.y + rect.h > n.position.y
-        );
-      });
+      const target = canJoinAggregate(dragged) ? aggregateUnder(dragged, nodes, oldAggId) : undefined;
 
       if (!target) {
         // Re-fit the child's own aggregate (tighten after it grew to follow the drag).
@@ -1392,7 +1123,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
       selectedNodeIds.length >= 2 &&
       selectedNodeIds.every((id) => {
         const node = nodes.find((n) => n.id === id);
-        return node && (node.type === 'event' || node.type === 'command');
+        return !!node && canJoinAggregate(node);
       }),
     [selectedNodeIds, nodes],
   );

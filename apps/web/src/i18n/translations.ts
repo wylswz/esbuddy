@@ -6,9 +6,7 @@ export const en = {
   toolbar: {
     addElement: 'Add Element',
     groupAsAggregate: 'Group as Aggregate',
-    exportCml: 'Export CML',
     exportYaml: 'Export YAML',
-    importCml: 'Import CML',
     bringToFront: 'Bring to Front',
     sendToBack: 'Send to Back',
     undo: 'Undo',
@@ -21,12 +19,6 @@ export const en = {
     openMenu: 'Open menu',
     closeMenu: 'Close menu',
     switchLanguage: '中文',
-  },
-  export: {
-    title: 'Exported CML Source',
-    copy: 'Copy to Clipboard',
-    copied: 'Copied!',
-    download: 'Download .cml',
   },
   compile: {
     open: 'Compile',
@@ -415,9 +407,7 @@ export const zh: Translation = {
   toolbar: {
     addElement: '添加元素',
     groupAsAggregate: '聚合分组',
-    exportCml: '导出 CML',
     exportYaml: '导出 YAML',
-    importCml: '导入 CML',
     bringToFront: '置顶',
     sendToBack: '置底',
     undo: '撤销',
@@ -430,12 +420,6 @@ export const zh: Translation = {
     openMenu: '打开菜单',
     closeMenu: '关闭菜单',
     switchLanguage: 'English',
-  },
-  export: {
-    title: '导出的 CML 源码',
-    copy: '复制到剪贴板',
-    copied: '已复制！',
-    download: '下载 .cml',
   },
   compile: {
     open: '编译',

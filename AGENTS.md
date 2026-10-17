@@ -64,9 +64,21 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm build
   - `repo.ts` — data access for that domain's tables only.
 
   Domains: `auth` (users, jwt, google, middleware), `workspace` (workspaces,
-  members, invitations), `canvas` (canvases, events). Cross-domain flows go
+  members, invitations), `canvas` (canvases, versions). Cross-domain flows go
   through services, keeping the chain `auth → workspace → canvas` acyclic (new
-  user → `workspace.createWorkspace` → `canvas.seedExampleCanvas`).
+  user → `workspace.createWorkspace` → `canvas.seedExampleCanvas`; workspace
+  delete → `canvas.deleteWorkspaceCanvases`).
+- **Authorization** (`modules/access/service.ts`) sits above `workspace` and
+  `canvas`: a user-owned canvas is its owner's only; a workspace canvas belongs
+  to the members, where owners/editors write and viewers read. Every
+  `/api/canvases/:id/*` route goes through `requireCanvasAccess`, and room hosts
+  call `authorizeRoomRequest` (`realtime.ts`), which opens viewers read-only
+  (`CanvasRoom` drops their sync step 2 / updates). No access at all answers 404
+  so ids don't leak; a viewer attempting a write gets 403. Don't add a route
+  without an access check.
+- **Auth secrets**: the built-in dev JWT secret only works in dev mode
+  (`isDevMode`); otherwise `JWT_SECRET` is required. The OAuth callback hands
+  the token to the SPA in the URL fragment (`#token=`), never the query string.
 - **DB** (`apps/server/src/db/`): `types.ts` exposes a driver-agnostic `Db`;
   `index.node.ts` builds a better-sqlite3 handle (migrations applied on
   startup); `d1.worker.ts` wraps a D1 binding. Schema in `schema.ts`, Drizzle
@@ -101,7 +113,8 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm build
   relation. Bindings are explicit like `aggregateId`: `data.boundTo` is set when
   an attacher is dropped onto exactly one valid note (`bindingTarget`); the pair
   then moves with its target, and dropping it off the target unbinds it
-  (`nextBinding`; see "Binding invariants" in `CanvasEditor.tsx`). The compiler reads `boundTo`, never
+  (`nextBinding`; see "Binding invariants" in `apps/web/src/editor/transforms.ts`, which holds the
+  editor's pure aggregate/binding transforms). The compiler reads `boundTo`, never
   geometry; overlaps outside a group are errors. The editor enforces edges
   (`isValidConnection`, per-type handles). Analysis lives in
   `packages/sdk/src/analysis/`: `buildContext` computes facts only (relations

@@ -1,7 +1,7 @@
 import { eq, and, inArray, sql } from 'drizzle-orm';
 import type { Invitation, Role, Workspace, WorkspaceMember } from '@esbuddy/sdk';
 import type { Db } from '../../db/types.js';
-import { canvasEvents, canvasVersions, canvases, invitations, workspaceMembers, workspaces } from '../../db/schema.js';
+import { invitations, workspaceMembers, workspaces } from '../../db/schema.js';
 
 const now = () => Date.now();
 
@@ -55,15 +55,6 @@ export async function listMembers(db: Db, workspaceId: string): Promise<Workspac
   return rows.map(rowToMember);
 }
 
-export async function isMember(db: Db, workspaceId: string, userId: string): Promise<boolean> {
-  const r = await db
-    .select()
-    .from(workspaceMembers)
-    .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)))
-    .get();
-  return !!r;
-}
-
 export async function getMemberRole(db: Db, workspaceId: string, userId: string): Promise<Role | null> {
   const r = await db
     .select()
@@ -75,12 +66,7 @@ export async function getMemberRole(db: Db, workspaceId: string, userId: string)
 
 /** Add a membership only if the user is not already a member. */
 export async function addMemberIfAbsent(db: Db, workspaceId: string, userId: string, role: Role): Promise<void> {
-  const existing = await db
-    .select()
-    .from(workspaceMembers)
-    .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)))
-    .get();
-  if (!existing) {
+  if (!(await getMemberRole(db, workspaceId, userId))) {
     await db.insert(workspaceMembers).values({ workspaceId, userId, role, joinedAt: now() }).run();
   }
 }
@@ -123,24 +109,8 @@ export async function countMembers(db: Db, workspaceId: string): Promise<number>
   return rows[0]?.count ?? 0;
 }
 
-/**
- * Cascade-delete a workspace: all canvases owned by it (and their events and
- * published versions),
- * all invitations, all memberships, and the workspace row itself.
- */
+/** Delete the workspace row with its invitations and memberships (canvases are the canvas module's). */
 export async function deleteWorkspace(db: Db, workspaceId: string): Promise<void> {
-  // Canvas events for canvases owned by this workspace.
-  const canvasIds = await db
-    .select({ id: canvases.id })
-    .from(canvases)
-    .where(and(eq(canvases.ownerType, 'workspace'), eq(canvases.ownerId, workspaceId)))
-    .all();
-  if (canvasIds.length > 0) {
-    const ids = canvasIds.map((r) => r.id);
-    await db.delete(canvasEvents).where(inArray(canvasEvents.canvasId, ids)).run();
-    await db.delete(canvasVersions).where(inArray(canvasVersions.canvasId, ids)).run();
-    await db.delete(canvases).where(inArray(canvases.id, ids)).run();
-  }
   await db.delete(invitations).where(eq(invitations.workspaceId, workspaceId)).run();
   await db.delete(workspaceMembers).where(eq(workspaceMembers.workspaceId, workspaceId)).run();
   await db.delete(workspaces).where(eq(workspaces.id, workspaceId)).run();

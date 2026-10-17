@@ -12,7 +12,7 @@ import { CanvasRoom, MSG_AWARENESS, MSG_SYNC, type RoomSocket } from '../../src/
  * room through a fake socket, speaking the same wire protocol the browser
  * provider does. Lets us test the room without any network.
  */
-function connectClient(room: CanvasRoom) {
+function connectClient(room: CanvasRoom, opts: { readOnly?: boolean } = {}) {
   const doc = new Y.Doc();
   const awareness = new awarenessProtocol.Awareness(doc);
   const SERVER = Symbol('server');
@@ -54,7 +54,7 @@ function connectClient(room: CanvasRoom) {
     send(encoding.toUint8Array(encoder));
   });
 
-  room.connect(sock);
+  room.connect(sock, opts);
   // Like the real provider: ask the server for its state too.
   const encoder = encoding.createEncoder();
   encoding.writeVarUint(encoder, MSG_SYNC);
@@ -86,6 +86,24 @@ describe('CanvasRoom', () => {
     expect(getNodesMap(b.doc).get('n1')?.get('x')).toBe(1);
     expect(getNodesMap(room.doc).get('n1')?.get('x')).toBe(1);
     expect(onUpdate).toHaveBeenCalled();
+  });
+
+  it('a read-only client receives the doc and edits but cannot write', () => {
+    const room = new CanvasRoom({ doc: docFromSnapshot(exampleCanvasSnapshot()) });
+    const viewer = connectClient(room, { readOnly: true });
+    const editor = connectClient(room);
+    expect(getNodesMap(viewer.doc).size).toBe(exampleCanvasSnapshot().nodes.length);
+
+    const fromViewer = new Y.Map<unknown>();
+    fromViewer.set('type', 'event');
+    getNodesMap(viewer.doc).set('sneaky', fromViewer);
+    expect(getNodesMap(room.doc).has('sneaky')).toBe(false);
+    expect(getNodesMap(editor.doc).has('sneaky')).toBe(false);
+
+    const fromEditor = new Y.Map<unknown>();
+    fromEditor.set('type', 'event');
+    getNodesMap(editor.doc).set('legit', fromEditor);
+    expect(getNodesMap(viewer.doc).has('legit')).toBe(true);
   });
 
   it('propagates awareness and retracts it when a client leaves', () => {

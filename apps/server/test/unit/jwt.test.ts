@@ -19,6 +19,14 @@ describe('auth/jwt', () => {
     expect(await verifyToken(token, env)).toBeNull();
   });
 
+  it('refuses the built-in dev secret outside dev mode', async () => {
+    const dev = testEnv({ JWT_SECRET: undefined });
+    const prod = testEnv({ JWT_SECRET: undefined, DEV_MODE: 'false' });
+    const devToken = await signToken('user-1', dev);
+    await expect(signToken('user-1', prod)).rejects.toThrow(/JWT_SECRET/);
+    expect(await verifyToken(devToken, prod)).toBeNull();
+  });
+
   it('validates OAuth state nonces', async () => {
     const state = await signState(env);
     expect(await verifyState(state, env)).toBe(true);

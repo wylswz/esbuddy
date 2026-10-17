@@ -38,6 +38,8 @@ export class CanvasRoom {
   readonly awareness: awarenessProtocol.Awareness;
   /** socket → awareness clientIDs it controls (removed on disconnect). */
   private readonly conns = new Map<RoomSocket, Set<number>>();
+  /** Sockets that may read the doc but never write it (viewers). */
+  private readonly readOnly = new Set<RoomSocket>();
 
   constructor(options: CanvasRoomOptions = {}) {
     this.doc = options.doc ?? new Y.Doc();
@@ -81,8 +83,12 @@ export class CanvasRoom {
    * awareness). Pass `handshake: false` when re-attaching sockets that already
    * completed it (a Durable Object waking from hibernation).
    */
-  connect(sock: RoomSocket, opts: { handshake?: boolean; controlledIds?: Iterable<number> } = {}): void {
+  connect(
+    sock: RoomSocket,
+    opts: { handshake?: boolean; controlledIds?: Iterable<number>; readOnly?: boolean } = {},
+  ): void {
     this.conns.set(sock, new Set(opts.controlledIds ?? []));
+    if (opts.readOnly) this.readOnly.add(sock);
     if (opts.handshake === false) return;
 
     const sync = encoding.createEncoder();
@@ -106,8 +112,15 @@ export class CanvasRoom {
     switch (decoding.readVarUint(decoder)) {
       case MSG_SYNC:
         encoding.writeVarUint(encoder, MSG_SYNC);
-        // Applies step2/updates to the doc with `sock` as origin; may queue a reply.
-        syncProtocol.readSyncMessage(decoder, encoder, this.doc, sock);
+        if (this.readOnly.has(sock)) {
+          // A viewer may ask for the state (step 1) but its step 2 / updates are dropped.
+          if (decoding.readVarUint(decoder) === syncProtocol.messageYjsSyncStep1) {
+            syncProtocol.readSyncStep1(decoder, encoder, this.doc);
+          }
+        } else {
+          // Applies step2/updates to the doc with `sock` as origin; may queue a reply.
+          syncProtocol.readSyncMessage(decoder, encoder, this.doc, sock);
+        }
         if (encoding.length(encoder) > 1) sock.send(encoding.toUint8Array(encoder));
         break;
       case MSG_AWARENESS:
@@ -120,6 +133,7 @@ export class CanvasRoom {
   disconnect(sock: RoomSocket): void {
     const controlled = this.conns.get(sock);
     this.conns.delete(sock);
+    this.readOnly.delete(sock);
     if (controlled && controlled.size > 0) {
       awarenessProtocol.removeAwarenessStates(this.awareness, Array.from(controlled), null);
     }
@@ -143,6 +157,7 @@ export class CanvasRoom {
     this.awareness.destroy();
     this.doc.destroy();
     this.conns.clear();
+    this.readOnly.clear();
   }
 
   private broadcast(data: Uint8Array, except: unknown): void {
