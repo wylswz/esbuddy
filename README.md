@@ -58,7 +58,7 @@ One concern per modifier: **Shift** removes from an aggregate · **⌥/Alt** con
 
 The first time you open a board, a **guide** walks through an Event Storming workshop in the order of Brandolini's *Introducing EventStorming* — domain events, people and systems, hot spots, structuring the timeline (pivotal events, swimlanes, temporal milestones), process modelling, aggregates, and finally compiling to natural language. Each step shows a small read-only example board and how to do it in Esbuddy; reference pages (elements, grammar, shortcuts, advanced concepts) follow. Press **Help** (or search *Help*) to reopen it.
 
-Infinite canvas (plain, no grid) with zoom, pan, and MiniMap. Pan with two-finger scroll, middle/right drag, or `Space` + drag; box-select by dragging empty canvas; connect by dragging a handle or `⌥`-clicking. Nodes, edges, and viewport auto-save and restore on refresh.
+Infinite canvas (warm white with a sparse dot grid) with zoom, pan, and MiniMap. Pan with two-finger scroll, middle/right drag, or `Space` + drag; box-select by dragging empty canvas; connect by dragging a handle or `⌥`-clicking. Nodes, edges, and viewport auto-save and restore on refresh.
 
 ## Grammar & Compile to Text
 

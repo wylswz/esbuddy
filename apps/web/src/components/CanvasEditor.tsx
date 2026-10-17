@@ -41,6 +41,7 @@ import { CommandPalette, type PaletteCommand } from './CommandPalette';
 import { GuidedTour, type TourStep } from './GuidedTour';
 import { CompileExample, ConceptList, ElementList, GrammarLists, GuideExample, HowTo, ShortcutList } from './TourContent';
 import { isTourDone } from '../tour';
+import { BoardBackground } from './BoardBackground';
 import { BoardStructure, RULER_SIZE, Rulers, type RulerActions, type StructureRef } from './StructureRulers';
 import { VersionsDialog } from './VersionsDialog';
 import { CompilePanel } from './CompilePanel';
@@ -1628,6 +1629,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
               defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
               className="esboard-surface"
             >
+              <BoardBackground />
               <BoardStructure structure={structure} />
               <Controls />
               {!touchMode && (

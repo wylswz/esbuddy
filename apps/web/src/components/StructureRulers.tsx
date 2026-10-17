@@ -21,7 +21,8 @@ import { useI18n } from '../i18n/context';
  *                Lanes never overlap: they stop at their neighbours.
  * Double-click a marker to rename it. On the board itself lanes are bands and
  * milestones are lines spanning the whole (infinite) canvas, drawn beneath the
- * notes; they never capture the pointer there.
+ * notes; they never capture the pointer there. Both use solid lines, and lanes
+ * mute the dot grid, so neither is mistaken for the grid.
  */
 
 export const RULER_SIZE = 24;
@@ -45,9 +46,12 @@ function BoardStructureComponent({ structure }: { structure: CanvasStructure }) 
           style={{
             top: l.y * zoom + vy,
             height: l.height * zoom,
-            backgroundColor: INK(i % 2 ? 2.5 : 4.5),
-            borderTop: `1px dashed ${INK(22)}`,
-            borderBottom: `1px dashed ${INK(22)}`,
+            // Mostly-opaque board colour mutes the dot grid inside a lane, so lanes read
+            // as calm regions; a faint ink tint alternates between neighbours.
+            backgroundColor: 'color-mix(in srgb, var(--color-board) 72%, transparent)',
+            backgroundImage: `linear-gradient(${INK(i % 2 ? 1.5 : 3.5)}, ${INK(i % 2 ? 1.5 : 3.5)})`,
+            borderTop: `1px solid ${INK(16)}`,
+            borderBottom: `1px solid ${INK(16)}`,
           }}
         >
           <span
@@ -62,7 +66,7 @@ function BoardStructureComponent({ structure }: { structure: CanvasStructure }) 
         <div
           key={m.id}
           className="absolute top-0 bottom-0"
-          style={{ left: m.x * zoom + vx, borderLeft: `2px dashed ${INK(35)}` }}
+          style={{ left: m.x * zoom + vx, borderLeft: `1.5px solid ${INK(30)}` }}
         />
       ))}
     </div>

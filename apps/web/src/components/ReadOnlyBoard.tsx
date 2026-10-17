@@ -5,6 +5,7 @@ import { isStructureEmpty, type CanvasSnapshot } from '@esbuddy/sdk';
 import { CanvasActionsContext, type CanvasActions } from '../CanvasContext';
 import { toFlowEdge, toFlowNode } from '../collab/binding';
 import { ELEMENT_STYLES, type ElementType } from '../types';
+import { BoardBackground } from './BoardBackground';
 import { nodeTypes } from './nodeTypes';
 import { BoardStructure, RULER_SIZE, Rulers } from './StructureRulers';
 
@@ -66,6 +67,7 @@ export function ReadOnlyBoard({ snapshot, variant = 'full', minimap = false, ove
               defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
               className="esboard-surface"
             >
+              <BoardBackground />
               <BoardStructure structure={structure} />
               {full && <Controls showInteractive={false} />}
               {full && minimap && (
