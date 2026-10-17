@@ -95,6 +95,12 @@ Any other edge can't be drawn. Overlaps are free while brainstorming, but **Comp
 
 Export the canvas as Context Mapper (CML) — copy to clipboard or download `.cml`; import a `.cml` to render it. Supported: `Aggregate`, `Command`, `DomainEvent`, and `Flow` relations.
 
+## Agent Tokens
+
+Backend deployments support [workspace agent tokens](./doc/workspace-tokens.md):
+each token has its own identity in live collaboration, scoped to one workspace
+with editor or viewer access. Owners create and revoke them in **Manage workspace**.
+
 ## Contributing
 
 Building, testing, and deploying are documented in [AGENTS.md](./AGENTS.md).

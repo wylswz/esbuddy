@@ -13,6 +13,10 @@ export default defineWorkersConfig(async () => {
       name: 'workers',
       include: ['test/cf/**/*.test.ts'],
       setupFiles: ['./test/setup/apply-migrations.ts'],
+      deps: {
+        // Bundle the MCP SDK's CJS validator dependencies for workerd's module loader.
+        optimizer: { ssr: { enabled: true, include: ['@modelcontextprotocol/sdk/server/index.js'] } },
+      },
       poolOptions: {
         workers: {
           singleWorker: true,

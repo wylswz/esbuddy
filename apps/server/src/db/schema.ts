@@ -32,6 +32,23 @@ export const workspaceMembers = sqliteTable(
   (t) => [primaryKey({ columns: [t.workspaceId, t.userId] })],
 );
 
+export const workspaceTokens = sqliteTable(
+  'workspace_tokens',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id').notNull(),
+    name: text('name').notNull(),
+    tokenHash: text('token_hash').notNull().unique(),
+    prefix: text('prefix').notNull(),
+    role: text('role').notNull(),
+    createdById: text('created_by_id').notNull(),
+    createdAt: integer('created_at').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+    revokedAt: integer('revoked_at'),
+  },
+  (t) => [index('workspace_tokens_workspace_id_idx').on(t.workspaceId, t.createdAt)],
+);
+
 export const canvases = sqliteTable('canvases', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -105,6 +122,7 @@ export const schema = {
   users,
   workspaces,
   workspaceMembers,
+  workspaceTokens,
   canvases,
   canvasEvents,
   canvasVersions,

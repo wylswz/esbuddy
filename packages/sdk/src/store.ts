@@ -5,6 +5,8 @@ import type {
   CanvasSnapshot,
   CanvasVersion,
   CanvasVersionMeta,
+  CreatedWorkspaceToken,
+  CreateWorkspaceTokenInput,
   Invitation,
   InvitationPreview,
   PublishedCanvasVersion,
@@ -12,6 +14,7 @@ import type {
   User,
   Workspace,
   WorkspaceMember,
+  WorkspaceToken,
 } from './domain.js';
 
 export interface PublishVersionInput {
@@ -44,6 +47,10 @@ export interface Store {
   createInvitation(workspaceId: string, role: Role): Promise<Invitation>;
   previewInvitation(token: string): Promise<InvitationPreview>;
   acceptInvitation(token: string): Promise<Workspace>;
+  // Workspace-scoped agent credentials (backend only, owner-managed).
+  listWorkspaceTokens(workspaceId: string): Promise<WorkspaceToken[]>;
+  createWorkspaceToken(workspaceId: string, input: CreateWorkspaceTokenInput): Promise<CreatedWorkspaceToken>;
+  revokeWorkspaceToken(workspaceId: string, tokenId: string): Promise<void>;
   // canvases (metadata + read-only snapshot; content is edited through a
   // collaborative Y.Doc, see `ydoc.ts`, never written through the Store)
   listCanvases(scope?: { userId?: string; workspaceId?: string }): Promise<CanvasMeta[]>;

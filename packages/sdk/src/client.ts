@@ -4,6 +4,8 @@ import type {
   CanvasRecord,
   CanvasVersion,
   CanvasVersionMeta,
+  CreatedWorkspaceToken,
+  CreateWorkspaceTokenInput,
   Invitation,
   InvitationPreview,
   PublishedCanvasVersion,
@@ -11,6 +13,7 @@ import type {
   User,
   Workspace,
   WorkspaceMember,
+  WorkspaceToken,
 } from './domain.js';
 import type { PublishVersionInput, Store, UpdateVersionInput } from './store.js';
 
@@ -95,6 +98,18 @@ export class HttpStore implements Store {
 
   acceptInvitation(token: string): Promise<Workspace> {
     return this.request<Workspace>('POST', `/invitations/${token}/accept`);
+  }
+
+  listWorkspaceTokens(workspaceId: string): Promise<WorkspaceToken[]> {
+    return this.request<WorkspaceToken[]>('GET', `/workspaces/${workspaceId}/tokens`);
+  }
+
+  createWorkspaceToken(workspaceId: string, input: CreateWorkspaceTokenInput): Promise<CreatedWorkspaceToken> {
+    return this.request<CreatedWorkspaceToken>('POST', `/workspaces/${workspaceId}/tokens`, input);
+  }
+
+  revokeWorkspaceToken(workspaceId: string, tokenId: string): Promise<void> {
+    return this.request<void>('DELETE', `/workspaces/${workspaceId}/tokens/${tokenId}`);
   }
 
   listCanvases(scope?: { userId?: string; workspaceId?: string }): Promise<CanvasMeta[]> {

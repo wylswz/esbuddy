@@ -7,6 +7,7 @@ import { ConfirmDialog } from './ui/AlertDialog';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Select } from './ui/Select';
+import { WorkspaceTokens } from './WorkspaceTokens';
 
 interface WorkspacePageProps {
   store: Store;
@@ -172,6 +173,8 @@ export function WorkspacePage({ store, workspace, user, onBack, onDeleted }: Wor
             {members.length === 0 && <li className="py-3.5 text-sm text-fg-subtle">{t('workspacePage.noMembers')}</li>}
           </ul>
         </section>
+
+        {isOwner && <WorkspaceTokens key={workspace.id} store={store} workspaceId={workspace.id} />}
 
         {isOwner && (
           <section className="flex flex-col gap-4">

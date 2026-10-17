@@ -13,7 +13,7 @@ canvasRoutes.use('*', authMiddleware, requireAuth);
 // Everything under /:id needs access to that canvas: reads for GET, writes
 // otherwise. No access at all looks exactly like a missing canvas.
 const requireCanvasAccess: MiddlewareHandler<{ Variables: AppVariables }> = async (c, next) => {
-  const access = await canvasAccess(c.var.db, c.req.param('id') ?? '', c.var.userId!);
+  const access = await canvasAccess(c.var.db, c.req.param('id') ?? '', c.var.workspaceToken ?? c.var.userId!);
   if (!access) return c.json({ error: 'not found' }, 404);
   if (c.req.method !== 'GET' && access !== 'write') return c.json({ error: 'forbidden' }, 403);
   await next();
@@ -22,17 +22,19 @@ canvasRoutes.use('/:id/*', requireCanvasAccess);
 
 canvasRoutes.get('/', async (c) => {
   const userId = c.var.userId!;
-  const workspaceId = c.req.query('workspace');
+  const workspaceId = c.req.query('workspace') ?? c.var.workspaceToken?.workspaceId;
   const owner: CanvasOwner = workspaceId ? { type: 'workspace', workspaceId } : { type: 'user', userId };
-  if (!(await ownerAccess(c.var.db, owner, userId))) return c.json({ error: 'not found' }, 404);
+  if (!(await ownerAccess(c.var.db, owner, c.var.workspaceToken ?? userId))) return c.json({ error: 'not found' }, 404);
   return c.json(await service.listCanvases(c.var.db, owner));
 });
 
 canvasRoutes.post('/', async (c) => {
   const body = await c.req.json<{ name: string; owner?: CanvasOwner }>();
   const userId = c.var.userId!;
-  const owner: CanvasOwner = body.owner ?? { type: 'user', userId };
-  const access = await ownerAccess(c.var.db, owner, userId);
+  const owner: CanvasOwner = body.owner ?? (c.var.workspaceToken
+    ? { type: 'workspace', workspaceId: c.var.workspaceToken.workspaceId }
+    : { type: 'user', userId });
+  const access = await ownerAccess(c.var.db, owner, c.var.workspaceToken ?? userId);
   if (!access) return c.json({ error: 'not found' }, 404);
   if (access !== 'write') return c.json({ error: 'forbidden' }, 403);
   try {
@@ -49,9 +51,9 @@ canvasRoutes.get('/:id', async (c) => {
   return record ? c.json(record) : c.json(null, 404);
 });
 
-// Canvas content is not writable over REST: edits flow through the realtime room
-// at /api/rooms/:id (a WebSocket speaking the y-websocket protocol), which is
-// wired per platform in `index.node.ts` / `index.worker.ts`.
+// The Store never replaces canvas content. The browser edits through the room's
+// WebSocket; /api/agent/v1 translates incremental HTTP operations into that same
+// live room. Both are wired per platform in index.node.ts / index.worker.ts.
 
 canvasRoutes.patch('/:id', async (c) => {
   const body = await c.req.json<{ name: string }>();

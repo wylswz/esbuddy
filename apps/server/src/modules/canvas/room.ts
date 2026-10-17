@@ -3,6 +3,8 @@ import * as syncProtocol from 'y-protocols/sync';
 import * as awarenessProtocol from 'y-protocols/awareness';
 import * as encoding from 'lib0/encoding';
 import * as decoding from 'lib0/decoding';
+import type { CollaborationIdentity } from '@esbuddy/sdk';
+import type { AgentPresence } from '@esbuddy/sdk/agent';
 
 /*
  * One collaboration room = one canvas = one Y.Doc + one Awareness instance, and
@@ -40,6 +42,7 @@ export class CanvasRoom {
   private readonly conns = new Map<RoomSocket, Set<number>>();
   /** Sockets that may read the doc but never write it (viewers). */
   private readonly readOnly = new Set<RoomSocket>();
+  private readonly agents = new Map<RoomSocket, { identity: CollaborationIdentity; clientId?: number }>();
 
   constructor(options: CanvasRoomOptions = {}) {
     this.doc = options.doc ?? new Y.Doc();
@@ -85,10 +88,18 @@ export class CanvasRoom {
    */
   connect(
     sock: RoomSocket,
-    opts: { handshake?: boolean; controlledIds?: Iterable<number>; readOnly?: boolean } = {},
+    opts: {
+      handshake?: boolean;
+      controlledIds?: Iterable<number>;
+      readOnly?: boolean;
+      identity?: CollaborationIdentity;
+    } = {},
   ): void {
     this.conns.set(sock, new Set(opts.controlledIds ?? []));
     if (opts.readOnly) this.readOnly.add(sock);
+    if (opts.identity) {
+      this.agents.set(sock, { identity: opts.identity, clientId: this.controlledIds(sock)[0] });
+    }
     if (opts.handshake === false) return;
 
     const sync = encoding.createEncoder();
@@ -124,7 +135,12 @@ export class CanvasRoom {
         if (encoding.length(encoder) > 1) sock.send(encoding.toUint8Array(encoder));
         break;
       case MSG_AWARENESS:
-        awarenessProtocol.applyAwarenessUpdate(this.awareness, decoding.readVarUint8Array(decoder), sock);
+        {
+          const update = decoding.readVarUint8Array(decoder);
+          awarenessProtocol.applyAwarenessUpdate(
+            this.awareness, this.agents.has(sock) ? this.agentAwareness(sock, update) : update, sock,
+          );
+        }
         break;
     }
   }
@@ -134,6 +150,7 @@ export class CanvasRoom {
     const controlled = this.conns.get(sock);
     this.conns.delete(sock);
     this.readOnly.delete(sock);
+    this.agents.delete(sock);
     if (controlled && controlled.size > 0) {
       awarenessProtocol.removeAwarenessStates(this.awareness, Array.from(controlled), null);
     }
@@ -153,11 +170,75 @@ export class CanvasRoom {
     return Y.encodeStateAsUpdate(this.doc);
   }
 
+  /** Stable virtual awareness IDs let HTTP agents survive DO hibernation without a WebSocket. */
+  setAgentPresence(identity: CollaborationIdentity, presence?: AgentPresence | null): void {
+    let hash = 1469598103934665603n;
+    for (const char of identity.id) hash = ((hash ^ BigInt(char.charCodeAt(0))) * 1099511628211n) & ((1n << 48n) - 1n);
+    // Above the ordinary 32-bit Yjs client-ID range.
+    const id = Number(hash) + 2 ** 32;
+    const previous = this.awareness.getStates().get(id);
+    const state = presence === null ? null : {
+      user: identity,
+      cursor: presence === undefined ? previous?.cursor ?? null : presence.cursor,
+      selection: presence?.selection ?? previous?.selection ?? [],
+    };
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, 1);
+    encoding.writeVarUint(encoder, id);
+    encoding.writeVarUint(encoder, Math.max(Date.now(), (this.awareness.meta.get(id)?.clock ?? 0) + 1));
+    encoding.writeVarString(encoder, JSON.stringify(state));
+    awarenessProtocol.applyAwarenessUpdate(this.awareness, encoding.toUint8Array(encoder), null);
+  }
+
   destroy(): void {
     this.awareness.destroy();
     this.doc.destroy();
     this.conns.clear();
     this.readOnly.clear();
+    this.agents.clear();
+  }
+
+  /** Token clients control their cursor/selection, never their authenticated name or another peer's state. */
+  private agentAwareness(sock: RoomSocket, update: Uint8Array): Uint8Array {
+    const agent = this.agents.get(sock)!;
+    const decoder = decoding.createDecoder(update);
+    const count = decoding.readVarUint(decoder);
+    const accepted: { id: number; clock: number; state: unknown }[] = [];
+    for (let i = 0; i < count; i++) {
+      const id = decoding.readVarUint(decoder);
+      const clock = decoding.readVarUint(decoder);
+      const state: unknown = JSON.parse(decoding.readVarString(decoder));
+      const ownedByOtherSocket = Array.from(this.conns).some(([other, ids]) => other !== sock && ids.has(id));
+      if (ownedByOtherSocket) continue;
+      if (agent.clientId === undefined && state !== null
+        && id !== this.doc.clientID && !this.awareness.getStates().has(id)) agent.clientId = id;
+      if (id !== agent.clientId) continue;
+      if (state === null) {
+        accepted.push({ id, clock, state: null });
+        continue;
+      }
+      const value = state && typeof state === 'object' ? state as Record<string, unknown> : {};
+      const cursor = value.cursor as { x?: unknown; y?: unknown } | null | undefined;
+      accepted.push({
+        id, clock,
+        state: {
+          user: agent.identity,
+          cursor: cursor && typeof cursor.x === 'number' && Number.isFinite(cursor.x)
+            && typeof cursor.y === 'number' && Number.isFinite(cursor.y)
+            ? { x: cursor.x, y: cursor.y } : null,
+          selection: Array.isArray(value.selection)
+            ? value.selection.filter((id): id is string => typeof id === 'string').slice(0, 1000) : [],
+        },
+      });
+    }
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, accepted.length);
+    for (const entry of accepted) {
+      encoding.writeVarUint(encoder, entry.id);
+      encoding.writeVarUint(encoder, entry.clock);
+      encoding.writeVarString(encoder, JSON.stringify(entry.state));
+    }
+    return encoding.toUint8Array(encoder);
   }
 
   private broadcast(data: Uint8Array, except: unknown): void {

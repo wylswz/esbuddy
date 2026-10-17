@@ -8,17 +8,21 @@ import type { AppVariables } from './context.js';
 import { authRoutes } from './modules/auth/api.js';
 import { canvasRoutes, versionRoutes } from './modules/canvas/api.js';
 import { invitationRoutes, workspaceRoutes } from './modules/workspace/api.js';
+import type { RoomGateway } from './modules/canvas/agent-room.js';
+import { agentRoutes } from './modules/agent/api.js';
+import { agentMcpRoutes } from './modules/agent/mcp.js';
 
 export interface AppDeps {
   db: Db;
   env: Env;
+  rooms?: RoomGateway;
   // Platform-specific SPA asset serving (node fs middleware or Workers Assets
   // binding). Omit for an API-only deployment. Kept as an injected dependency so
   // the app itself stays free of any platform (`node:*` / Workers) imports.
   staticHandler?: MiddlewareHandler<{ Variables: AppVariables }>;
 }
 
-export function buildApp({ db, env, staticHandler }: AppDeps) {
+export function buildApp({ db, env, rooms, staticHandler }: AppDeps) {
   const app = new Hono<{ Variables: AppVariables }>();
 
   app.use('*', logger());
@@ -27,6 +31,7 @@ export function buildApp({ db, env, staticHandler }: AppDeps) {
   app.use('*', async (c, next) => {
     c.set('db', db);
     c.set('env', env);
+    if (rooms) c.set('rooms', rooms);
     await next();
   });
 
@@ -39,6 +44,8 @@ export function buildApp({ db, env, staticHandler }: AppDeps) {
   api.route('/versions', versionRoutes);
   api.route('/workspaces', workspaceRoutes);
   api.route('/invitations', invitationRoutes);
+  api.route('/agent/v1', agentRoutes);
+  api.route('/mcp', agentMcpRoutes);
 
   app.route('/api', api);
 

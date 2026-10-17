@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Awareness } from 'y-protocols/awareness';
+import { identityColor } from '@esbuddy/sdk';
 
 /*
  * Presence ("awareness") shared between participants of a canvas. Unlike the
@@ -11,6 +12,7 @@ export interface PeerUser {
   id: string;
   name: string;
   color: string;
+  kind?: 'user' | 'agent';
 }
 
 export interface PeerState {
@@ -21,14 +23,7 @@ export interface PeerState {
   selection: string[];
 }
 
-const PALETTE = ['#e11d48', '#ea580c', '#ca8a04', '#16a34a', '#0d9488', '#2563eb', '#7c3aed', '#c026d3'];
-
-/** Stable colour per user id (same user → same colour on every client). */
-export function userColor(id: string): string {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return PALETTE[h % PALETTE.length];
-}
+export const userColor = identityColor;
 
 function isPeerState(v: unknown): v is PeerState {
   if (!v || typeof v !== 'object') return false;

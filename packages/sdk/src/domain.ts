@@ -14,6 +14,40 @@ export type ElementType =
 
 export type Role = 'owner' | 'editor' | 'viewer';
 
+export interface CollaborationIdentity {
+  id: string;
+  name: string;
+  color: string;
+  kind: 'user' | 'agent';
+}
+
+export type WorkspaceTokenRole = 'editor' | 'viewer';
+
+/** Safe metadata: neither the secret nor its hash is returned by list endpoints. */
+export interface WorkspaceToken {
+  id: string;
+  workspaceId: string;
+  identity: CollaborationIdentity;
+  prefix: string;
+  role: WorkspaceTokenRole;
+  createdById: string;
+  createdAt: number;
+  expiresAt: number;
+  revokedAt: number | null;
+}
+
+export interface CreateWorkspaceTokenInput {
+  name: string;
+  role?: WorkspaceTokenRole;
+  /** Unix milliseconds; defaults to 90 days from creation. */
+  expiresAt?: number;
+}
+
+/** The secret is returned only once, when the token is created. */
+export interface CreatedWorkspaceToken extends WorkspaceToken {
+  token: string;
+}
+
 /** Canvas ownership: belongs to a single user, or to a workspace. */
 export type CanvasOwner =
   | { type: 'user'; userId: string }
@@ -137,6 +171,16 @@ export interface CanvasSnapshot {
 
 export interface CanvasRecord extends CanvasMeta {
   snapshot: CanvasSnapshot;
+}
+
+export interface LiveCanvasContent {
+  snapshot: CanvasSnapshot;
+  /** Opaque live CRDT revision, including deletions; not CanvasMeta.version. */
+  revision: string;
+}
+
+export interface LiveCanvas extends CanvasRecord {
+  revision: string;
 }
 
 /**

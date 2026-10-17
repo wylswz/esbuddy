@@ -1,11 +1,14 @@
 import type { IncomingMessage, Server } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { WebSocketServer, type WebSocket } from 'ws';
+import type { WorkspaceToken } from '@esbuddy/sdk';
 import type { Db } from './db/types.js';
 import type { Env } from './env.js';
 import { CanvasRoom } from './modules/canvas/room.js';
 import * as canvasService from './modules/canvas/service.js';
 import { FLUSH_DEBOUNCE_MS, ROOM_IDLE_MS, authorizeRoomRequest, parseRoomPath } from './realtime.js';
+import { getActiveWorkspaceToken } from './modules/workspace/tokens.service.js';
+import { runRoomCommand, type RoomCommand, type RoomReply } from './modules/canvas/agent-room.js';
 
 /*
  * Node host for collaboration rooms (the counterpart of `room.worker.ts`).
@@ -30,6 +33,15 @@ export class RoomHost {
   private readonly rooms = new Map<string, Promise<HostedRoom | null>>();
 
   constructor(private readonly db: Db) {}
+
+  async execute(canvasId: string, command: RoomCommand): Promise<RoomReply> {
+    const hosted = await this.get(canvasId);
+    if (!hosted) return { status: 404, body: { error: 'not found' } };
+    if (hosted.idleTimer) clearTimeout(hosted.idleTimer);
+    const reply = runRoomCommand(hosted.room, command);
+    if (hosted.room.size === 0) hosted.idleTimer = setTimeout(() => this.evict(canvasId, hosted), ROOM_IDLE_MS);
+    return reply;
+  }
 
   /** Get (or hydrate) the room for a canvas; null if the canvas doesn't exist. */
   get(canvasId: string): Promise<HostedRoom | null> {
@@ -59,7 +71,11 @@ export class RoomHost {
     return hosted;
   }
 
-  async join(canvasId: string, ws: WebSocket, opts: { readOnly?: boolean } = {}): Promise<boolean> {
+  async join(
+    canvasId: string,
+    ws: WebSocket,
+    opts: { readOnly?: boolean; workspaceToken?: WorkspaceToken } = {},
+  ): Promise<boolean> {
     const hosted = await this.get(canvasId);
     if (!hosted) return false;
     if (hosted.idleTimer) {
@@ -67,12 +83,47 @@ export class RoomHost {
       hosted.idleTimer = null;
     }
 
-    const sock = { send: (data: Uint8Array) => ws.send(data) };
+    let outgoing = Promise.resolve();
+    const sock = {
+      send: (data: Uint8Array) => {
+        if (!opts.workspaceToken) {
+          ws.send(data);
+          return;
+        }
+        // A revoked, silent reader must not keep receiving future room updates.
+        outgoing = outgoing.then(async () => {
+          if (ws.readyState !== ws.OPEN) return;
+          if (!(await getActiveWorkspaceToken(this.db, opts.workspaceToken!.id))) {
+            hosted.room.disconnect(sock);
+            ws.close(4401, 'token expired or revoked');
+            return;
+          }
+          ws.send(data);
+        }).catch(() => ws.close(1011, 'room send failed'));
+      },
+    };
     ws.binaryType = 'arraybuffer';
+    let pending = Promise.resolve();
     ws.on('message', (data: ArrayBuffer | Buffer | Buffer[]) => {
       const bytes =
         data instanceof ArrayBuffer ? new Uint8Array(data) : Array.isArray(data) ? Buffer.concat(data) : data;
-      hosted.room.message(sock, new Uint8Array(bytes));
+      if (!opts.workspaceToken) {
+        hosted.room.message(sock, new Uint8Array(bytes));
+        return;
+      }
+      // Preserve wire order while checking revocation/expiry before every message.
+      pending = pending.then(async () => {
+        if (ws.readyState !== ws.OPEN) return;
+        if (!(await getActiveWorkspaceToken(this.db, opts.workspaceToken!.id))) {
+          hosted.room.disconnect(sock);
+          ws.close(4401, 'token expired or revoked');
+          return;
+        }
+        hosted.room.message(sock, new Uint8Array(bytes));
+      }).catch(() => {
+        hosted.room.disconnect(sock);
+        ws.close(1011, 'room message failed');
+      });
     });
     const leave = () => {
       hosted.room.disconnect(sock);
@@ -83,7 +134,7 @@ export class RoomHost {
     };
     ws.on('close', leave);
     ws.on('error', leave);
-    hosted.room.connect(sock, { readOnly: opts.readOnly });
+    hosted.room.connect(sock, { readOnly: opts.readOnly, identity: opts.workspaceToken?.identity });
     return true;
   }
 
@@ -117,6 +168,18 @@ export class RoomHost {
       }),
     );
   }
+
+  async destroy(): Promise<void> {
+    await this.flushAll();
+    for (const pending of this.rooms.values()) {
+      const hosted = await pending;
+      if (!hosted) continue;
+      if (hosted.flushTimer) clearTimeout(hosted.flushTimer);
+      if (hosted.idleTimer) clearTimeout(hosted.idleTimer);
+      hosted.room.destroy();
+    }
+    this.rooms.clear();
+  }
 }
 
 /**
@@ -124,8 +187,8 @@ export class RoomHost {
  * `/api/rooms/:id` are authenticated and handed to the room; everything else
  * is left to whoever else listens (nobody, so the socket is destroyed).
  */
-export function attachRealtime(server: Server, deps: { db: Db; env: Env }): RoomHost {
-  const host = new RoomHost(deps.db);
+export function attachRealtime(server: Server, deps: { db: Db; env: Env; host?: RoomHost }): RoomHost {
+  const host = deps.host ?? new RoomHost(deps.db);
   const wss = new WebSocketServer({ noServer: true });
 
   server.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
@@ -134,7 +197,7 @@ export function attachRealtime(server: Server, deps: { db: Db; env: Env }): Room
       socket.destroy();
       return;
     }
-    void authorizeRoomRequest(url, deps.env, deps.db).then(async (auth) => {
+    void authorizeRoomRequest(url, deps.env, deps.db, req.headers.authorization).then(async (auth) => {
       if (!auth.ok) {
         const reason = auth.status === 401 ? 'Unauthorized' : 'Not Found';
         socket.write(`HTTP/1.1 ${auth.status} ${reason}\r\nConnection: close\r\n\r\n`);
@@ -142,7 +205,7 @@ export function attachRealtime(server: Server, deps: { db: Db; env: Env }): Room
         return;
       }
       wss.handleUpgrade(req, socket, head, async (ws) => {
-        const ok = await host.join(auth.canvasId, ws, { readOnly: auth.readOnly });
+        const ok = await host.join(auth.canvasId, ws, { readOnly: auth.readOnly, workspaceToken: auth.workspaceToken });
         if (!ok) ws.close(4404, 'canvas not found');
       });
     });
