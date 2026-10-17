@@ -249,3 +249,16 @@ export function setBinding(nds: Node[], id: string, target: string | null): Node
   const updated = { ...node, data: { ...node.data, boundTo: target } };
   return target ? [...nds.filter((n) => n.id !== id), updated] : nds.map((n) => (n.id === id ? updated : n));
 }
+
+/** Remove a semantic attachment or aggregate membership without moving the paper. */
+export function detachNote(nds: Node[], id: string): Node[] {
+  const node = nds.find((n) => n.id === id);
+  if (!node) return nds;
+  const aggId = aggregateIdOf(node);
+  if (!boundToOf(node) && !aggId) return nds;
+  let next = nds.map((n) =>
+    n.id === id ? { ...n, data: { ...n.data, boundTo: null, aggregateId: null } } : n,
+  );
+  if (aggId) next = fitAggregateToChildren(removeEmptyAggregates(next), aggId);
+  return next;
+}

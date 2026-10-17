@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, {
   Controls,
   MiniMap,
+  NodeToolbar,
+  Position,
   addEdge,
   applyNodeChanges,
   applyEdgeChanges,
@@ -34,10 +36,12 @@ import {
   ScrollText,
   Upload,
   Vote,
+  X,
 } from 'lucide-react';
 
 import { nodeTypes } from './nodeTypes';
 import { Toolbar } from './Toolbar';
+import { NoteComposer, type NoteDraft } from './NoteComposer.js';
 import { CommandPalette, type PaletteCommand } from './CommandPalette';
 import { GuidedTour, type TourStep } from './GuidedTour';
 import { CompileExample, ConceptList, ElementList, GrammarLists, GuideExample, HowTo, ShortcutList } from './TourContent';
@@ -53,6 +57,7 @@ import {
   aggregateUnder,
   canJoinAggregate,
   createNode,
+  detachNote,
   fitAggregateToChildren,
   followDependents,
   growAggregatesForDraggedChildren,
@@ -89,10 +94,12 @@ import { useCollabSession, type CollabSession } from '../collab/useCollabSession
 import { structureEditor, useStructure } from '../collab/structure';
 import { useVotes } from '../collab/votes';
 import { loadViewport, saveViewport } from '../collab/viewport';
+import { gestureHistory } from '../collab/gestureHistory.js';
 import { isRemoteMode } from '../stores/mode';
 import * as storage from '../storage';
 import {
   boundToOf,
+  bindingRelation,
   canConnect,
   canvasToYaml,
   clearVotes,
@@ -278,13 +285,14 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
   const [showTour, setShowTour] = useState(() => !isTourDone());
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<NoteDraft | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>(provider.status);
 
   const { t } = useI18n();
   const touchMode = useTouchMode();
 
   const canvasRef = useRef<HTMLDivElement>(null);
-  const mouseRef = useRef({ x: 0, y: 0 });
+  const mouseRef = useRef<{ x: number; y: number } | null>(null);
   // Per-user viewport: this browser's last position, else the one the pre-CRDT
   // build stored server-side, else fit the whole board.
   const initialViewport = useMemo(
@@ -297,11 +305,27 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
   const prevSelectionRef = useRef<string[]>([]);
   const draggingRef = useRef(false);
   const resizingRef = useRef(false);
+  const gestureCapture = useMemo(() => gestureHistory(undoManager), [undoManager]);
+
+  useEffect(() => () => gestureCapture.end(), [gestureCapture]);
 
   // Always the latest arrays (updated synchronously by updateNodes/updateEdges
   // and by the doc observers), for handlers that must not wait for a render.
   const nodesRef = useRef<Node[]>(nodes);
   const edgesRef = useRef<Edge[]>(edges);
+
+  const flowPosition = useCallback((point: { x: number; y: number }) => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    const vp = viewportRef.current ?? { x: 0, y: 0, zoom: 1 };
+    return { x: (point.x - (rect?.left ?? 0) - vp.x) / vp.zoom, y: (point.y - (rect?.top ?? 0) - vp.y) / vp.zoom };
+  }, []);
+
+  const placeDraft = useCallback((event: React.MouseEvent) => {
+    const position = flowPosition({ x: event.clientX, y: event.clientY });
+    setDraft((prev) => prev?.phase === 'placing'
+      ? { ...prev, node: { ...prev.node, position }, phase: 'writing', visible: true }
+      : prev);
+  }, [flowPosition]);
 
   // ---- React -> Y: the editor's pure transforms, diffed into the shared doc.
   const updateNodes = useCallback(
@@ -385,6 +409,11 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
   const onPointerMove = useCallback(
     (e: React.MouseEvent) => {
       const { clientX, clientY } = e;
+      if (draft?.phase === 'placing') {
+        const visible = e.target instanceof Element && !e.target.closest('.editor-chip, .react-flow__panel, [data-note-composer]');
+        const position = flowPosition({ x: clientX, y: clientY });
+        setDraft((prev) => prev?.phase === 'placing' ? { ...prev, node: { ...prev.node, position }, visible } : prev);
+      }
       if (cursorFrameRef.current !== null) return;
       cursorFrameRef.current = requestAnimationFrame(() => {
         cursorFrameRef.current = null;
@@ -393,9 +422,12 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
         awareness.setLocalStateField('cursor', rf.screenToFlowPosition({ x: clientX, y: clientY }));
       });
     },
-    [awareness],
+    [awareness, draft?.phase, flowPosition],
   );
-  const onPointerLeave = useCallback(() => awareness.setLocalStateField('cursor', null), [awareness]);
+  const onPointerLeave = useCallback(() => {
+    awareness.setLocalStateField('cursor', null);
+    setDraft((prev) => prev?.phase === 'placing' ? { ...prev, visible: false } : prev);
+  }, [awareness]);
 
   const onInit = useCallback(
     (instance: ReactFlowInstance) => {
@@ -463,7 +495,9 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
-      mouseRef.current = { x: e.clientX, y: e.clientY };
+      if (e.target instanceof Element && canvasRef.current?.contains(e.target) && !e.target.closest('.editor-chip, .react-flow__panel')) {
+        mouseRef.current = { x: e.clientX, y: e.clientY };
+      }
     };
     window.addEventListener('mousemove', onMove);
     return () => window.removeEventListener('mousemove', onMove);
@@ -520,6 +554,8 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
       }
     }
     if (shouldCommit) commit();
+    // Pausing with the paper in hand must not split a drag and its drop binding.
+    if (draggingRef.current || resizingRef.current) gestureCapture.begin();
 
     updateNodes((nds) => {
       const held = heldKeysRef.current;
@@ -528,7 +564,12 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
       const grown = growAggregatesForDraggedChildren(followed, changes, !held.has(REMOVE_MODIFIER_KEY));
       return handleNodeRemovals(nds, grown, changes);
     });
-  }, [commit, updateNodes]);
+    if (!draggingRef.current && !resizingRef.current) {
+      queueMicrotask(() => {
+        if (!draggingRef.current && !resizingRef.current) gestureCapture.end();
+      });
+    }
+  }, [commit, updateNodes, gestureCapture]);
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
@@ -559,6 +600,10 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
   // Sources the grammar can't connect to this node are skipped.
   const onNodeClick = useCallback<NodeMouseHandler>(
     (event, node) => {
+      if (draft?.phase === 'placing') {
+        placeDraft(event);
+        return;
+      }
       if (!event.altKey) return;
       const sources = prevSelectionRef.current.filter((id) =>
         isValidConnection({ source: id, target: node.id, sourceHandle: null, targetHandle: null }),
@@ -590,7 +635,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
         return next;
       });
     },
-    [commit, updateEdges, isValidConnection],
+    [commit, updateEdges, isValidConnection, draft?.phase, placeDraft],
   );
 
   const onSelectionChange = useCallback(
@@ -639,27 +684,25 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
     clearVotes(doc, LOCAL_ORIGIN);
   }, [commit, doc]);
 
-  const actions = useMemo(
-    () => ({ updateNodeLabel, updateNodeDescription, toggleVote: vote, voterId: me.id }),
-    [updateNodeLabel, updateNodeDescription, vote, me.id],
-  );
-
   const addNodeAtMouse = useCallback(
     (type: ElementType) => {
       const rect = canvasRef.current?.getBoundingClientRect();
-      const vp = viewportRef.current ?? { x: 0, y: 0, zoom: 1 };
-      const pos = {
-        x: (mouseRef.current.x - (rect?.left ?? 0) - vp.x) / vp.zoom,
-        y: (mouseRef.current.y - (rect?.top ?? 0) - vp.y) / vp.zoom,
-      };
-      commit();
-      updateNodes((nds) => addNoteBound(nds, createNode(type, pos, t(`elements.${type}.newLabel`))));
+      const point = mouseRef.current ?? { x: (rect?.left ?? 0) + (rect?.width ?? 800) / 2, y: (rect?.top ?? 0) + (rect?.height ?? 600) / 2 };
+      const node = createNode(type, flowPosition(point), '');
+      setDraft({ node, phase: 'writing', visible: true });
     },
-    [commit, t, updateNodes],
+    [flowPosition],
   );
 
   const addElement = useCallback(
     (type: ElementType) => {
+      if (type !== 'pivotal') {
+        const node = createNode(type, { x: 0, y: 0 }, '');
+        setDraft((prev) => prev?.phase === 'placing' && prev.node.type === type
+          ? null
+          : { node, phase: 'placing', visible: false });
+        return;
+      }
       const rect = canvasRef.current?.getBoundingClientRect();
       const vp = viewportRef.current ?? { x: 0, y: 0, zoom: 1 };
       const pos = {
@@ -671,6 +714,27 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
     },
     [commit, t, updateNodes],
   );
+
+  const commitDraft = useCallback((label: string, select: boolean) => {
+    if (!draft) return;
+    commit();
+    updateNodes((nds) => {
+      const aggregate = canJoinAggregate(draft.node) ? aggregateUnder(draft.node, nds) : undefined;
+      const node = {
+        ...draft.node,
+        selected: select,
+        data: { ...draft.node.data, label, ...(aggregate ? { aggregateId: aggregate.id } : {}) },
+      };
+      const next = addNoteBound(select ? nds.map((n) => n.selected ? { ...n, selected: false } : n) : nds, node);
+      return aggregate ? fitAggregateToChildren(next, aggregate.id) : next;
+    });
+    setDraft(null);
+  }, [draft, commit, updateNodes]);
+
+  const draftTargetId = useMemo(() => {
+    if (!draft?.visible) return null;
+    return isAttacher(draft.node) ? nextBinding(draft.node, nodes) : canJoinAggregate(draft.node) ? aggregateUnder(draft.node, nodes)?.id ?? null : null;
+  }, [draft, nodes]);
 
   // Pivotal: tape across every selected event not yet marked; else one strip on the board.
   const addPivotal = useCallback(() => {
@@ -749,6 +813,21 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
     });
   }, [selectedNodeIds, commit, updateNodes]);
 
+  const detachNode = useCallback((id: string) => {
+    commit();
+    updateNodes((nds) => detachNote(nds, id));
+  }, [commit, updateNodes]);
+
+  const composing = draft !== null;
+  const actions = useMemo(
+    () => ({
+      updateNodeLabel, updateNodeDescription, toggleVote: vote, voterId: me.id,
+      selectionCount: selectedNodeIds.length, bringToFront, sendToBack, detachNode,
+      composing,
+    }),
+    [updateNodeLabel, updateNodeDescription, vote, me.id, selectedNodeIds.length, bringToFront, sendToBack, detachNode, composing],
+  );
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -757,8 +836,13 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
         (target.tagName === 'INPUT' ||
           target.tagName === 'TEXTAREA' ||
           target.isContentEditable ||
-          target.closest('[role="dialog"], [role="alertdialog"]'))
+          target.closest('[role="dialog"], [role="alertdialog"], [data-note-composer]'))
       ) {
+        return;
+      }
+      if (e.key === 'Escape' && draft) {
+        e.preventDefault();
+        setDraft(null);
         return;
       }
 
@@ -767,11 +851,16 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
         const key = e.key.toLowerCase();
         if (key === 'k') {
           e.preventDefault();
+          setDraft(null);
           setShowPalette(true);
           return;
         }
         if (key === 'z' && !e.shiftKey) {
           e.preventDefault();
+          if (draft) {
+            setDraft(null);
+            return;
+          }
           undo();
           return;
         }
@@ -800,7 +889,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [addNodeAtMouse, bringToFront, sendToBack, undo, redo]);
+  }, [addNodeAtMouse, bringToFront, sendToBack, undo, redo, draft]);
 
   const groupAsAggregate = useCallback(() => {
     if (selectedNodeIds.length < 2) return;
@@ -868,7 +957,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
       if (node.type === 'aggregate') return;
 
       // Prefer the position from state (reflects aggregate grow/follow adjustments).
-      const dragged = nodes.find((n) => n.id === node.id) ?? node;
+      const dragged = nodesRef.current.find((n) => n.id === node.id) ?? node;
       const oldAggId = (dragged.data?.aggregateId as string) ?? null;
 
       // Removal: hold Shift and drag a child out of its aggregate.
@@ -925,8 +1014,8 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
   // `nopan` class lets a swipe bubble up to the pane and pan the board. Once a note is
   // picked up we swallow touchmove in the capture phase so d3-zoom never sees it, and
   // drive the same onNodesChange / onNodeDrag / onNodeDragStop path the mouse uses.
-  const touchHandlersRef = useRef({ onNodesChange, onNodeDrag, onNodeDragStop });
-  touchHandlersRef.current = { onNodesChange, onNodeDrag, onNodeDragStop };
+  const touchHandlersRef = useRef({ onNodesChange, onNodeDrag, onNodeDragStop, placing: draft?.phase === 'placing' });
+  touchHandlersRef.current = { onNodesChange, onNodeDrag, onNodeDragStop, placing: draft?.phase === 'placing' };
 
   useEffect(() => {
     const el = canvasRef.current;
@@ -951,6 +1040,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
     const findTouch = (list: TouchList) => Array.from(list).find((x) => x.identifier === touchId);
 
     const onTouchStart = (e: TouchEvent) => {
+      if (touchHandlersRef.current.placing) return;
       if (e.touches.length !== 1 || picked) {
         reset();
         return;
@@ -1036,7 +1126,13 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
 
   const onMove = useCallback<OnMove>((_event, vp) => {
     viewportRef.current = vp;
-  }, []);
+    const point = mouseRef.current;
+    if (point) {
+      setDraft((prev) => prev?.phase === 'placing' && prev.visible
+        ? { ...prev, node: { ...prev.node, position: flowPosition(point) } }
+        : prev);
+    }
+  }, [flowPosition]);
 
   const onMoveEnd = useCallback<OnMoveEnd>(
     (_event, vp) => {
@@ -1146,6 +1242,22 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
       }),
     [selectedNodeIds, nodes],
   );
+
+  const movingNode = draft?.node ?? nodes.find((n) => n.dragging);
+  const targetId = draft ? draftTargetId : dropTargetId;
+  const targetNode = nodes.find((n) => n.id === targetId);
+  const relation = movingNode?.type && targetNode?.type
+    ? bindingRelation({ id: movingNode.id, type: movingNode.type }, { id: targetNode.id, type: targetNode.type })
+    : null;
+  const dropMessage = targetNode
+    ? relation
+      ? t('editor.bindingPreview', {
+        source: String(movingNode?.data.label || t(`elements.${movingNode?.type as ElementType}.label`)),
+        relation: t(`help.relations.${relation.relation}`),
+        target: String(targetNode.data.label),
+      })
+      : t('editor.joinPreview', { target: String(targetNode.data.label) })
+    : movingNode && boundToOf(movingNode) ? t('editor.unstickPreview') : null;
 
   // ---- Global search (⌘K): structuring tools live here rather than in the toolbar.
   const paletteCommands = useMemo<PaletteCommand[]>(() => {
@@ -1299,8 +1411,8 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
           {isRemoteMode() && (
             <button
               data-tour="publish"
-              onClick={() => setShowVersions(true)}
-              className="editor-chip flex items-center gap-1.5 h-9 px-3 text-sm font-semibold bg-accent hover:bg-ink hover:text-paper hover:border-ink"
+              onClick={() => { setDraft(null); setShowVersions(true); }}
+              className="editor-chip editor-chip-accent flex items-center gap-1.5 h-9 px-3 text-sm font-semibold hover:bg-ink hover:text-paper hover:border-ink"
               title={t('versions.title')}
             >
               <Upload size={16} />
@@ -1316,7 +1428,10 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
             <span>{t('editor.back')}</span>
           </button>
         </div>
-        <div className="safe-top absolute left-1/2 -translate-x-1/2 z-20 max-w-[50vw]">
+        <div
+          className="editor-title absolute left-4 top-16 z-20 max-w-[calc(100vw-2rem)] md:left-64 md:top-4 md:max-w-[calc(100vw-36rem)]"
+          style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}
+        >
           {editingName ? (
             <input
               ref={nameInputRef}
@@ -1346,23 +1461,19 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
           )}
         </div>
         <CanvasActionsContext.Provider value={actions}>
-          <DropTargetContext.Provider value={dropTargetId}>
+          <DropTargetContext.Provider value={targetId}>
           <RemoteSelectionContext.Provider value={remoteSelection}>
           <DiagnosticsContext.Provider value={nodeDiagnostics}>
           <VotesContext.Provider value={votes}>
             <Toolbar
               onAddElement={addElement}
-              onGroupAggregate={groupAsAggregate}
-              onBringToFront={bringToFront}
-              onSendToBack={sendToBack}
-              onHelp={() => setShowTour(true)}
-              onSearch={() => setShowPalette(true)}
-              onExportYaml={exportYaml}
+              placingType={draft?.node.type as ElementType | undefined}
+              onHelp={() => { setDraft(null); setShowTour(true); }}
+              onSearch={() => { setDraft(null); setShowPalette(true); }}
               onUndo={undo}
               onRedo={redo}
               canUndo={canUndo}
               canRedo={canRedo}
-              canGroup={canGroup}
               touchMode={touchMode}
             />
 
@@ -1375,14 +1486,18 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
               onConnect={onConnect}
               isValidConnection={isValidConnection}
               onNodeClick={onNodeClick}
+              onPaneClick={draft?.phase === 'placing' ? placeDraft : undefined}
               onSelectionChange={onSelectionChange}
               onNodeDrag={onNodeDrag}
               onNodeDragStop={onNodeDragStop}
               onMove={onMove}
               onMoveEnd={onMoveEnd}
-              nodesDraggable={!touchMode}
-              selectionOnDrag={!touchMode}
-              panOnDrag={touchMode ? true : [1, 2]}
+              nodesDraggable={!touchMode && draft?.phase !== 'placing'}
+              nodesConnectable={draft?.phase !== 'placing'}
+              elementsSelectable={draft?.phase !== 'placing'}
+              deleteKeyCode={draft ? null : 'Backspace'}
+              selectionOnDrag={!touchMode && !draft}
+              panOnDrag={draft?.phase === 'placing' ? false : touchMode ? true : [1, 2]}
               panOnScroll
               zoomOnScroll={false}
               zoomOnDoubleClick={!touchMode}
@@ -1395,6 +1510,15 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
             >
               <BoardBackground />
               <BoardStructure structure={structure} />
+              {draft && (
+                <NoteComposer key={draft.node.id} draft={draft} onCommit={commitDraft} onCancel={() => setDraft(null)} />
+              )}
+              <NodeToolbar nodeId={selectedNodeIds} isVisible={canGroup && !draft && !nodes.some((n) => n.dragging)} position={Position.Top}>
+                <button data-tour="group" onClick={groupAsAggregate} className="editor-chip flex items-center gap-2 px-3 h-9 text-xs font-semibold">
+                  <Group size={14} />
+                  {t('toolbar.groupAsAggregate')}
+                </button>
+              </NodeToolbar>
               <Controls />
               {!touchMode && (
                 <MiniMap
@@ -1404,6 +1528,19 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
               )}
               <RemoteCursors peers={peers} />
             </ReactFlow>
+            {(draft || dropMessage) && (
+              <div className="placement-hint editor-chip safe-bottom absolute left-1/2 -translate-x-1/2 z-30 max-w-[calc(100vw-2rem)] px-3 py-2 text-xs flex items-center gap-3">
+                <div role="status" aria-live="polite" className="min-w-0">
+                  {draft && <div className="font-semibold">{t(`elements.${draft.node.type as ElementType}.label`)} · {t(draft.phase === 'placing' ? 'editor.placeHint' : 'editor.writeHint')}</div>}
+                  {dropMessage && <div className="truncate">{dropMessage}</div>}
+                </div>
+                {draft?.phase === 'placing' && (
+                  <button onClick={() => setDraft(null)} aria-label={t('common.cancel')} title={t('common.cancel')} className="shrink-0 p-1">
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+            )}
           </VotesContext.Provider>
           </DiagnosticsContext.Provider>
           </RemoteSelectionContext.Provider>
