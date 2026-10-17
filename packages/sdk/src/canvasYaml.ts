@@ -62,8 +62,11 @@ export interface CanvasYamlOptions {
   name?: string;
 }
 
-/** Serialise a canvas (nodes + edges + structure) as YAML. The per-user viewport is left out. */
-export function canvasToYaml(snapshot: Pick<CanvasSnapshot, 'nodes' | 'edges' | 'structure'>, options: CanvasYamlOptions = {}): string {
+/** Serialise a canvas (nodes + edges + structure + votes) as YAML. The per-user viewport is left out. */
+export function canvasToYaml(
+  snapshot: Pick<CanvasSnapshot, 'nodes' | 'edges' | 'structure' | 'votes'>,
+  options: CanvasYamlOptions = {},
+): string {
   const doc = {
     ...(options.name?.trim() ? { name: options.name.trim() } : {}),
     nodes: snapshot.nodes.map((n) => {
@@ -91,6 +94,8 @@ export function canvasToYaml(snapshot: Pick<CanvasSnapshot, 'nodes' | 'edges' | 
     structure: isStructureEmpty(snapshot.structure)
       ? undefined
       : { lanes: snapshot.structure!.lanes as unknown as Json[], milestones: snapshot.structure!.milestones as unknown as Json[] },
+    // Dot votes on hot spots, only written when there are any.
+    votes: snapshot.votes?.length ? (snapshot.votes as unknown as Json[]) : undefined,
   };
   return `# Esbuddy canvas\n${toYaml(doc)}`;
 }

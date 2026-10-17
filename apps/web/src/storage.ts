@@ -40,8 +40,8 @@ function writeStore(store: CanvasStore): void {
 export function loadCanvas(canvasId: string): CanvasSnapshot | null {
   const canvas = readStore()?.canvases[canvasId];
   if (!canvas) return null;
-  const { nodes, edges, viewport, structure } = canvas;
-  return { nodes, edges, viewport: viewport ?? null, ...(structure ? { structure } : {}) };
+  const { nodes, edges, viewport, structure, votes } = canvas;
+  return { nodes, edges, viewport: viewport ?? null, ...(structure ? { structure } : {}), ...(votes ? { votes } : {}) };
 }
 
 export function saveCanvas(canvasId: string, snapshot: CanvasSnapshot, name?: string): void {

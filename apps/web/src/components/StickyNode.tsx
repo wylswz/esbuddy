@@ -1,6 +1,6 @@
 import { memo, useCallback, useState } from 'react';
 import { Handle, Position, NodeResizeControl, type NodeProps } from 'reactflow';
-import { hasIncomingEdges, hasOutgoingEdges } from '@esbuddy/sdk';
+import { hasIncomingEdges, hasOutgoingEdges, isVotable } from '@esbuddy/sdk';
 import { ELEMENT_STYLES, NOTE_MIN_SIZE, type ElementType } from '../types';
 import {
   diagnosticColor,
@@ -10,7 +10,7 @@ import {
   useRemoteSelection,
 } from '../CanvasContext';
 import { useI18n } from '../i18n/context';
-import { ColorDot } from './ColorDot';
+import { VoteBadge } from './VoteBadge';
 
 interface StickyNodeData {
   label: string;
@@ -30,6 +30,7 @@ function StickyNodeComponent({ id, type, data, selected, dragging }: NodeProps<S
   const { t } = useI18n();
   const [editing, setEditing] = useState<EditField | null>(null);
   const lifted = selected || dragging;
+  const votable = isVotable(type);
   // Peers who have this note selected: outline it in their colour.
   const remotePeers = useRemoteSelection(id);
   const remoteRing = remotePeers.length > 0 ? `0 0 0 2.5px ${remotePeers[0].color}` : null;
@@ -48,7 +49,8 @@ function StickyNodeComponent({ id, type, data, selected, dragging }: NodeProps<S
 
   return (
     <div
-      className="relative w-full h-full"
+      className="sticky-node relative w-full h-full"
+      data-readonly={readOnly ? 'true' : 'false'}
       style={{ minWidth: NOTE_MIN_SIZE, minHeight: NOTE_MIN_SIZE }}
     >
       {/*
@@ -89,95 +91,83 @@ function StickyNodeComponent({ id, type, data, selected, dragging }: NodeProps<S
 
       {/* Square paper note */}
       <div
-        className="sticky-note relative overflow-hidden w-full h-full"
+        className="sticky-note relative w-full h-full"
         data-lifted={lifted ? 'true' : 'false'}
+        data-readonly={readOnly ? 'true' : 'false'}
         style={{
-          padding: '12px 14px 16px',
-          backgroundColor: style.bgColor,
-          borderRadius: '2px',
-          boxShadow: [
-            bindRing,
-            remoteRing,
-            diagRing,
-            lifted
-              ? '0 2px 4px rgba(0, 0, 0, 0.14), 0 7px 16px rgba(0, 0, 0, 0.16), 0 18px 36px rgba(0, 0, 0, 0.18)'
-              : '0 1px 2px rgba(0, 0, 0, 0.08), 0 4px 9px rgba(0, 0, 0, 0.10), 0 10px 22px rgba(0, 0, 0, 0.12)',
-          ]
+          boxShadow: [bindRing, remoteRing, diagRing, 'var(--sticky-shadow)']
             .filter(Boolean)
             .join(', '),
-          backgroundImage: 'radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0) 55%)',
         }}
       >
-        {/* Adhesive band along the top edge */}
         <div
-          className="absolute top-0 left-0 right-0 h-1.5 pointer-events-none"
+          className="sticky-note-paper relative overflow-hidden w-full h-full"
           style={{
-            background: 'linear-gradient(to bottom, rgba(0, 0, 0, 0.06), rgba(0, 0, 0, 0))',
-            borderRadius: '2px 2px 0 0',
+            // Hot spots keep room at the bottom for the vote badge.
+            padding: votable ? '16px 16px 28px' : '16px 16px 18px',
+            backgroundColor: style.paperColor,
           }}
-        />
+        >
+          {/* Quiet printed type label; the paper itself carries the colour. */}
+          <div className="mb-2.5">
+            <span className="sticky-type text-[9px] font-semibold uppercase tracking-wider leading-none">
+              {t(`elements.${data.type}.label`)}
+            </span>
+          </div>
 
-        {/* Type badge */}
-        <div className="flex items-center gap-1 mb-1.5">
-          <ColorDot color={style.color} />
-          <span
-            className="text-[9px] font-bold uppercase tracking-wider leading-none"
-            style={{ color: style.color }}
-          >
-            {t(`elements.${data.type}.label`)}
-          </span>
+          {/* Title */}
+          {editing === 'title' ? (
+            <input
+              ref={focusAndSelect}
+              type="text"
+              defaultValue={data.label}
+              className="w-full bg-transparent outline-none text-sm font-semibold leading-snug"
+              onBlur={(e) => {
+                updateNodeLabel(id, e.currentTarget.value.trim());
+                setEditing(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') e.currentTarget.blur();
+                else if (e.key === 'Escape') setEditing(null);
+              }}
+            />
+          ) : (
+            <div
+              className={`sticky-title text-sm font-semibold leading-snug break-words whitespace-pre-wrap${readOnly ? '' : ' cursor-text'}`}
+              title={readOnly ? undefined : t('node.doubleClickEdit')}
+              onDoubleClick={readOnly ? undefined : () => setEditing('title')}
+            >
+              {data.label}
+            </div>
+          )}
+
+          {/* Memo / notes */}
+          {editing === 'memo' ? (
+            <textarea
+              ref={focusAndSelect}
+              defaultValue={data.description}
+              rows={4}
+              className="sticky-memo w-full bg-transparent outline-none resize-none text-xs leading-relaxed mt-2"
+              onBlur={(e) => {
+                updateNodeDescription(id, e.currentTarget.value.trim());
+                setEditing(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setEditing(null);
+              }}
+            />
+          ) : (
+            <div
+              className={`sticky-memo text-xs leading-relaxed break-words whitespace-pre-wrap mt-2${readOnly ? '' : ' cursor-text'}`}
+              title={readOnly ? undefined : t('node.doubleClickEditMemo')}
+              onDoubleClick={readOnly ? undefined : () => setEditing('memo')}
+            >
+              {data.description || (!readOnly && <span className="sticky-placeholder">{t('node.memoPlaceholder')}</span>)}
+            </div>
+          )}
+
+          {votable && <VoteBadge nodeId={id} />}
         </div>
-
-        {/* Title */}
-        {editing === 'title' ? (
-          <input
-            ref={focusAndSelect}
-            type="text"
-            defaultValue={data.label}
-            className="w-full bg-transparent outline-none text-sm font-semibold text-fg leading-snug"
-            onBlur={(e) => {
-              updateNodeLabel(id, e.currentTarget.value.trim());
-              setEditing(null);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') e.currentTarget.blur();
-              else if (e.key === 'Escape') setEditing(null);
-            }}
-          />
-        ) : (
-          <div
-            className={`sticky-title text-sm font-semibold text-fg leading-snug break-words whitespace-pre-wrap${readOnly ? '' : ' cursor-text'}`}
-            title={readOnly ? undefined : t('node.doubleClickEdit')}
-            onDoubleClick={readOnly ? undefined : () => setEditing('title')}
-          >
-            {data.label}
-          </div>
-        )}
-
-        {/* Memo / notes */}
-        {editing === 'memo' ? (
-          <textarea
-            ref={focusAndSelect}
-            defaultValue={data.description}
-            rows={4}
-            className="w-full bg-transparent outline-none resize-none text-xs text-fg-muted leading-snug mt-1.5"
-            onBlur={(e) => {
-              updateNodeDescription(id, e.currentTarget.value.trim());
-              setEditing(null);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') setEditing(null);
-            }}
-          />
-        ) : (
-          <div
-            className={`sticky-memo text-xs text-fg-muted leading-snug break-words whitespace-pre-wrap mt-1.5${readOnly ? '' : ' cursor-text'}`}
-            title={readOnly ? undefined : t('node.doubleClickEditMemo')}
-            onDoubleClick={readOnly ? undefined : () => setEditing('memo')}
-          >
-            {data.description || (!readOnly && <span className="text-fg-subtle">{t('node.memoPlaceholder')}</span>)}
-          </div>
-        )}
       </div>
     </div>
   );

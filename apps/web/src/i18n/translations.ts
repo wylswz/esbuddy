@@ -118,6 +118,9 @@ export const en = {
     doubleClickEdit: 'Double-click to edit',
     doubleClickEditMemo: 'Double-click to edit memo',
     memoPlaceholder: 'Memo…',
+    vote: 'Vote for this hot spot',
+    unvote: 'Take back your vote',
+    votedBy: 'Votes: {names}',
   },
   auth: {
     eyebrow: 'Event Storming · Domain-Driven Design',
@@ -328,6 +331,11 @@ export const en = {
       body: 'When the board gets crowded, give it structure. Pivotal events mark the few turning points that split the story into phases. Swimlanes give parallel flows or roles their own horizontal band. Temporal milestones mark rough time frames along the top.',
       how: 'Select the key events, then ⌘K → Mark pivotal event\n⌘K → Add swimlane / Add temporal milestone; after that, drag along the left ruler to add a swimlane, click the top ruler to add a milestone\nOn a ruler: drag a marker to move it, double-click to rename, drag it off the ruler to remove',
     },
+    vote: {
+      title: 'Pick your problem: vote on hot spots',
+      body: 'A big picture always ends with more hot spots than time. Before going deeper, everyone votes for the problems and opportunities that matter most — one vote per hot spot each, on as many as you like. The hot spots with the most votes become the focus of the next session.',
+      how: 'Click the badge in a hot spot’s corner to vote; click it again to take your vote back\nHover the badge to see who voted\n⌘K → Clear all votes to start a new round',
+    },
     process: {
       title: 'Process modelling: commands, policies, read models',
       body: 'Now explain each event. A command is the decision that causes it, issued by an actor based on a read model — the information they look at. A policy reacts to an event: “whenever X happens, do Y”.',
@@ -377,6 +385,7 @@ export const en = {
       cart: 'Shopping Cart',
       order: 'Order',
       paymentFails: 'What if the payment fails?',
+      outOfStock: 'What if it’s out of stock?',
       day0: 'Day 0',
       day3: 'Day 3',
     },
@@ -393,6 +402,7 @@ export const en = {
     milestone: 'Add temporal milestone',
     showRulers: 'Show rulers',
     hideRulers: 'Hide rulers',
+    clearVotes: 'Clear all votes',
     add: 'Add {element}',
   },
 };
@@ -519,6 +529,9 @@ export const zh: Translation = {
     doubleClickEdit: '双击编辑',
     doubleClickEditMemo: '双击编辑备注',
     memoPlaceholder: '备注…',
+    vote: '给这个热点投一票',
+    unvote: '撤回你的投票',
+    votedBy: '投票：{names}',
   },
   auth: {
     eyebrow: '事件风暴 · 领域驱动设计',
@@ -729,6 +742,11 @@ export const zh: Translation = {
       body: '画板变挤时，给它加上结构。关键事件标出少数几个把故事切分成阶段的转折点；泳道让并行的流程或角色各占一条水平带；时间里程碑在顶部标出大致的时间段。',
       how: '先选中关键事件，再 ⌘K →「标记关键事件」\n⌘K →「添加泳道」/「添加时间里程碑」；之后沿左侧标尺拖动即可添加泳道，点击顶部标尺即可添加里程碑\n在标尺上：拖动标记可移动，双击重命名，拖出标尺即删除',
     },
+    vote: {
+      title: '选出要解决的问题：给热点投票',
+      body: '大图景探索结束时，热点总是比时间多。深入之前，每个人给最重要的问题和机会投票——每人每个热点一票，可以投给任意多个热点。得票最多的热点就是下一轮讨论的重点。',
+      how: '点击热点角落的徽标即可投票，再点一次撤回\n鼠标悬停徽标可查看谁投了票\n⌘K →「清空所有投票」开始新一轮',
+    },
     process: {
       title: '流程建模：命令、策略、读模型',
       body: '接下来解释每个事件。命令是导致事件发生的决策，由参与者依据读模型（他们看到的信息）发出。策略对事件做出反应：“每当 X 发生，就做 Y”。',
@@ -778,6 +796,7 @@ export const zh: Translation = {
       cart: '购物车',
       order: '订单',
       paymentFails: '支付失败怎么办？',
+      outOfStock: '缺货怎么办？',
       day0: '第 0 天',
       day3: '第 3 天',
     },
@@ -794,6 +813,7 @@ export const zh: Translation = {
     milestone: '添加时间里程碑',
     showRulers: '显示标尺',
     hideRulers: '隐藏标尺',
+    clearVotes: '清空所有投票',
     add: '添加{element}',
   },
 };

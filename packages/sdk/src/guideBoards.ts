@@ -24,10 +24,18 @@ export type GuideLabel =
   | 'cart'
   | 'order'
   | 'paymentFails'
+  | 'outOfStock'
   | 'day0'
   | 'day3';
 
-export type GuideBoardId = 'events' | 'people' | 'hotspots' | 'structure' | 'process' | 'aggregates' | 'compile';
+export type GuideBoardId = 'events' | 'people' | 'hotspots' | 'structure' | 'vote' | 'process' | 'aggregates' | 'compile';
+
+/** Workshop participants voting on the `vote` board (names aren't localised). */
+const VOTERS = [
+  { userId: 'ana', name: 'Ana' },
+  { userId: 'ben', name: 'Ben' },
+  { userId: 'chen', name: 'Chen' },
+];
 
 type Label = (key: GuideLabel) => string;
 
@@ -129,6 +137,20 @@ export function guideBoards(l: Label): Record<GuideBoardId, CanvasSnapshot> {
         ],
       },
     ),
+
+    // Dot voting picks the problem to tackle next: the payment question wins.
+    vote: {
+      ...board([
+        node('placed', 'event', l('orderPlaced'), 0, 0),
+        node('stock', 'hotspot', l('outOfStock'), 80, 120, { ...SMALL, boundTo: 'placed' }),
+        node('paid', 'event', l('paymentReceived'), 240, 0),
+        node('question', 'hotspot', l('paymentFails'), 320, 120, { ...SMALL, boundTo: 'paid' }),
+      ]),
+      votes: [
+        ...VOTERS.map((v) => ({ nodeId: 'question', ...v })),
+        { nodeId: 'stock', ...VOTERS[1] },
+      ],
+    },
 
     process: board(processNodes(l), processEdges),
 

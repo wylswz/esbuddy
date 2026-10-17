@@ -110,7 +110,13 @@ export async function loadCanvasDoc(db: Db, id: string): Promise<Y.Doc | null> {
     const snapshot = JSON.parse(r.snapshot) as Partial<CanvasSnapshot>;
     if (snapshot.nodes?.length || snapshot.edges?.length || snapshot.structure) {
       snapshotToDoc(
-        { nodes: snapshot.nodes ?? [], edges: snapshot.edges ?? [], viewport: null, structure: snapshot.structure },
+        {
+          nodes: snapshot.nodes ?? [],
+          edges: snapshot.edges ?? [],
+          viewport: null,
+          structure: snapshot.structure,
+          votes: snapshot.votes,
+        },
         doc,
       );
     }
