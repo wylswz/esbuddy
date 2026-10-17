@@ -2,6 +2,7 @@ export * from './domain.js';
 export * from './store.js';
 export * from './client.js';
 export * from './exampleCanvas.js';
+export * from './guideBoards.js';
 export * from './ydoc.js';
 export * from './structure.js';
 export * from './grammar.js';

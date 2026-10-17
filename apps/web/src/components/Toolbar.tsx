@@ -92,7 +92,15 @@ export function Toolbar({
     { key: 'front', icon: <BringToFront size={20} />, label: t('toolbar.bringToFront'), onClick: onBringToFront },
     { key: 'back', icon: <SendToBack size={20} />, label: t('toolbar.sendToBack'), onClick: onSendToBack },
     { key: 'yaml', icon: <FileDown size={20} />, label: t('toolbar.exportYaml'), onClick: onExportYaml },
-    { key: 'help', icon: <CircleHelp size={20} />, label: t('toolbar.help'), onClick: onHelp },
+    {
+      key: 'help',
+      icon: <CircleHelp size={20} />,
+      label: t('toolbar.help'),
+      onClick: () => {
+        setOpen(false);
+        onHelp();
+      },
+    },
   ];
 
   const languageToggle = (
@@ -108,6 +116,7 @@ export function Toolbar({
     return (
       <>
         <button
+          data-tour="elements"
           onClick={() => setOpen((o) => !o)}
           className="safe-bottom absolute right-4 z-30 w-14 h-14 rounded-full bg-accent text-ink shadow-xl flex items-center justify-center active:scale-95 transition-transform"
           title={open ? t('toolbar.closeMenu') : t('toolbar.openMenu')}
@@ -175,13 +184,13 @@ export function Toolbar({
         {languageToggle}
       </div>
 
-      <button onClick={onSearch} className={`${btn} border border-ink/15 text-fg-muted`}>
+      <button data-tour="search" onClick={onSearch} className={`${btn} border border-ink/15 text-fg-muted`}>
         <Search size={16} />
         <span>{t('palette.open')}</span>
         <span className="ml-auto text-[10px] font-mono text-fg-subtle">⌘K</span>
       </button>
 
-      <div className="flex flex-col gap-0.5">
+      <div data-tour="elements" className="flex flex-col gap-0.5">
         {ELEMENT_ORDER.map((type) => {
           const s = ELEMENT_STYLES[type];
           return (
@@ -205,7 +214,7 @@ export function Toolbar({
         </button>
       </div>
 
-      <button onClick={onGroupAggregate} disabled={!canGroup} className={`${btn} border border-ink/15`}>
+      <button data-tour="group" onClick={onGroupAggregate} disabled={!canGroup} className={`${btn} border border-ink/15`}>
         <Group size={16} />
         <span>{t('toolbar.groupAsAggregate')}</span>
       </button>
@@ -226,7 +235,7 @@ export function Toolbar({
         <span>{t('toolbar.exportYaml')}</span>
       </button>
 
-      <button onClick={onHelp} className={btn}>
+      <button data-tour="help" onClick={onHelp} className={btn}>
         <CircleHelp size={16} />
         <span>{t('toolbar.help')}</span>
       </button>

@@ -130,6 +130,11 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm build
   draws Word-style rulers (outside the board, under one `ReactFlowProvider`) and
   the bands/lines beneath the notes. Structuring tools have no toolbar entry —
   they are reached via the ⌘K `CommandPalette`, which also searches notes.
+- **Guide** (`GuidedTour.tsx`, opened on first visit and by Help) walks a
+  workshop step by step. Its example boards are read-only canvas definitions in
+  `packages/sdk/src/guideBoards.ts` (labels localised via `tour.sample.*`),
+  rendered by `ReadOnlyBoard.tsx` — the same component as published versions.
+  The `compile` board must compile with zero diagnostics (`guideBoards.test.ts`).
 
 ## Testing
 

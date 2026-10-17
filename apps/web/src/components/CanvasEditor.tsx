@@ -22,13 +22,26 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-import { ArrowLeft, CircleHelp, FileDown, Flag, Group, Milestone, Rows3, Ruler, ScrollText, Upload } from 'lucide-react';
+import {
+  ArrowLeft,
+  CircleHelp,
+  FileDown,
+  Flag,
+  Group,
+  Milestone,
+  Rows3,
+  Ruler,
+  ScrollText,
+  Upload,
+} from 'lucide-react';
 
 import { nodeTypes } from './nodeTypes';
 import { Toolbar } from './Toolbar';
 import { CommandPalette, type PaletteCommand } from './CommandPalette';
+import { GuidedTour, type TourStep } from './GuidedTour';
+import { CompileExample, ConceptList, ElementList, GrammarLists, GuideExample, HowTo, ShortcutList } from './TourContent';
+import { isTourDone } from '../tour';
 import { BoardStructure, RULER_SIZE, Rulers, type RulerActions, type StructureRef } from './StructureRulers';
-import { HelpModal } from './HelpModal';
 import { VersionsDialog } from './VersionsDialog';
 import { CompilePanel } from './CompilePanel';
 import { PresenceBar } from './PresenceBar';
@@ -484,10 +497,11 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
   const nameInputRef = useRef<HTMLInputElement>(null);
   const [nodes, setNodes] = useState<Node[]>(() => nodesFromDoc(doc, []));
   const [edges, setEdges] = useState<Edge[]>(() => edgesFromDoc(doc, []));
-  const [showHelp, setShowHelp] = useState(false);
   const [showVersions, setShowVersions] = useState(false);
   const [showCompile, setShowCompile] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
+  // The guided tour doubles as help: shown on the first visit, then from Help.
+  const [showTour, setShowTour] = useState(() => !isTourDone());
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>(provider.status);
@@ -1432,9 +1446,67 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
         : []),
       { id: 'compile', label: t('compile.title'), keywords: 'compile 编译', icon: <ScrollText size={15} />, run: () => setShowCompile(true) },
       { id: 'yaml', label: t('toolbar.exportYaml'), keywords: 'export yaml 导出', icon: <FileDown size={15} />, run: exportYaml },
-      { id: 'help', label: t('toolbar.help'), keywords: 'help 帮助', icon: <CircleHelp size={15} />, run: () => setShowHelp(true) },
+      {
+        id: 'help',
+        label: t('toolbar.help'),
+        keywords: 'help tour guide shortcuts 帮助 引导 教程 快捷键',
+        icon: <CircleHelp size={15} />,
+        run: () => setShowTour(true),
+      },
     ];
   }, [t, addPivotal, addLane, addMilestone, rulersVisible, addElement, canGroup, groupAsAggregate, exportYaml]);
+
+  const tourSteps = useMemo<TourStep[]>(
+    () =>
+    {
+      // Workshop steps, in the book's order: example board (read-only canvas) + how to do it here.
+      const workshop = (
+        [
+          ['events', 'elements'],
+          ['people', 'elements'],
+          ['hotspots', 'elements'],
+          ['structure', 'search'],
+          ['process', 'elements'],
+          ['aggregates', 'group'],
+          ['compile', 'compile'],
+          ['publish', 'publish'],
+        ] as const
+      ).map(([id, target]) => ({
+        id,
+        target,
+        optional: id === 'publish',
+        group: t('tour.groupWorkshop'),
+        title: t(`tour.${id}.title`),
+        body: t(`tour.${id}.body`),
+        content: (
+          <>
+            {id === 'compile' ? <CompileExample /> : id !== 'publish' && <GuideExample board={id} />}
+            <HowTo text={t(`tour.${id}.how`)} />
+          </>
+        ),
+      }));
+      const reference = (
+        [
+          ['elements', ElementList],
+          ['grammar', GrammarLists],
+          ['shortcuts', ShortcutList],
+          ['concepts', ConceptList],
+        ] as const
+      ).map(([id, Content]) => ({
+        id,
+        content: <Content />,
+        group: t('tour.groupReference'),
+        title: t(`tour.${id}.title`),
+        body: t(`tour.${id}.body`),
+      }));
+      return [
+        { id: 'welcome', group: t('tour.groupWorkshop'), title: t('tour.welcome.title'), body: t('tour.welcome.body') },
+        ...workshop,
+        ...reference,
+      ];
+    },
+    [t],
+  );
 
   const inset = rulersVisible ? RULER_SIZE : 0;
 
@@ -1451,6 +1523,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
         <div className="safe-top absolute right-4 z-20 flex items-center gap-2">
           <PresenceBar me={me} peers={peers} status={status} />
           <button
+            data-tour="compile"
             onClick={() => setShowCompile((v) => !v)}
             aria-pressed={showCompile}
             className={`editor-chip flex items-center gap-1.5 h-9 px-3 text-sm font-semibold hover:bg-ink hover:text-paper hover:border-ink${showCompile ? ' bg-ink text-paper border-ink' : ''}`}
@@ -1461,6 +1534,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
           </button>
           {isRemoteMode() && (
             <button
+              data-tour="publish"
               onClick={() => setShowVersions(true)}
               className="editor-chip flex items-center gap-1.5 h-9 px-3 text-sm font-semibold bg-accent hover:bg-ink hover:text-paper hover:border-ink"
               title={t('versions.title')}
@@ -1516,7 +1590,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
               onGroupAggregate={groupAsAggregate}
               onBringToFront={bringToFront}
               onSendToBack={sendToBack}
-              onHelp={() => setShowHelp(true)}
+              onHelp={() => setShowTour(true)}
               onSearch={() => setShowPalette(true)}
               onExportYaml={exportYaml}
               onUndo={undo}
@@ -1578,7 +1652,7 @@ function CanvasEditorInner({ session, store, record, user, onBack }: CanvasEdito
             onClose={() => setShowCompile(false)}
           />
         )}
-        <HelpModal open={showHelp} onClose={() => setShowHelp(false)} />
+        <GuidedTour open={showTour} steps={tourSteps} onClose={() => setShowTour(false)} />
         <CommandPalette
           open={showPalette}
           onOpenChange={setShowPalette}
