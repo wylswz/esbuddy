@@ -17,7 +17,7 @@ describe('workspace service', () => {
     expect(members).toHaveLength(1);
     expect(members[0]).toMatchObject({ userId: 'u1', role: 'owner' });
 
-    const canvases = await canvas.listCanvases(db, 'u1', ws.id);
+    const canvases = await canvas.listCanvases(db, { type: 'workspace', workspaceId: ws.id });
     expect(canvases).toHaveLength(1);
   });
 
@@ -62,7 +62,7 @@ describe('workspace service', () => {
       await workspace.acceptInvitation(db, invite!.token, 'u2');
 
       // Pre-condition: workspace has canvases, members, invitations.
-      expect((await canvas.listCanvases(db, 'owner-1', ws.id)).length).toBeGreaterThan(0);
+      expect((await canvas.listCanvases(db, { type: 'workspace', workspaceId: ws.id })).length).toBeGreaterThan(0);
       expect(await workspace.listMembers(db, ws.id)).toHaveLength(2);
 
       const ok = await workspace.deleteWorkspace(db, ws.id, 'owner-1');
@@ -72,7 +72,7 @@ describe('workspace service', () => {
       const remaining = await workspace.listWorkspacesForUser(db, 'owner-1');
       expect(remaining).toHaveLength(0);
       // Canvases owned by the workspace are gone.
-      expect(await canvas.listCanvases(db, 'owner-1', ws.id)).toHaveLength(0);
+      expect(await canvas.listCanvases(db, { type: 'workspace', workspaceId: ws.id })).toHaveLength(0);
       // Members are gone.
       expect(await workspace.listMembers(db, ws.id)).toHaveLength(0);
     });

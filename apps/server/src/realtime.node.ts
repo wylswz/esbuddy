@@ -59,7 +59,7 @@ export class RoomHost {
     return hosted;
   }
 
-  async join(canvasId: string, ws: WebSocket): Promise<boolean> {
+  async join(canvasId: string, ws: WebSocket, opts: { readOnly?: boolean } = {}): Promise<boolean> {
     const hosted = await this.get(canvasId);
     if (!hosted) return false;
     if (hosted.idleTimer) {
@@ -83,7 +83,7 @@ export class RoomHost {
     };
     ws.on('close', leave);
     ws.on('error', leave);
-    hosted.room.connect(sock);
+    hosted.room.connect(sock, { readOnly: opts.readOnly });
     return true;
   }
 
@@ -134,14 +134,15 @@ export function attachRealtime(server: Server, deps: { db: Db; env: Env }): Room
       socket.destroy();
       return;
     }
-    void authorizeRoomRequest(url, deps.env).then(async (auth) => {
-      if (!auth) {
-        socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+    void authorizeRoomRequest(url, deps.env, deps.db).then(async (auth) => {
+      if (!auth.ok) {
+        const reason = auth.status === 401 ? 'Unauthorized' : 'Not Found';
+        socket.write(`HTTP/1.1 ${auth.status} ${reason}\r\nConnection: close\r\n\r\n`);
         socket.destroy();
         return;
       }
       wss.handleUpgrade(req, socket, head, async (ws) => {
-        const ok = await host.join(auth.canvasId, ws);
+        const ok = await host.join(auth.canvasId, ws, { readOnly: auth.readOnly });
         if (!ok) ws.close(4404, 'canvas not found');
       });
     });

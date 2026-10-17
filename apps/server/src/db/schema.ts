@@ -50,6 +50,9 @@ export const canvases = sqliteTable('canvases', {
   updatedAt: integer('updated_at').notNull(),
 });
 
+// Legacy: the pre-CRDT event log (ADR-0001.7). Nothing reads or writes it any
+// more (content syncs through Yjs, ADR-0002); rows are only cleaned up on
+// canvas deletion until the table is dropped.
 export const canvasEvents = sqliteTable(
   'canvas_events',
   {
@@ -95,7 +98,6 @@ export type UserRow = typeof users.$inferSelect;
 export type WorkspaceRow = typeof workspaces.$inferSelect;
 export type MemberRow = typeof workspaceMembers.$inferSelect;
 export type CanvasRow = typeof canvases.$inferSelect;
-export type EventRow = typeof canvasEvents.$inferSelect;
 export type CanvasVersionRow = typeof canvasVersions.$inferSelect;
 export type InvitationRow = typeof invitations.$inferSelect;
 

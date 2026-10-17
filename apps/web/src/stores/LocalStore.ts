@@ -2,7 +2,6 @@ import type {
   CanvasMeta,
   CanvasOwner,
   CanvasRecord,
-  CanvasSnapshot,
   CanvasVersion,
   CanvasVersionMeta,
   Invitation,
@@ -91,10 +90,7 @@ export class LocalStore implements Store {
     const snapshot = storage.loadCanvas(id);
     if (!snapshot) return Promise.resolve(null);
     const meta = storage.listCanvases().find((c) => c.id === id);
-    return Promise.resolve({
-      ...toMeta(id, meta?.name ?? 'Untitled Canvas'),
-      snapshot: snapshot as unknown as CanvasSnapshot,
-    });
+    return Promise.resolve({ ...toMeta(id, meta?.name ?? 'Untitled Canvas'), snapshot });
   }
 
   createCanvas(name: string): Promise<CanvasMeta> {

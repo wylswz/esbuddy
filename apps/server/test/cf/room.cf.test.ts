@@ -22,11 +22,11 @@ const until = async (pred: () => boolean, ms = 5000) => {
   }
 };
 
-async function login(): Promise<string> {
+async function login(email = 'room@example.com'): Promise<string> {
   const res = await SELF.fetch(`${BASE}/api/auth/dev-login`, {
     method: 'POST',
     headers: json,
-    body: JSON.stringify({ email: 'room@example.com', name: 'Roomy' }),
+    body: JSON.stringify({ email, name: 'Roomy' }),
   });
   return ((await res.json()) as { token: string; user: User }).token;
 }
@@ -84,6 +84,11 @@ describe('Cloudflare Durable Object rooms', () => {
     ).toBe(401);
     expect(
       (await SELF.fetch(`${BASE}/api/rooms/missing?token=${token}`, { headers: { Upgrade: 'websocket' } })).status,
+    ).toBe(404);
+    // Signed in, but not a member of the canvas's workspace: looks like a missing canvas.
+    const stranger = await login('stranger@example.com');
+    expect(
+      (await SELF.fetch(`${BASE}/api/rooms/${canvas.id}?token=${stranger}`, { headers: { Upgrade: 'websocket' } })).status,
     ).toBe(404);
   });
 

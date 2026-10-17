@@ -1,4 +1,4 @@
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc, inArray, sql } from 'drizzle-orm';
 import * as Y from 'yjs';
 import { docToSnapshot, snapshotToDoc } from '@esbuddy/sdk';
 import type {
@@ -16,15 +16,15 @@ import { base64ToBytes, bytesToBase64 } from './codec.js';
 
 const now = () => Date.now();
 
+function columnsToOwner(r: { ownerType: string; ownerId: string }): CanvasOwner {
+  return r.ownerType === 'workspace' ? { type: 'workspace', workspaceId: r.ownerId } : { type: 'user', userId: r.ownerId };
+}
+
 function rowToCanvasMeta(r: typeof canvases.$inferSelect): CanvasMeta {
-  const owner: CanvasOwner =
-    r.ownerType === 'workspace'
-      ? { type: 'workspace', workspaceId: r.ownerId }
-      : { type: 'user', userId: r.ownerId };
   return {
     id: r.id,
     name: r.name,
-    owner,
+    owner: columnsToOwner(r),
     version: r.version,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
@@ -37,14 +37,13 @@ function ownerToColumns(owner: CanvasOwner): { ownerType: string; ownerId: strin
     : { ownerType: 'user', ownerId: owner.userId };
 }
 
-export async function listCanvases(db: Db, userId: string, workspaceId?: string): Promise<CanvasMeta[]> {
-  const rows = workspaceId
-    ? await db
-        .select()
-        .from(canvases)
-        .where(and(eq(canvases.ownerType, 'workspace'), eq(canvases.ownerId, workspaceId)))
-        .all()
-    : await db.select().from(canvases).where(and(eq(canvases.ownerType, 'user'), eq(canvases.ownerId, userId))).all();
+function ownedBy(owner: CanvasOwner) {
+  const { ownerType, ownerId } = ownerToColumns(owner);
+  return and(eq(canvases.ownerType, ownerType), eq(canvases.ownerId, ownerId));
+}
+
+export async function listCanvases(db: Db, owner: CanvasOwner): Promise<CanvasMeta[]> {
+  const rows = await db.select().from(canvases).where(ownedBy(owner)).all();
   return rows.map(rowToCanvasMeta);
 }
 
@@ -53,6 +52,16 @@ export async function getCanvas(db: Db, id: string): Promise<CanvasRecord | null
   if (!r) return null;
   const snapshot = JSON.parse(r.snapshot) as CanvasSnapshot;
   return { ...rowToCanvasMeta(r), snapshot };
+}
+
+/** Who owns a canvas, or null if it doesn't exist. */
+export async function getCanvasOwner(db: Db, id: string): Promise<CanvasOwner | null> {
+  const r = await db
+    .select({ ownerType: canvases.ownerType, ownerId: canvases.ownerId })
+    .from(canvases)
+    .where(eq(canvases.id, id))
+    .get();
+  return r ? columnsToOwner(r) : null;
 }
 
 /** Low-level insert with a full snapshot; used by both create and seeding. */
@@ -138,10 +147,17 @@ export async function renameCanvas(db: Db, id: string, name: string): Promise<Ca
   return updated ? rowToCanvasMeta(updated) : null;
 }
 
-export async function deleteCanvas(db: Db, id: string): Promise<void> {
-  await db.delete(canvasEvents).where(eq(canvasEvents.canvasId, id)).run();
-  await db.delete(canvasVersions).where(eq(canvasVersions.canvasId, id)).run();
-  await db.delete(canvases).where(eq(canvases.id, id)).run();
+/** Delete canvases with everything hanging off them (events, published versions). */
+export async function deleteCanvases(db: Db, ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  await db.delete(canvasEvents).where(inArray(canvasEvents.canvasId, ids)).run();
+  await db.delete(canvasVersions).where(inArray(canvasVersions.canvasId, ids)).run();
+  await db.delete(canvases).where(inArray(canvases.id, ids)).run();
+}
+
+export async function listCanvasIdsByOwner(db: Db, owner: CanvasOwner): Promise<string[]> {
+  const rows = await db.select({ id: canvases.id }).from(canvases).where(ownedBy(owner)).all();
+  return rows.map((r) => r.id);
 }
 
 // ---------- published versions ----------
@@ -237,28 +253,8 @@ export async function deleteVersion(db: Db, canvasId: string, id: string): Promi
     .run();
 }
 
-export async function listEvents(db: Db, canvasId: string, afterSeq?: number): Promise<{ seq: number; type: string; payload: unknown; actorId: string | null; createdAt: number }[]> {
-  const rows = await db
-    .select()
-    .from(canvasEvents)
-    .where(eq(canvasEvents.canvasId, canvasId))
-    .orderBy(desc(canvasEvents.seq))
-    .all();
-  return rows
-    .filter((r) => afterSeq === undefined || r.seq > afterSeq)
-    .map((r) => ({ seq: r.seq, type: r.type, payload: JSON.parse(r.payload), actorId: r.actorId, createdAt: r.createdAt }));
-}
-
 /** Number of canvases owned by a workspace or user. */
-export async function countCanvasesByOwner(
-  db: Db,
-  ownerType: 'workspace' | 'user',
-  ownerId: string,
-): Promise<number> {
-  const rows = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(canvases)
-    .where(and(eq(canvases.ownerType, ownerType), eq(canvases.ownerId, ownerId)))
-    .all();
+export async function countCanvasesByOwner(db: Db, owner: CanvasOwner): Promise<number> {
+  const rows = await db.select({ count: sql<number>`count(*)` }).from(canvases).where(ownedBy(owner)).all();
   return rows[0]?.count ?? 0;
 }

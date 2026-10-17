@@ -5,7 +5,6 @@ import { WebsocketProvider } from 'y-websocket';
 import { TOKEN_STORAGE_KEY, docToSnapshot } from '@esbuddy/sdk';
 import * as storage from '../storage';
 import { isRemoteMode } from '../stores/mode';
-import { toFlowEdge, toFlowNode } from './binding';
 
 /*
  * Where a canvas's Y.Doc is synced to, per deployment mode:
@@ -53,12 +52,7 @@ function createLocalProvider(canvasId: string, doc: Y.Doc): CanvasProvider {
   let timer: ReturnType<typeof setTimeout> | null = null;
   const materialise = () => {
     timer = null;
-    const snapshot = docToSnapshot(doc);
-    storage.saveCanvas(canvasId, {
-      nodes: snapshot.nodes.map(toFlowNode),
-      edges: snapshot.edges.map(toFlowEdge),
-      viewport: storage.loadCanvas(canvasId)?.viewport ?? null,
-    });
+    storage.saveCanvas(canvasId, { ...docToSnapshot(doc), viewport: storage.loadCanvas(canvasId)?.viewport ?? null });
   };
   const onUpdate = () => {
     if (timer) clearTimeout(timer);

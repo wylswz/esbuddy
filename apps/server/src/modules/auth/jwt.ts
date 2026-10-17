@@ -1,10 +1,12 @@
 import { SignJWT, jwtVerify } from 'jose';
-import type { Env } from '../../env.js';
+import { isDevMode, type Env } from '../../env.js';
 
 const DEV_SECRET = 'esbuddy-dev-secret';
 
+/** The signing key. The well-known dev fallback is only allowed in dev mode. */
 function secret(env: Env): Uint8Array {
-  return new TextEncoder().encode(env.JWT_SECRET ?? DEV_SECRET);
+  if (!env.JWT_SECRET && !isDevMode(env)) throw new Error('JWT_SECRET is not configured');
+  return new TextEncoder().encode(env.JWT_SECRET || DEV_SECRET);
 }
 
 /** Signed session token for an authenticated user. */

@@ -11,6 +11,7 @@ import {
   type CanvasStructure,
   type YElements,
 } from '@esbuddy/sdk';
+import { newId } from '../ids';
 import { LOCAL_ORIGIN } from './binding';
 
 /*
@@ -32,8 +33,6 @@ export function useStructure(doc: Y.Doc): CanvasStructure {
   }, [doc]);
   return structure;
 }
-
-const newId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
 /** Patch fields in place so concurrent edits to different fields both survive. */
 function patch(map: YElements, id: string, fields: Record<string, unknown>): void {

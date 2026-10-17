@@ -2,6 +2,7 @@ import type { Edge, Node } from 'reactflow';
 import { MarkerType } from 'reactflow';
 import * as Y from 'yjs';
 import {
+  ELEMENT_DEFAULT_SIZE,
   getEdgesMap,
   getNodesMap,
   maxNodeZ,
@@ -34,7 +35,6 @@ import {
 /** Transaction origin for edits made by this client's editor. */
 export const LOCAL_ORIGIN = Symbol('esbuddy-local');
 
-const DEFAULT_AGGREGATE_SIZE = { width: 400, height: 260 };
 const DEFAULT_EDGE_MARKER = { type: MarkerType.ArrowClosed };
 
 // ---------- CanvasNode <-> React Flow Node ----------
@@ -49,7 +49,7 @@ export function toFlowNode(n: CanvasNode): Node {
     ...(hasSize
       ? { style: { width: n.width, height: n.height } }
       : n.type === 'aggregate'
-        ? { style: { ...DEFAULT_AGGREGATE_SIZE } }
+        ? { style: { ...ELEMENT_DEFAULT_SIZE.aggregate! } }
         : {}),
   };
 }

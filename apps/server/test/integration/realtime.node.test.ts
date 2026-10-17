@@ -91,23 +91,47 @@ describe('realtime rooms (Node host)', () => {
     expect(getNodesMap(c.doc).has('new')).toBe(true);
   });
 
-  it('rejects unauthenticated and unknown-canvas connections', async () => {
+  it('rejects unauthenticated, unauthorised and unknown-canvas connections at the handshake', async () => {
     const canvas = await seededCanvas();
+    // A valid session that isn't a member of the canvas's workspace.
+    const { token: stranger } = await devLogin(app, { email: 'stranger@x.com', name: 'Stranger' });
 
-    const bad = connect(canvas.id, 'not-a-jwt');
-    let failed = false;
-    bad.provider.on('connection-error', () => {
-      failed = true;
-    });
-    await until(() => failed);
-    expect(bad.provider.synced).toBe(false);
+    for (const [id, tok] of [
+      [canvas.id, 'not-a-jwt'],
+      [canvas.id, stranger],
+      ['does-not-exist', token],
+    ]) {
+      const { provider } = connect(id, tok);
+      let failed = false;
+      provider.on('connection-error', () => {
+        failed = true;
+      });
+      await until(() => failed);
+      expect(provider.synced).toBe(false);
+    }
+  });
 
-    const missing = connect('does-not-exist');
-    let closed = false;
-    missing.provider.on('connection-close', () => {
-      closed = true;
-    });
-    await until(() => closed);
-    expect(missing.provider.synced).toBe(false);
+  it('lets a viewer sync but drops its edits', async () => {
+    const canvas = await seededCanvas();
+    const ws = (await (await fetch(`${base}/api/workspaces`, { headers: authHeaders(token) })).json()) as Workspace[];
+    const invite = (await (
+      await fetch(`${base}/api/workspaces/${ws[0].id}/invitations`, {
+        method: 'POST',
+        headers: authHeaders(token),
+        body: JSON.stringify({ role: 'viewer' }),
+      })
+    ).json()) as { token: string };
+    const viewer = await devLogin(app, { email: 'viewer@x.com', name: 'Viewer' });
+    await fetch(`${base}/api/invitations/${invite.token}/accept`, { method: 'POST', headers: authHeaders(viewer.token) });
+
+    const editor = connect(canvas.id);
+    const reader = connect(canvas.id, viewer.token);
+    await until(() => editor.provider.synced && reader.provider.synced);
+    expect(getNodesMap(reader.doc).size).toBe(getNodesMap(editor.doc).size);
+
+    writeNode(getNodesMap(reader.doc), { id: 'sneaky', type: 'event', position: { x: 0, y: 0 }, data: {} }, 98);
+    writeNode(getNodesMap(editor.doc), { id: 'legit', type: 'event', position: { x: 0, y: 0 }, data: {} }, 99);
+    await until(() => getNodesMap(reader.doc).has('legit'));
+    expect(getNodesMap(editor.doc).has('sneaky')).toBe(false);
   });
 });

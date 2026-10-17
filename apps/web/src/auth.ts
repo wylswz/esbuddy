@@ -1,18 +1,18 @@
 import { TOKEN_STORAGE_KEY } from '@esbuddy/sdk';
 
 /**
- * Read a `?token=...` param (set by the OAuth callback redirect), persist it,
+ * Read a `#token=...` fragment (set by the OAuth callback redirect), persist it,
  * and strip it from the URL so it isn't replayed on refresh.
  */
 export function captureAuthToken(): string | null {
   try {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(window.location.hash.slice(1));
     const token = params.get('token');
     if (token) {
       localStorage.setItem(TOKEN_STORAGE_KEY, token);
       params.delete('token');
-      const qs = params.toString();
-      window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
+      const rest = params.toString();
+      window.history.replaceState({}, '', window.location.pathname + window.location.search + (rest ? `#${rest}` : ''));
     }
     return token ?? localStorage.getItem(TOKEN_STORAGE_KEY);
   } catch {

@@ -1,4 +1,6 @@
+import type { Db } from './db/types.js';
 import type { Env } from './env.js';
+import { canvasAccess } from './modules/access/service.js';
 import { verifyToken } from './modules/auth/jwt.js';
 
 /*
@@ -30,20 +32,25 @@ export function isWebSocketUpgrade(headers: { get(name: string): string | null }
   return headers.get('upgrade')?.toLowerCase() === 'websocket';
 }
 
-export interface RoomRequest {
-  canvasId: string;
-  userId: string;
+export type RoomAuth =
+  | { ok: true; canvasId: string; userId: string; readOnly: boolean }
+  /** 401: no/invalid token. 404: not a room URL, no such canvas, or no access to it. */
+  | { ok: false; status: 401 | 404 };
+
+/** Authenticate a room request and check the user may open that canvas. */
+export async function authorizeRoomRequest(url: URL, env: Env, db: Db): Promise<RoomAuth> {
+  const canvasId = parseRoomPath(url.pathname);
+  if (!canvasId) return { ok: false, status: 404 };
+  const token = url.searchParams.get('token');
+  const userId = token ? await verifyToken(token, env) : null;
+  if (!userId) return { ok: false, status: 401 };
+  const access = await canvasAccess(db, canvasId, userId);
+  if (!access) return { ok: false, status: 404 };
+  return { ok: true, canvasId, userId, readOnly: access === 'read' };
 }
 
-/** Resolve + authenticate a room request; null means "not a room URL or unauthorised". */
-export async function authorizeRoomRequest(url: URL, env: Env): Promise<RoomRequest | null> {
-  const canvasId = parseRoomPath(url.pathname);
-  if (!canvasId) return null;
-  const token = url.searchParams.get('token');
-  if (!token) return null;
-  const userId = await verifyToken(token, env);
-  return userId ? { canvasId, userId } : null;
-}
+/** Header the Worker sets when forwarding to the room DO (never trusted from clients). */
+export const ROOM_READONLY_HEADER = 'x-esbuddy-room-readonly';
 
 /** How long a room lingers in memory after its last participant leaves. */
 export const ROOM_IDLE_MS = 30_000;

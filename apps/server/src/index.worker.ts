@@ -2,7 +2,7 @@
 import { buildApp } from './app.js';
 import { createD1Db } from './db/d1.worker.js';
 import { envFromBindings, type WorkerBindings } from './env.worker.js';
-import { authorizeRoomRequest, isWebSocketUpgrade, parseRoomPath } from './realtime.js';
+import { ROOM_READONLY_HEADER, authorizeRoomRequest, isWebSocketUpgrade, parseRoomPath } from './realtime.js';
 import { assetsMiddleware } from './static.worker.js';
 
 // The Durable Object class must be exported from the Worker entry for the
@@ -26,10 +26,13 @@ export default {
     const url = new URL(request.url);
     if (parseRoomPath(url.pathname)) {
       if (!isWebSocketUpgrade(request.headers)) return new Response('expected websocket upgrade', { status: 426 });
-      const auth = await authorizeRoomRequest(url, env);
-      if (!auth) return new Response('unauthorized', { status: 401 });
+      const auth = await authorizeRoomRequest(url, env, createD1Db(bindings.DB));
+      if (!auth.ok) return new Response(auth.status === 401 ? 'unauthorized' : 'not found', { status: auth.status });
+      // Always overwrite the access header, so a client can't smuggle its own.
+      const headers = new Headers(request.headers);
+      headers.set(ROOM_READONLY_HEADER, auth.readOnly ? '1' : '0');
       const stub = bindings.CANVAS_ROOM.get(bindings.CANVAS_ROOM.idFromName(auth.canvasId));
-      return stub.fetch(request);
+      return stub.fetch(new Request(request, { headers }));
     }
 
     if (!app) {

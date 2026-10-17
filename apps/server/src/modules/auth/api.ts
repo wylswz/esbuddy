@@ -26,9 +26,11 @@ authRoutes.get('/google/callback', async (c) => {
   try {
     const { token } = await service.completeGoogleLogin(c.var.db, c.var.env, code);
     const frontend = c.var.env.FRONTEND_URL ?? '/';
-    return c.redirect(`${frontend}?token=${token}`);
+    // In the fragment, the token never reaches server logs or Referer headers.
+    return c.redirect(`${frontend}#token=${encodeURIComponent(token)}`);
   } catch (err) {
-    return c.json({ error: 'oauth failed', detail: String(err) }, 401);
+    console.error('[auth] google login failed', err);
+    return c.json({ error: 'oauth failed' }, 401);
   }
 });
 
